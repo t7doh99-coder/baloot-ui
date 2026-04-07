@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/l10n/locale_provider.dart';
 import 'core/l10n/app_localizations.dart';
 import 'features/splash/presentation/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Pre-cache fonts to avoid download delay on splash screen
+  GoogleFonts.config.allowRuntimeFetching = true;
+  await Future.wait([
+    GoogleFonts.pendingFonts([
+      GoogleFonts.cairo(),
+      GoogleFonts.montserrat(),
+      GoogleFonts.tajawal(),
+    ]),
+  ]);
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => LocaleProvider(),

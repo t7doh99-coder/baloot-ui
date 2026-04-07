@@ -82,7 +82,7 @@ class _SplashScreenState extends State<SplashScreen>
     _cardControllers = List.generate(4, (i) {
       return AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 700),
+        duration: const Duration(milliseconds: 1200),
       );
     });
 
@@ -102,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
       return Tween<double>(begin: 0, end: 1).animate(
         CurvedAnimation(
           parent: c,
-          curve: const Interval(0.0, 0.4, curve: Curves.easeIn),
+          curve: const Interval(0.0, 0.25, curve: Curves.easeIn),
         ),
       );
     }).toList();
@@ -156,15 +156,16 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _startSequence() async {
-    // Phase 1: Stagger card drops
+    // Phase 1: Stagger card drops — each card 350ms apart
     for (int i = 0; i < 4; i++) {
-      Future.delayed(Duration(milliseconds: 300 + i * 120), () {
+      Future.delayed(Duration(milliseconds: 400 + i * 350), () {
         if (mounted) _cardControllers[i].forward();
       });
     }
 
     // Phase 2: After all cards land → text appears
-    await Future.delayed(const Duration(milliseconds: 1400));
+    // Last card starts at 400+3*350=1450ms, takes 1200ms → lands at ~2650ms
+    await Future.delayed(const Duration(milliseconds: 2900));
     if (mounted) _textRevealController.forward();
 
     // Phase 3: Subtitle
@@ -227,107 +228,83 @@ class _SplashScreenState extends State<SplashScreen>
           // ── Background: VIP Shell (gradient + suit pattern + shimmer) ──
           const VipBackgroundShell(),
 
-          // ── Gold glow aura (pulsing) ──
-          Center(
+
+
+
+          // ── Cards fan — positioned in main Stack so they can fly in from top ──
+          ...List.generate(4, (i) => _buildCard(i)),
+
+          // ── TOP TEXT: أربعة (gold) — positioned above cards ──
+          Positioned(
+            top: MediaQuery.of(context).size.height / 2 - 200,
+            left: 0,
+            right: 0,
             child: AnimatedBuilder(
-              animation: _glowController,
+              animation: _textRevealController,
               builder: (_, __) {
-                return Container(
-                  width: 350,
-                  height: 350,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.royalGold.withValues(
-                          alpha: _glowController.isAnimating
-                              ? _glowIntensity.value
-                              : 0.0,
-                        ),
-                        blurRadius: 80,
-                        spreadRadius: 20,
+                return Opacity(
+                  opacity: _textRevealOpacity.value,
+                  child: Transform.scale(
+                    scale: _textRevealScale.value,
+                    child: Center(
+                      child: Image.asset(
+                        'assets/images/logo-text2.png',
+                        width: 170,
+                        fit: BoxFit.contain,
                       ),
-                    ],
+                    ),
                   ),
                 );
               },
             ),
           ),
 
-          // ── Main content ──
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── TOP TEXT: أربعة (gold) ──
-                AnimatedBuilder(
-                  animation: _textRevealController,
-                  builder: (_, __) {
-                    return Opacity(
-                      opacity: _textRevealOpacity.value,
-                      child: Transform.scale(
-                        scale: _textRevealScale.value,
-                        child: Image.asset(
-                          'assets/images/logo-text2.png',
-                          width: 220,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // ── CARDS FAN (with arc) ──
-                SizedBox(
-                  height: 160,
-                  width: 320,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: List.generate(4, (i) => _buildCard(i)),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ── BOTTOM TEXT: مربعة (silver/white) ──
-                AnimatedBuilder(
-                  animation: _textRevealController,
-                  builder: (_, __) {
-                    return Opacity(
-                      opacity: _textRevealOpacity.value,
-                      child: Transform.scale(
-                        scale: _textRevealScale.value,
-                        child: Image.asset(
-                          'assets/images/logo-text1.png',
-                          width: 220,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // ── Subtitle ──
-                SlideTransition(
-                  position: _subtitleSlide,
-                  child: FadeTransition(
-                    opacity: _subtitleOpacity,
-                    child: Text(
-                      'THE ROYAL CARD GAME',
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w300,
-                        letterSpacing: 6,
-                        color: AppColors.royalGold.withValues(alpha: 0.5),
+          // ── BOTTOM TEXT: مربعة (silver/white) — positioned below cards ──
+          Positioned(
+            top: MediaQuery.of(context).size.height / 2 + 80,
+            left: 0,
+            right: 0,
+            child: AnimatedBuilder(
+              animation: _textRevealController,
+              builder: (_, __) {
+                return Opacity(
+                  opacity: _textRevealOpacity.value,
+                  child: Transform.scale(
+                    scale: _textRevealScale.value,
+                    child: Center(
+                      child: Image.asset(
+                        'assets/images/logo-text1.png',
+                        width: 170,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
+                );
+              },
+            ),
+          ),
+
+          // ── Subtitle ──
+          Positioned(
+            top: MediaQuery.of(context).size.height / 2 + 200,
+            left: 0,
+            right: 0,
+            child: SlideTransition(
+              position: _subtitleSlide,
+              child: FadeTransition(
+                opacity: _subtitleOpacity,
+                child: Center(
+                  child: Text(
+                    'THE ROYAL CARD GAME',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 6,
+                      color: AppColors.royalGold.withValues(alpha: 0.5),
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
 
@@ -350,99 +327,101 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  // ─── Playing Card (with arc positioning) ──────────────────────────
+  // ─── Playing Card (matching Figma animation) ──────────────────────
   Widget _buildCard(int index) {
     final card = _cards[index];
-    final rotation = (index - 1.5) * 10 * pi / 180; // slightly more fan spread
-    final xOffset = (index - 1.5) * 55.0;
+    final rotation = (index - 1.5) * 8 * pi / 180; // 8° fan spread (Figma)
+    final xOffset = (index - 1.5) * 60.0; // 60px spacing (Figma)
     final yOffset = _cardArcOffsets[index]; // gentle upward arc
 
-    return AnimatedBuilder(
-      animation: _cardControllers[index],
-      builder: (_, __) {
-        return Opacity(
-          opacity: _cardOpacityAnimations[index].value,
-          child: Transform(
-            alignment: Alignment.bottomCenter,
-            transform: Matrix4.identity()
-              ..translate(xOffset, _cardYAnimations[index].value + yOffset)
-              ..rotateZ(rotation)
-              ..scale(_cardScaleAnimations[index].value),
-            child: Container(
-              width: 78,
-              height: 115,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
-                ),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.royalGold.withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 15,
-                    offset: const Offset(0, 10),
+    return Center(
+      child: AnimatedBuilder(
+        animation: _cardControllers[index],
+        builder: (_, __) {
+          return Opacity(
+            opacity: _cardOpacityAnimations[index].value,
+            child: Transform(
+              alignment: Alignment.bottomCenter,
+              transform: Matrix4.identity()
+                ..translate(xOffset, _cardYAnimations[index].value + yOffset)
+                ..rotateZ(rotation)
+                ..scale(_cardScaleAnimations[index].value),
+              child: Container(
+                width: 90,
+                height: 130,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
                   ),
-                  BoxShadow(
-                    color: AppColors.royalGold.withValues(alpha: 0.08),
-                    blurRadius: 8,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.royalGold.withValues(alpha: 0.4),
+                    width: 1.5,
                   ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(card.value, style: GoogleFonts.cairo(
-                          fontSize: 15, height: 1, color: card.suitColor,
-                          fontWeight: FontWeight.w700,
-                        )),
-                        Text(card.suit, style: TextStyle(
-                          fontSize: 11, height: 1, color: card.suitColor,
-                        )),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: const Offset(0, 15),
                     ),
-                  ),
-                  Text(card.suit, style: TextStyle(
-                    fontSize: 26, height: 1,
-                    color: card.suitColor.withValues(alpha: 0.3),
-                  )),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Transform.rotate(
-                      angle: pi,
+                    BoxShadow(
+                      color: AppColors.royalGold.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Align(
+                      alignment: Alignment.topLeft,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(card.value, style: GoogleFonts.cairo(
-                            fontSize: 15, height: 1, color: card.suitColor,
+                            fontSize: 18, height: 1, color: card.suitColor,
                             fontWeight: FontWeight.w700,
                           )),
                           Text(card.suit, style: TextStyle(
-                            fontSize: 11, height: 1, color: card.suitColor,
+                            fontSize: 14, height: 1, color: card.suitColor,
                           )),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    Text(card.suit, style: TextStyle(
+                      fontSize: 32, height: 1,
+                      color: card.suitColor.withValues(alpha: 0.3),
+                    )),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Transform.rotate(
+                        angle: pi,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(card.value, style: GoogleFonts.cairo(
+                              fontSize: 18, height: 1, color: card.suitColor,
+                              fontWeight: FontWeight.w700,
+                            )),
+                            Text(card.suit, style: TextStyle(
+                              fontSize: 14, height: 1, color: card.suitColor,
+                            )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
