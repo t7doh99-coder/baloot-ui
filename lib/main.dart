@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/l10n/locale_provider.dart';
 import 'core/l10n/app_localizations.dart';
+import 'features/splash/presentation/splash_screen.dart';
 
 void main() {
   runApp(
@@ -38,7 +39,7 @@ class AntigravittyBalootApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const _PlaceholderHome(),
+      home: const SplashScreen(),
     );
   }
 }
