@@ -44,34 +44,3 @@ class AntigravittyBalootApp extends StatelessWidget {
   }
 }
 
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
-
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              l10n.translate('app_name'),
-              style: Theme.of(context).textTheme.displayMedium,
-            ),
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: () => localeProvider.toggleLocale(),
-              child: Text(
-                l10n.translate('switch_language'),
-                style: const TextStyle(color: Color(0xFFD4AF37), fontSize: 16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
