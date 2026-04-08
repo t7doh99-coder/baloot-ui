@@ -1,6 +1,6 @@
 # Royal Baloot (أربعة مربعة) - VIP Edition
 
-**Client:** Antigravitty / Visca ME  
+**Client:** Visca ME  
 **Lead UI Developer:** Abdul Sami  
 **Phase:** 1 - Technical Foundation & Architecture
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/l10n/locale_provider.dart';
 import 'core/l10n/app_localizations.dart';
+import 'core/providers/user_provider.dart';
 import 'features/splash/presentation/splash_screen.dart';
 
 void main() async {
@@ -21,8 +22,11 @@ void main() async {
   ]);
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => LocaleProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+      ],
       child: const AntigravittyBalootApp(),
     ),
   );

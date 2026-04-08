@@ -10,8 +10,10 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
+      useMaterial3: true,
       scaffoldBackgroundColor: AppColors.antigravityBlack,
       primaryColor: AppColors.royalGold,
+      canvasColor: AppColors.antigravityBlack,
       colorScheme: const ColorScheme.dark(
         primary: AppColors.royalGold,
         secondary: AppColors.silverLining,
@@ -23,7 +25,7 @@ class AppTheme {
         onError: AppColors.pureWhite,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.antigravityBlack,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: _montserratStyle(18, FontWeight.w700, AppColors.royalGold),
@@ -35,6 +37,47 @@ class AppTheme {
         unselectedItemColor: AppColors.silverLining,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+      ),
+      iconTheme: const IconThemeData(color: AppColors.silverLining),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.slateGlass.withValues(alpha: 0.55),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+          borderSide: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.18)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+          borderSide: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.18)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+          borderSide: const BorderSide(color: AppColors.royalGold, width: 1.4),
+        ),
+        hintStyle: _montserratStyle(13, FontWeight.w400, AppColors.muted),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.slateGlass.withValues(alpha: 0.7),
+        selectedColor: AppColors.royalGold.withValues(alpha: 0.18),
+        labelStyle: _montserratStyle(12, FontWeight.w600, AppColors.silverLining),
+        side: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusXl)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFF1C1F26),
+        contentTextStyle: _montserratStyle(13, FontWeight.w500, AppColors.pureWhite),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+          side: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.25)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xFF1C1F26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+          side: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.22)),
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.slateGlass,
