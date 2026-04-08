@@ -66,12 +66,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _glowController;
   late final Animation<double> _glowIntensity;
 
-  // Suit loader
-  late final AnimationController _loaderFadeController;
-  late final Animation<double> _loaderOpacity;
-  int _activeSuit = 0;
-  Timer? _suitTimer;
-
   Timer? _navTimer;
 
   @override
@@ -145,13 +139,6 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
-    // ── Loader ──
-    _loaderFadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _loaderOpacity = Tween<double>(begin: 0, end: 1).animate(_loaderFadeController);
-
     _startSequence();
   }
 
@@ -179,15 +166,6 @@ class _SplashScreenState extends State<SplashScreen>
       _glowController.repeat(reverse: true);
     }
 
-    // Phase 5: Suit loader
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (mounted) {
-      _loaderFadeController.forward();
-      _suitTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-        if (mounted) setState(() => _activeSuit = (_activeSuit + 1) % 4);
-      });
-    }
-
     // Navigate after 5s
     _navTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
@@ -213,8 +191,6 @@ class _SplashScreenState extends State<SplashScreen>
     _subtitleController.dispose();
     _shimmerController.dispose();
     _glowController.dispose();
-    _loaderFadeController.dispose();
-    _suitTimer?.cancel();
     _navTimer?.cancel();
     super.dispose();
   }
@@ -231,12 +207,24 @@ class _SplashScreenState extends State<SplashScreen>
 
 
 
+          // ── Golden Circle Lines (rendered under cards) ──
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _textRevealController,
+              builder: (_, __) {
+                return CustomPaint(
+                  painter: _GoldenCirclePainter(_textRevealController.value),
+                );
+              },
+            ),
+          ),
+
           // ── Cards fan — positioned in main Stack so they can fly in from top ──
           ...List.generate(4, (i) => _buildCard(i)),
 
           // ── TOP TEXT: أربعة (gold) — positioned above cards ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 - 200,
+            top: MediaQuery.of(context).size.height / 2 - 220,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
@@ -261,7 +249,7 @@ class _SplashScreenState extends State<SplashScreen>
 
           // ── BOTTOM TEXT: مربعة (silver/white) — positioned below cards ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 + 80,
+            top: MediaQuery.of(context).size.height / 2 + 100,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
@@ -286,7 +274,7 @@ class _SplashScreenState extends State<SplashScreen>
 
           // ── Subtitle ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 + 200,
+            top: MediaQuery.of(context).size.height / 2 + 160,
             left: 0,
             right: 0,
             child: SlideTransition(
@@ -304,20 +292,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
-              ),
-            ),
-          ),
-
-          // ── Suit loader at bottom ──
-          Positioned(
-            bottom: 48,
-            left: 0,
-            right: 0,
-            child: FadeTransition(
-              opacity: _loaderOpacity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(4, (i) => _buildSuitIcon(i)),
               ),
             ),
           ),
@@ -424,35 +398,57 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+}
 
-  // ─── Suit Loader Icon ─────────────────────────────────────────────
-  Widget _buildSuitIcon(int index) {
-    final isActive = _activeSuit == index;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      child: AnimatedScale(
-        scale: isActive ? 1.5 : 1.0,
-        duration: const Duration(milliseconds: 300),
-        child: AnimatedOpacity(
-          opacity: isActive ? 1.0 : 0.3,
-          duration: const Duration(milliseconds: 300),
-          child: Text(
-            _suitSymbols[index],
-            style: TextStyle(
-              fontSize: 28,
-              color: _suitColors[index],
-              shadows: isActive
-                  ? [Shadow(
-                      color: _suitColors[index].withValues(alpha: 0.8),
-                      blurRadius: 20,
-                    )]
-                  : null,
-            ),
-          ),
-        ),
-      ),
+// ─── Golden Circle Painter ──────────────────────────────────────────
+class _GoldenCirclePainter extends CustomPainter {
+  final double progress;
+
+  _GoldenCirclePainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress == 0) return;
+
+    final paint = Paint()
+      ..color = AppColors.royalGold.withValues(alpha: 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // Center point midway between the top and bottom text elements
+    // Top text center ~ -190, Bottom text center ~ +130 => Center is -30
+    // Shifting it a bit lower to match visual weight
+    final center = Offset(size.width / 2, size.height / 2 - 15);
+    // Radius of 160 reaches exactly -190 (top) and +130 (bottom)
+    final radius = 160.0;
+
+    // Gap at the top and bottom so it connects perfectly to the text width
+    const gapAngle = 0.60; // Increased to give text more breathing room
+    const maxSweep = pi - 2 * gapAngle;
+    final sweep = maxSweep * progress;
+
+    // Left arc: starting near top-left, going down to bottom-left
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi / 2 - gapAngle,
+      -sweep,
+      false,
+      paint,
     );
+
+    // Right arc: starting near top-right, going down to bottom-right
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi / 2 + gapAngle,
+      sweep,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoldenCirclePainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }

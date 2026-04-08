@@ -86,8 +86,8 @@ class _RippleSuitPainter extends CustomPainter {
   final double rippleProgress; // 0.0 → 1.0
 
   // LOGIC_PLUG_IN: Adjust these for pattern density & ripple look
-  static const double _tileSize = 36.0;
-  static const double _iconSize = 14.0;
+  static const double _tileSize = 28.0;       // Denser grid (more clustered)
+  static const double _iconSize = 18.0;       // Larger icons
   static const double _baseOpacity = 0.04;    // idle icon opacity
   static const double _peakOpacity = 0.18;    // icon opacity at wave peak
   static const double _rippleWidth = 0.20;    // width of the ripple band (0→1)
