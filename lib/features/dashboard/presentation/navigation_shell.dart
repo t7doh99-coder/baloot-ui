@@ -636,7 +636,7 @@ class _PlayMedallionState extends State<_PlayMedallion> {
                           color: const Color(0xFFF4E4B7),
                           fontSize: 19,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 4,
+                          letterSpacing: widget.isArabic ? 0 : 4,
                         ),
                       ),
                     ],
