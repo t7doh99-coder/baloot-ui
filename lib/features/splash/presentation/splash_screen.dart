@@ -289,7 +289,7 @@ class _SplashScreenState extends State<SplashScreen>
                         style: GoogleFonts.montserrat(
                           fontSize: 13,
                           fontWeight: FontWeight.w300,
-                          letterSpacing: 6,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 6,
                           color: AppColors.royalGold.withValues(alpha: 0.5),
                         ),
                       ),

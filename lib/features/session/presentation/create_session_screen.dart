@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-
+import '../../../core/l10n/locale_provider.dart';
 // ══════════════════════════════════════════════════════════════════
 //  CREATE SESSION SCREEN — Plain & simple session creation
 //
@@ -52,8 +53,7 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // For now, hardcode English. Replace with LocaleProvider later.
-    const isArabic = false;
+    final isArabic = context.watch<LocaleProvider>().isArabic;
 
     return Scaffold(
       backgroundColor: AppColors.antigravityBlack,
