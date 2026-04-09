@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/vip_background_shell.dart';
+import '../../../core/l10n/locale_provider.dart';
 import '../../dashboard/presentation/navigation_shell.dart';
 
 // ─── Data ──────────────────────────────────────────────────────────
@@ -21,19 +22,18 @@ const _cards = [
   _CardData('♦', 'J', Color(0xFFE53935)),
 ];
 
-const _suitSymbols = ['♠', '♥', '♣', '♦'];
-const _suitColors = [
-  Color(0xFFC0C0C0),
-  Color(0xFFE53935),
-  Color(0xFFC0C0C0),
-  Color(0xFFE53935),
-];
-
-// Vertical arc offsets for cards (parabolic curve)
-// Cards index 0,1,2,3 → offsets to form a gentle upward arc
+// Vertical arc offsets for cards
 const _cardArcOffsets = [-8.0, -18.0, -18.0, -8.0];
 
-// ─── Main Splash Screen ────────────────────────────────────────────
+// ─── Splash Screen ─────────────────────────────────────────────────
+// PERFORMANCE NOTES:
+// • Removed VipBackgroundShell (heavy CustomPaint every frame)
+// • Replaced with static gradient (zero repaints)
+// • Reduced animation controllers from 6 to 3
+// • Cut total splash time from 5s to 2.8s
+// • Smoother card animations with faster stagger
+// ───────────────────────────────────────────────────────────────────
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -43,28 +43,21 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  // Card drop animations
-  late final List<AnimationController> _cardControllers;
-  late final List<Animation<double>> _cardYAnimations;
-  late final List<Animation<double>> _cardScaleAnimations;
-  late final List<Animation<double>> _cardOpacityAnimations;
+  // Single controller for all 4 cards (staggered via intervals)
+  late final AnimationController _cardsController;
+  late final List<Animation<double>> _cardY;
+  late final List<Animation<double>> _cardScale;
+  late final List<Animation<double>> _cardOpacity;
 
-  // Text reveal (after cards land)
-  late final AnimationController _textRevealController;
-  late final Animation<double> _textRevealOpacity;
-  late final Animation<double> _textRevealScale;
-
-  // Subtitle
-  late final AnimationController _subtitleController;
+  // Text + subtitle reveal
+  late final AnimationController _revealController;
+  late final Animation<double> _textOpacity;
+  late final Animation<double> _textScale;
   late final Animation<double> _subtitleOpacity;
   late final Animation<Offset> _subtitleSlide;
 
-  // Shimmer
-  late final AnimationController _shimmerController;
-
-  // Glow pulse
-  late final AnimationController _glowController;
-  late final Animation<double> _glowIntensity;
+  // Golden circle
+  late final AnimationController _circleController;
 
   Timer? _navTimer;
 
@@ -72,106 +65,104 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // ── Card drops ──
-    _cardControllers = List.generate(4, (i) {
-      return AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1200),
+    // ── Cards: single controller, staggered intervals ──
+    _cardsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    _cardY = List.generate(4, (i) {
+      final start = i * 0.15; // 0, 0.15, 0.30, 0.45
+      final end = (start + 0.55).clamp(0.0, 1.0);
+      return Tween<double>(begin: -500, end: 0).animate(
+        CurvedAnimation(
+          parent: _cardsController,
+          curve: Interval(start, end, curve: Curves.easeOutCubic),
+        ),
       );
     });
 
-    _cardYAnimations = _cardControllers.map((c) {
-      return Tween<double>(begin: -600, end: 0).animate(
-        CurvedAnimation(parent: c, curve: Curves.easeOutBack),
-      );
-    }).toList();
-
-    _cardScaleAnimations = _cardControllers.map((c) {
-      return Tween<double>(begin: 1.8, end: 1.0).animate(
-        CurvedAnimation(parent: c, curve: Curves.easeOut),
-      );
-    }).toList();
-
-    _cardOpacityAnimations = _cardControllers.map((c) {
-      return Tween<double>(begin: 0, end: 1).animate(
+    _cardScale = List.generate(4, (i) {
+      final start = i * 0.15;
+      final end = (start + 0.55).clamp(0.0, 1.0);
+      return Tween<double>(begin: 1.5, end: 1.0).animate(
         CurvedAnimation(
-          parent: c,
-          curve: const Interval(0.0, 0.25, curve: Curves.easeIn),
+          parent: _cardsController,
+          curve: Interval(start, end, curve: Curves.easeOut),
         ),
       );
-    }).toList();
+    });
 
-    // ── Text reveal ──
-    _textRevealController = AnimationController(
+    _cardOpacity = List.generate(4, (i) {
+      final start = i * 0.15;
+      final end = (start + 0.2).clamp(0.0, 1.0);
+      return Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(
+          parent: _cardsController,
+          curve: Interval(start, end, curve: Curves.easeIn),
+        ),
+      );
+    });
+
+    // ── Text + subtitle: single controller ──
+    _revealController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _textRevealOpacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _textRevealController, curve: Curves.easeOut),
-    );
-    _textRevealScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _textRevealController, curve: Curves.easeOutCubic),
-    );
 
-    // ── Subtitle ──
-    _subtitleController = AnimationController(
+    _textOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _revealController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
+    _textScale = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _revealController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+      ),
+    );
+    _subtitleOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _revealController,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      ),
+    );
+    _subtitleSlide = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _revealController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+    ));
+
+    // ── Golden circle ──
+    _circleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    );
-    _subtitleOpacity = Tween<double>(begin: 0, end: 1).animate(_subtitleController);
-    _subtitleSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _subtitleController, curve: Curves.easeOut));
-
-    // ── Shimmer ──
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-
-    // ── Glow pulse ──
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-    _glowIntensity = Tween<double>(begin: 0.06, end: 0.18).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
     _startSequence();
   }
 
   void _startSequence() async {
-    // Phase 1: Stagger card drops — each card 350ms apart
-    for (int i = 0; i < 4; i++) {
-      Future.delayed(Duration(milliseconds: 400 + i * 350), () {
-        if (mounted) _cardControllers[i].forward();
-      });
-    }
+    // Phase 1: Cards fly in (starts immediately, no delay)
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (mounted) _cardsController.forward();
 
-    // Phase 2: After all cards land → text appears
-    // Last card starts at 400+3*350=1450ms, takes 1200ms → lands at ~2650ms
-    await Future.delayed(const Duration(milliseconds: 2900));
-    if (mounted) _textRevealController.forward();
-
-    // Phase 3: Subtitle
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) _subtitleController.forward();
-
-    // Phase 4: Shimmer + glow
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Phase 2: Text + circle (after cards land ~1.2s)
+    await Future.delayed(const Duration(milliseconds: 1300));
     if (mounted) {
-      _shimmerController.repeat();
-      _glowController.repeat(reverse: true);
+      _revealController.forward();
+      _circleController.forward();
     }
 
-    // Navigate after 5s
-    _navTimer = Timer(const Duration(seconds: 5), () {
+    // Navigate at 2.8s total (fast!)
+    _navTimer = Timer(const Duration(milliseconds: 1200), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
+            transitionDuration: const Duration(milliseconds: 400),
             pageBuilder: (_, __, ___) => const NavigationShell(),
             transitionsBuilder: (_, anim, __, child) {
               return FadeTransition(opacity: anim, child: child);
@@ -184,13 +175,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    for (var c in _cardControllers) {
-      c.dispose();
-    }
-    _textRevealController.dispose();
-    _subtitleController.dispose();
-    _shimmerController.dispose();
-    _glowController.dispose();
+    _cardsController.dispose();
+    _revealController.dispose();
+    _circleController.dispose();
     _navTimer?.cancel();
     super.dispose();
   }
@@ -201,39 +188,49 @@ class _SplashScreenState extends State<SplashScreen>
       backgroundColor: const Color(0xFF000000),
       body: Stack(
         children: [
-          // ── Background: VIP Shell (gradient + suit pattern + shimmer) ──
-          const VipBackgroundShell(),
+          // ── Background: Static gradient (zero repaints, fast) ──
+          Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.2,
+                colors: [
+                  Color(0xFF1C1F26),
+                  Color(0xFF0A0C10),
+                  Color(0xFF050608),
+                ],
+                stops: [0.0, 0.55, 1.0],
+              ),
+            ),
+          ),
 
-
-
-
-          // ── Golden Circle Lines (rendered under cards) ──
+          // ── Golden circle arcs ──
           Positioned.fill(
             child: AnimatedBuilder(
-              animation: _textRevealController,
+              animation: _circleController,
               builder: (_, __) {
                 return CustomPaint(
-                  painter: _GoldenCirclePainter(_textRevealController.value),
+                  painter: _GoldenCirclePainter(_circleController.value),
                 );
               },
             ),
           ),
 
-          // ── Cards fan — positioned in main Stack so they can fly in from top ──
+          // ── Cards ──
           ...List.generate(4, (i) => _buildCard(i)),
 
-          // ── TOP TEXT: أربعة (gold) — positioned above cards ──
+          // ── Top logo text ──
           Positioned(
             top: MediaQuery.of(context).size.height / 2 - 220,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
-              animation: _textRevealController,
+              animation: _revealController,
               builder: (_, __) {
                 return Opacity(
-                  opacity: _textRevealOpacity.value,
+                  opacity: _textOpacity.value,
                   child: Transform.scale(
-                    scale: _textRevealScale.value,
+                    scale: _textScale.value,
                     child: Center(
                       child: Image.asset(
                         'assets/images/logo-text2.png',
@@ -247,18 +244,18 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // ── BOTTOM TEXT: مربعة (silver/white) — positioned below cards ──
+          // ── Bottom logo text ──
           Positioned(
             top: MediaQuery.of(context).size.height / 2 + 100,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
-              animation: _textRevealController,
+              animation: _revealController,
               builder: (_, __) {
                 return Opacity(
-                  opacity: _textRevealOpacity.value,
+                  opacity: _textOpacity.value,
                   child: Transform.scale(
-                    scale: _textRevealScale.value,
+                    scale: _textScale.value,
                     child: Center(
                       child: Image.asset(
                         'assets/images/logo-text1.png',
@@ -272,54 +269,59 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // ── Subtitle ──
+          // ── Subtitle — at the bottom ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 + 160,
+            bottom: 60,
             left: 0,
             right: 0,
-            child: SlideTransition(
-              position: _subtitleSlide,
-              child: FadeTransition(
-                opacity: _subtitleOpacity,
-                child: Center(
-                  child: Text(
-                    'THE ROYAL CARD GAME',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 6,
-                      color: AppColors.royalGold.withValues(alpha: 0.5),
+            child: AnimatedBuilder(
+              animation: _revealController,
+              builder: (_, __) {
+                return SlideTransition(
+                  position: _subtitleSlide,
+                  child: Opacity(
+                    opacity: _subtitleOpacity.value,
+                    child: Center(
+                      child: Text(
+                        context.read<LocaleProvider>().isArabic
+                            ? 'لعبة الورق الملكية'
+                            : 'THE ROYAL CARD GAME',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 6,
+                          color: AppColors.royalGold.withValues(alpha: 0.5),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
-
         ],
       ),
     );
   }
 
-  // ─── Playing Card (matching Figma animation) ──────────────────────
   Widget _buildCard(int index) {
     final card = _cards[index];
-    final rotation = (index - 1.5) * 8 * pi / 180; // 8° fan spread (Figma)
-    final xOffset = (index - 1.5) * 60.0; // 60px spacing (Figma)
-    final yOffset = _cardArcOffsets[index]; // gentle upward arc
+    final rotation = (index - 1.5) * 8 * pi / 180;
+    final xOffset = (index - 1.5) * 60.0;
+    final yOffset = _cardArcOffsets[index];
 
     return Center(
       child: AnimatedBuilder(
-        animation: _cardControllers[index],
+        animation: _cardsController,
         builder: (_, __) {
           return Opacity(
-            opacity: _cardOpacityAnimations[index].value,
+            opacity: _cardOpacity[index].value,
             child: Transform(
               alignment: Alignment.bottomCenter,
               transform: Matrix4.identity()
-                ..translate(xOffset, _cardYAnimations[index].value + yOffset)
+                ..translate(xOffset, _cardY[index].value + yOffset)
                 ..rotateZ(rotation)
-                ..scale(_cardScaleAnimations[index].value),
+                ..scale(_cardScale[index].value),
               child: Container(
                 width: 90,
                 height: 130,
@@ -410,41 +412,35 @@ class _GoldenCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (progress == 0) return;
 
-    final paint = Paint()
-      ..color = AppColors.royalGold.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    // Center point midway between the top and bottom text elements
-    // Top text center ~ -190, Bottom text center ~ +130 => Center is -30
-    // Shifting it a bit lower to match visual weight
     final center = Offset(size.width / 2, size.height / 2 - 15);
-    // Radius of 160 reaches exactly -190 (top) and +130 (bottom)
     final radius = 160.0;
 
-    // Gap at the top and bottom so it connects perfectly to the text width
-    const gapAngle = 0.60; // Increased to give text more breathing room
+    const gapAngle = 0.60;
     const maxSweep = pi - 2 * gapAngle;
     final sweep = maxSweep * progress;
 
-    // Left arc: starting near top-left, going down to bottom-left
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -pi / 2 - gapAngle,
-      -sweep,
-      false,
-      paint,
-    );
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Right arc: starting near top-right, going down to bottom-right
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -pi / 2 + gapAngle,
-      sweep,
-      false,
-      paint,
-    );
+    // ── Glow layer (wider, blurred, softer) ──
+    final glowPaint = Paint()
+      ..color = AppColors.royalGold.withValues(alpha: 0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    canvas.drawArc(rect, -pi / 2 - gapAngle, -sweep, false, glowPaint);
+    canvas.drawArc(rect, -pi / 2 + gapAngle, sweep, false, glowPaint);
+
+    // ── Main stroke (thicker, solid) ──
+    final paint = Paint()
+      ..color = AppColors.royalGold.withValues(alpha: 0.45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, -pi / 2 - gapAngle, -sweep, false, paint);
+    canvas.drawArc(rect, -pi / 2 + gapAngle, sweep, false, paint);
   }
 
   @override

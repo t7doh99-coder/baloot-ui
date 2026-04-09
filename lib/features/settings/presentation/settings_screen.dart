@@ -4,204 +4,448 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/locale_provider.dart';
 
-/// Settings Screen — Language control + future settings
-/// LOGIC_PLUG_IN: Add account, notifications, sound, etc.
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+// ══════════════════════════════════════════════════════════════════
+//  SETTINGS PANEL — Clash Royale-inspired modal overlay
+//  Opens as a dialog, not a full page.
+//
+//  Usage:
+//    SettingsPanel.show(context);
+// ══════════════════════════════════════════════════════════════════
 
-  @override
-  Widget build(BuildContext context) {
-    final localeProvider = context.watch<LocaleProvider>();
-    final isArabic = localeProvider.isArabic;
+class SettingsPanel {
+  SettingsPanel._();
 
-    return Scaffold(
-      backgroundColor: AppColors.antigravityBlack,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0F14),
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new,
-            color: AppColors.royalGold.withValues(alpha: 0.7),
-            size: 18,
+  /// Show the settings panel as a centered modal dialog
+  static Future<void> show(BuildContext context) {
+    return showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Settings',
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      transitionDuration: const Duration(milliseconds: 250),
+      transitionBuilder: (_, anim, __, child) {
+        return FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.9, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            ),
+            child: child,
           ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          isArabic ? 'الإعدادات' : 'Settings',
-          style: GoogleFonts.montserrat(
-            color: const Color(0xFFF4E4B7),
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1,
-          ),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  AppColors.royalGold.withValues(alpha: 0.3),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: Directionality(
-        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          children: [
-            // ── Language ──
-            _SettingsTile(
-              icon: Icons.language,
-              title: isArabic ? 'اللغة' : 'Language',
-              trailing: _LanguageToggle(
-                isArabic: isArabic,
-                onToggle: localeProvider.toggleLocale,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // ── Placeholder sections ──
-            _SettingsTile(
-              icon: Icons.person_outline,
-              title: isArabic ? 'الحساب' : 'Account',
-              trailing: _comingSoonLabel(),
-            ),
-            const SizedBox(height: 12),
-            _SettingsTile(
-              icon: Icons.notifications_none,
-              title: isArabic ? 'الإشعارات' : 'Notifications',
-              trailing: _comingSoonLabel(),
-            ),
-            const SizedBox(height: 12),
-            _SettingsTile(
-              icon: Icons.volume_up_outlined,
-              title: isArabic ? 'الصوت' : 'Sound',
-              trailing: _comingSoonLabel(),
-            ),
-            const SizedBox(height: 12),
-            _SettingsTile(
-              icon: Icons.info_outline,
-              title: isArabic ? 'حول التطبيق' : 'About',
-              trailing: _comingSoonLabel(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _comingSoonLabel() {
-    return Text(
-      'Soon',
-      style: GoogleFonts.montserrat(
-        color: AppColors.royalGold.withValues(alpha: 0.3),
-        fontSize: 11,
-        letterSpacing: 0.5,
-      ),
+        );
+      },
+      pageBuilder: (context, _, __) => const _SettingsPanelContent(),
     );
   }
 }
 
-// ── Settings Tile ──
-class _SettingsTile extends StatelessWidget {
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.trailing,
-  });
-
-  final IconData icon;
-  final String title;
-  final Widget trailing;
+class _SettingsPanelContent extends StatelessWidget {
+  const _SettingsPanelContent();
 
   @override
   Widget build(BuildContext context) {
+    final locale = context.watch<LocaleProvider>();
+    final isArabic = locale.isArabic;
+
+    return Center(
+      child: Container(
+          width: MediaQuery.of(context).size.width * 0.88,
+          margin: const EdgeInsets.symmetric(vertical: 40),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141720),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.royalGold.withValues(alpha: 0.25),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.royalGold.withValues(alpha: 0.08),
+                blurRadius: 30,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Header: Title + Close ──
+                _header(context, isArabic),
+
+                // ── Body ──
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Account Section ──
+                        _sectionCard(
+                          children: [
+                            _accountRow(isArabic),
+                            const SizedBox(height: 10),
+                            _connectedBadge(isArabic),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // ── Audio & Language Row ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _settingsButton(
+                                label: isArabic ? 'الصوت' : 'Audio',
+                                sublabel: isArabic ? 'الصوت' : 'Audio',
+                                icon: Icons.volume_up_rounded,
+                                onTap: () {
+                                  // LOGIC_PLUG_IN: Toggle audio
+                                  debugPrint('[Settings] Audio tapped');
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _settingsButton(
+                                label: isArabic ? 'اللغة' : 'Language',
+                                sublabel: isArabic ? 'عربي' : 'English',
+                                icon: Icons.language_rounded,
+                                onTap: locale.toggleLocale,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // ── Change Name (full width) ──
+                        _settingsButton(
+                          label: isArabic ? 'تغيير الاسم' : 'Change Name',
+                          icon: Icons.edit_rounded,
+                          onTap: () {
+                            // LOGIC_PLUG_IN: Open name change dialog
+                            debugPrint('[Settings] Change Name tapped');
+                          },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // ── Notifications ──
+                        _settingsButton(
+                          label: isArabic ? 'الإشعارات' : 'Notifications',
+                          icon: Icons.notifications_none_rounded,
+                          onTap: () {
+                            debugPrint('[Settings] Notifications tapped');
+                          },
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        // ── Divider ──
+                        Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                AppColors.royalGold.withValues(alpha: 0.2),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // ── Bottom Links Grid ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _linkButton(
+                                isArabic ? 'المساعدة' : 'Help & Support',
+                                () => debugPrint('[Settings] Help'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _linkButton(
+                                isArabic ? 'الخصوصية' : 'Privacy',
+                                () => debugPrint('[Settings] Privacy'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _linkButton(
+                                isArabic ? 'شروط الخدمة' : 'Terms of Service',
+                                () => debugPrint('[Settings] Terms'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _linkButton(
+                                isArabic ? 'حول' : 'Credits',
+                                () => debugPrint('[Settings] Credits'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // ── Player ID ──
+                        Center(
+                          child: Text(
+                            'Player ID: #MOCK001',
+                            style: GoogleFonts.montserrat(
+                              color: AppColors.royalGold.withValues(alpha: 0.3),
+                              fontSize: 9,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+    );
+  }
+
+  // ── Header ──
+  Widget _header(BuildContext context, bool isArabic) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.fromLTRB(18, 14, 10, 10),
       decoration: BoxDecoration(
-        color: const Color(0x991C1F26),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.royalGold.withValues(alpha: 0.12)),
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.royalGold.withValues(alpha: 0.15),
+          ),
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.royalGold.withValues(alpha: 0.6), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.montserrat(
-                color: const Color(0xFFF4E4B7),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+          const Spacer(),
+          Text(
+            isArabic ? 'الإعدادات' : 'Settings',
+            style: GoogleFonts.montserrat(
+              color: const Color(0xFFF4E4B7),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
+          const Spacer(),
+          // ── Back chevron (no box) ──
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Image.asset(
+                'assets/images/chevron-left.png',
+                width: 28,
+                height: 28,
+                color: AppColors.royalGold,
               ),
             ),
           ),
-          trailing,
         ],
       ),
     );
   }
-}
 
-// ── Language Toggle Switch ──
-class _LanguageToggle extends StatelessWidget {
-  const _LanguageToggle({
-    required this.isArabic,
-    required this.onToggle,
-  });
+  // ── Account Section Card ──
+  Widget _sectionCard({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.royalGold.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Column(children: children),
+    );
+  }
 
-  final bool isArabic;
-  final VoidCallback onToggle;
+  Widget _accountRow(bool isArabic) {
+    return Row(
+      children: [
+        // ── Avatar ──
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.royalGold, width: 1.5),
+            color: const Color(0xFF2B3140),
+          ),
+          child: const Icon(Icons.person, size: 20, color: Color(0xFFD6B146)),
+        ),
+        const SizedBox(width: 12),
+        // ── App Identity ──
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Royal Baloot',
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFFF4E4B7),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                isArabic
+                    ? 'اربط حسابك للعب على أجهزة متعددة'
+                    : 'Connect to play on multiple devices',
+                style: GoogleFonts.montserrat(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 9,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _connectedBadge(bool isArabic) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D3326).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF4ADE80).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.check_circle, size: 16, color: Color(0xFF4ADE80)),
+          const SizedBox(width: 6),
+          Text(
+            isArabic ? 'متصل' : 'CONNECTED',
+            style: GoogleFonts.montserrat(
+              color: const Color(0xFF4ADE80),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Gold Settings Button ──
+  Widget _settingsButton({
+    required String label,
+    String? sublabel,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
-      onTap: onToggle,
+      onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        height: 48,
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.royalGold.withValues(alpha: 0.25)),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF2A2415), Color(0xFF1E1A10)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.royalGold.withValues(alpha: 0.35),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _langPill('EN', !isArabic),
-            _langPill('عربي', isArabic),
+            Icon(icon, size: 16, color: AppColors.royalGold),
+            const SizedBox(width: 6),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (sublabel != null)
+                  Text(
+                    sublabel,
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.royalGold.withValues(alpha: 0.5),
+                      fontSize: 7,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                Text(
+                  label,
+                  style: GoogleFonts.montserrat(
+                    color: const Color(0xFFF4E4B7),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _langPill(String label, bool active) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? AppColors.royalGold.withValues(alpha: 0.2) : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        border: active
-            ? Border.all(color: AppColors.royalGold.withValues(alpha: 0.5))
-            : null,
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.montserrat(
-          color: active ? const Color(0xFFF4E4B7) : AppColors.royalGold.withValues(alpha: 0.4),
-          fontSize: 11,
-          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+  // ── Bottom Link Button ──
+  Widget _linkButton(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.royalGold.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(
+              color: const Color(0xFFF4E4B7).withValues(alpha: 0.6),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2,
+            ),
+          ),
         ),
       ),
     );

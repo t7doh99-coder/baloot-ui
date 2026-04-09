@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="baloot_game"
+        android:label="Royal Baloot"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
