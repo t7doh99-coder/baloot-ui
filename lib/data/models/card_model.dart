@@ -1,40 +1,38 @@
-/// Represents a playing card in the Baloot deck
 enum Suit { hearts, diamonds, spades, clubs }
 
 enum Rank { seven, eight, nine, ten, jack, queen, king, ace }
+
+/// Game modes that affect card values and rankings.
+enum GameMode { sun, hakam }
 
 class CardModel {
   final Suit suit;
   final Rank rank;
 
-  const CardModel({
-    required this.suit,
-    required this.rank,
-  });
+  const CardModel({required this.suit, required this.rank});
 
-  /// Point value of the card (Baloot standard scoring)
-  int get value {
-    switch (rank) {
-      case Rank.seven:
-        return 0;
-      case Rank.eight:
-        return 0;
-      case Rank.nine:
-        return 0;
-      case Rank.ten:
-        return 10;
-      case Rank.jack:
-        return 2;
-      case Rank.queen:
-        return 3;
-      case Rank.king:
-        return 4;
-      case Rank.ace:
-        return 11;
+  /// Dynamic point value based on game mode and trump suit.
+  ///
+  /// In Hakam, trump-suit Jack = 20, trump-suit 9 = 14.
+  /// In Sun or non-trump suits, standard values apply.
+  int getPointValue({required GameMode mode, Suit? trumpSuit}) {
+    if (mode == GameMode.hakam && suit == trumpSuit) {
+      return _hakamTrumpPoints[rank]!;
     }
+    return _standardPoints[rank]!;
   }
 
-  /// Display name for the card
+  /// Strength rank for trick comparison (higher = stronger).
+  ///
+  /// Hakam trump suit uses J>9>A>10>K>Q>8>7.
+  /// Sun / non-trump uses A>10>K>Q>J>9>8>7.
+  int getStrength({required GameMode mode, Suit? trumpSuit}) {
+    if (mode == GameMode.hakam && suit == trumpSuit) {
+      return _hakamTrumpStrength[rank]!;
+    }
+    return _standardStrength[rank]!;
+  }
+
   String get displayName => '${rank.name.toUpperCase()} of ${suit.name}';
 
   @override
@@ -47,4 +45,52 @@ class CardModel {
 
   @override
   int get hashCode => Object.hash(suit, rank);
+
+  // ── Lookup tables (from BALOOT_RULES.md Section 3) ──
+
+  static const _standardPoints = {
+    Rank.seven: 0,
+    Rank.eight: 0,
+    Rank.nine: 0,
+    Rank.ten: 10,
+    Rank.jack: 2,
+    Rank.queen: 3,
+    Rank.king: 4,
+    Rank.ace: 11,
+  };
+
+  static const _hakamTrumpPoints = {
+    Rank.seven: 0,
+    Rank.eight: 0,
+    Rank.nine: 14,
+    Rank.ten: 10,
+    Rank.jack: 20,
+    Rank.queen: 3,
+    Rank.king: 4,
+    Rank.ace: 11,
+  };
+
+  /// Standard strength: A>10>K>Q>J>9>8>7
+  static const _standardStrength = {
+    Rank.seven: 0,
+    Rank.eight: 1,
+    Rank.nine: 2,
+    Rank.jack: 3,
+    Rank.queen: 4,
+    Rank.king: 5,
+    Rank.ten: 6,
+    Rank.ace: 7,
+  };
+
+  /// Hakam trump strength: J>9>A>10>K>Q>8>7
+  static const _hakamTrumpStrength = {
+    Rank.seven: 0,
+    Rank.eight: 1,
+    Rank.queen: 2,
+    Rank.king: 3,
+    Rank.ten: 4,
+    Rank.ace: 5,
+    Rank.nine: 6,
+    Rank.jack: 7,
+  };
 }

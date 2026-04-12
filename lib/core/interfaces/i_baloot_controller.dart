@@ -1,30 +1,59 @@
-import '../../../data/models/card_model.dart';
-import '../../../data/models/player_model.dart';
+import '../../data/models/card_model.dart';
+import '../../data/models/round_state_model.dart';
+import '../../features/game/domain/managers/bidding_manager.dart';
 
 /// Abstract contract for the Baloot Game Engine.
-/// Phase 2 developer: implement this interface to power the game logic.
+///
+/// The UI layer talks to this interface only. The implementation
+/// lives in [BalootGameController]. In Phase 3, the same interface
+/// will be mirrored on the Node.js server as the authoritative referee.
 abstract class IBalootController {
-  /// Initialize a new game round
+  // ── Game Lifecycle ──
+
+  /// Start a brand new game (resets scores, picks first dealer).
+  void startNewGame(List<String> playerNames);
+
+  /// Start a new round within the current game.
   void startNewRound();
 
-  /// Deal 8 cards to each of the 4 players
-  List<List<CardModel>> dealCards();
+  // ── Bidding Phase ──
 
-  /// Process a player's bid (e.g., Sun, Hokm, Pass)
-  void makeBid(PlayerModel player, String bidType);
+  /// Place a bid during the Mzad phase.
+  void placeBid(int seatIndex, BidAction action, {Suit? secondHakamSuit});
 
-  /// Play a single card from a player's hand
-  void playCard(PlayerModel player, CardModel card);
+  // ── Double Phase ──
 
-  /// Evaluate the trick winner based on played cards
-  PlayerModel evaluateTrick(List<CardModel> playedCards, Suit? trumpSuit);
+  /// Call double/triple/four/gahwa (before first card is played).
+  /// [isOpenPlay]: true = Open (can lead with trump), false = Closed (cannot).
+  void callDouble(int seatIndex, DoubleStatus level, {bool isOpenPlay = true});
 
-  /// Calculate scores at the end of a round
-  Map<String, int> calculateScore();
+  // ── Play Phase ──
 
-  /// Check if the game has ended (one team reached target score)
-  bool isGameOver();
+  /// Play a card from a player's hand.
+  void playCard(int seatIndex, CardModel card);
 
-  /// Get the current game state snapshot
+  // ── Projects ──
+
+  /// Declare a project during trick 1.
+  void declareProject(int seatIndex, int projectIndex);
+
+  // ── State Queries ──
+
+  /// Get the current round state (for UI rendering and reconnection).
+  RoundStateModel get roundState;
+
+  /// Get a player's current hand.
+  List<CardModel> getHand(int seatIndex);
+
+  /// Get overall game scores.
+  ({int teamA, int teamB}) get gameScore;
+
+  /// Check if the game is over.
+  bool get isGameOver;
+
+  /// Get the winning team ('A' or 'B'), or null if not over.
+  String? get gameWinner;
+
+  /// Full state snapshot for reconnection.
   Map<String, dynamic> getGameState();
 }

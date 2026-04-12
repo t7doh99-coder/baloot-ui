@@ -1,0 +1,225 @@
+import '../../../../core/errors/game_exceptions.dart';
+import '../../../../data/models/card_model.dart';
+import '../../../../data/models/round_state_model.dart';
+
+/// The action a player can take during bidding.
+enum BidAction { hakam, sun, secondHakam, ashkal, pass, sawa }
+
+/// Manages the Mzad (bidding) phase per BALOOT_RULES.md Section 4.
+///
+/// Turn order: starts at dealer's right, counter-clockwise.
+/// Round 1: Hakam (buyer card suit) or Pass.
+/// Round 2: Sun, Second Hakam (different suit), Ashkal (dealer/sane only), Pass.
+/// Sawa: instantly locks bid and ends phase.
+class BiddingManager {
+  final int dealerIndex;
+  final CardModel buyerCard;
+
+  BiddingPhase _phase = BiddingPhase.round1;
+  int _currentBidder = -1;
+  int _passCount = 0;
+
+  // Track the leading bid in Round 1 (someone may bid Hakam early,
+  // but others can still bid Sun to override)
+  int? _round1HakamBidder;
+
+  // Final result
+  BidResult? _result;
+  bool _isFinished = false;
+
+  BiddingManager({
+    required this.dealerIndex,
+    required this.buyerCard,
+  }) {
+    // First bidder is to the dealer's right (counter-clockwise)
+    _currentBidder = (dealerIndex + 3) % 4;
+  }
+
+  BiddingPhase get phase => _phase;
+  int get currentBidder => _currentBidder;
+  bool get isFinished => _isFinished;
+  BidResult? get result => _result;
+
+  /// The Sane is the player to the dealer's left.
+  int get _saneIndex => (dealerIndex + 1) % 4;
+
+  /// Process a bid action from the current player.
+  ///
+  /// [seatIndex] must match [currentBidder].
+  /// [action] is the bid type.
+  /// [secondHakamSuit] is required when action is [BidAction.secondHakam].
+  void placeBid(int seatIndex, BidAction action, {Suit? secondHakamSuit}) {
+    if (_isFinished) {
+      throw const InvalidMoveException('Bidding has already ended.');
+    }
+    if (seatIndex != _currentBidder) {
+      throw InvalidBidException(
+        playerIndex: seatIndex,
+        message: 'Not your turn. Current bidder is seat $_currentBidder.',
+      );
+    }
+
+    switch (_phase) {
+      case BiddingPhase.round1:
+        _handleRound1(seatIndex, action);
+      case BiddingPhase.round2:
+        _handleRound2(seatIndex, action, secondHakamSuit);
+      case BiddingPhase.completed:
+      case BiddingPhase.cancelled:
+        throw const InvalidMoveException('Bidding is not active.');
+    }
+  }
+
+  void _handleRound1(int seatIndex, BidAction action) {
+    switch (action) {
+      case BidAction.hakam:
+        _round1HakamBidder = seatIndex;
+        _passCount = 0;
+        _advanceBidder();
+        // Bidding continues — others may still pass or (later in round) Sun overrides
+
+      case BidAction.sun:
+        // Sun overrides any Hakam bid in Round 1
+        _result = BidResult(
+          mode: GameMode.sun,
+          buyerIndex: seatIndex,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.sawa:
+        if (_round1HakamBidder != null) {
+          // Sawa locks the current Hakam bid
+          _result = BidResult(
+            mode: GameMode.hakam,
+            buyerIndex: _round1HakamBidder!,
+            trumpSuit: buyerCard.suit,
+          );
+          _phase = BiddingPhase.completed;
+          _isFinished = true;
+        } else {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Cannot Sawa without an active bid.',
+          );
+        }
+
+      case BidAction.pass:
+        _passCount++;
+        if (_round1HakamBidder != null) {
+          // Someone bid Hakam — check if all others passed
+          if (_passCount >= 3) {
+            // Hakam bidder confirmed
+            _result = BidResult(
+              mode: GameMode.hakam,
+              buyerIndex: _round1HakamBidder!,
+              trumpSuit: buyerCard.suit,
+            );
+            _phase = BiddingPhase.completed;
+            _isFinished = true;
+          } else {
+            _advanceBidder();
+            // Skip the hakam bidder — they already bid
+            if (_currentBidder == _round1HakamBidder) {
+              _advanceBidder();
+            }
+          }
+        } else {
+          // No one bid Hakam yet
+          if (_passCount >= 4) {
+            // All 4 passed Round 1 → move to Round 2
+            _phase = BiddingPhase.round2;
+            _passCount = 0;
+            _currentBidder = (dealerIndex + 3) % 4;
+          } else {
+            _advanceBidder();
+          }
+        }
+
+      default:
+        throw InvalidBidException(
+          playerIndex: seatIndex,
+          message: '$action is not valid in Round 1.',
+        );
+    }
+  }
+
+  void _handleRound2(int seatIndex, BidAction action, Suit? secondHakamSuit) {
+    switch (action) {
+      case BidAction.sun:
+        _result = BidResult(
+          mode: GameMode.sun,
+          buyerIndex: seatIndex,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.secondHakam:
+        if (secondHakamSuit == null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Must specify a suit for Second Hakam.',
+          );
+        }
+        if (secondHakamSuit == buyerCard.suit) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Second Hakam suit must differ from buyer card suit (${buyerCard.suit}).',
+          );
+        }
+        _result = BidResult(
+          mode: GameMode.hakam,
+          buyerIndex: seatIndex,
+          trumpSuit: secondHakamSuit,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.ashkal:
+        if (seatIndex != dealerIndex && seatIndex != _saneIndex) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Ashkal is only available to Dealer (seat $dealerIndex) or Sane (seat $_saneIndex).',
+          );
+        }
+        _result = BidResult(
+          mode: GameMode.sun,
+          buyerIndex: seatIndex,
+          isAshkal: true,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.sawa:
+        // Sawa in Round 2 requires someone to have already bid
+        throw InvalidBidException(
+          playerIndex: seatIndex,
+          message: 'Cannot Sawa in Round 2 without a preceding bid.',
+        );
+
+      case BidAction.pass:
+        _passCount++;
+        if (_passCount >= 4) {
+          // All 4 passed both rounds → round cancelled
+          _phase = BiddingPhase.cancelled;
+          _isFinished = true;
+          _result = null;
+        } else {
+          _advanceBidder();
+        }
+
+      default:
+        throw InvalidBidException(
+          playerIndex: seatIndex,
+          message: '$action is not valid in Round 2.',
+        );
+    }
+  }
+
+  /// Move to next player counter-clockwise.
+  void _advanceBidder() {
+    _currentBidder = (_currentBidder + 3) % 4;
+  }
+}
