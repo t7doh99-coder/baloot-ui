@@ -513,6 +513,11 @@ class BalootGameController implements IBalootController {
     if (card.suit != trump) return;
     if (card.rank != Rank.king && card.rank != Rank.queen) return;
 
+    // Only proceed if this player was actually dealt both K+Q of trump
+    final hasBalootProject = _detectedProjects[seatIndex]
+        ?.any((p) => p.type == ProjectType.baloot) ?? false;
+    if (!hasBalootProject) return;
+
     // Check if the player already played the OTHER card of the K-Q pair
     // (i.e., it's no longer in their hand — we already removed it)
     final otherRank = card.rank == Rank.king ? Rank.queen : Rank.king;
