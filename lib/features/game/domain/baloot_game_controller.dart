@@ -8,6 +8,7 @@ import 'managers/deck_manager.dart';
 import 'managers/bidding_manager.dart';
 import 'managers/turn_manager.dart';
 import 'validators/play_validator.dart';
+import 'engines/bot_engine.dart';
 import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
 
@@ -25,6 +26,7 @@ class BalootGameController implements IBalootController {
   final PlayValidator _playValidator = const PlayValidator();
   final ProjectDetector _projectDetector = const ProjectDetector();
   final ScoringEngine _scoringEngine = const ScoringEngine();
+  final BotEngine _botEngine = const BotEngine();
 
   // Game-level state
   late List<String> _playerNames;
@@ -434,36 +436,84 @@ class BalootGameController implements IBalootController {
 
   // ── Bot Logic ──
 
-  /// Auto-play for bot/timeout: pass during bidding, lowest valid card during play.
+  /// Smart bot play using [BotEngine] for strategic decisions.
+  ///
+  /// Bidding: evaluates hand strength to decide Hakam/Sun/Pass/etc.
+  /// Playing: considers trick position, partner, trumps, point dumping.
+  /// Double: evaluates hand defensively, may call Double with strong hand.
   void botPlay(int seatIndex) {
     switch (_gamePhase) {
       case GamePhase.bidding:
-        placeBid(seatIndex, BidAction.pass);
+        final decision = _botEngine.decideBid(
+          hand: _hands[seatIndex],
+          buyerCard: _deckManager.buyerCard!,
+          phase: _biddingManager!.phase,
+          seatIndex: seatIndex,
+          dealerIndex: _dealerIndex,
+        );
+        placeBid(seatIndex, decision.action,
+            secondHakamSuit: decision.secondHakamSuit);
+
       case GamePhase.doubleWindow:
+        final buyerIdx = _roundState.buyerIndex ?? 0;
+        final botIsDefender = (seatIndex % 2) != (buyerIdx % 2);
+        if (botIsDefender && _roundState.activeMode == GameMode.hakam) {
+          final level = _botEngine.decideDouble(
+            hand: _hands[seatIndex],
+            mode: _roundState.activeMode!,
+            trumpSuit: _roundState.trumpSuit,
+            ownScore: seatIndex % 2 == 0 ? _teamAScore : _teamBScore,
+            opponentScore: seatIndex % 2 == 0 ? _teamBScore : _teamAScore,
+          );
+          if (level != null) {
+            callDouble(seatIndex, level);
+            return;
+          }
+        }
         skipDoubleWindow();
+
       case GamePhase.playing:
-        final validCards = _playValidator.getValidCards(
+        // Auto-declare projects during trick 1
+        if (_turnManager!.trickNumber == 1) {
+          _botDeclareProjects(seatIndex);
+        }
+
+        final card = _botEngine.decidePlay(
           hand: _hands[seatIndex],
           currentTrick: _turnManager!.currentTrick,
           mode: _roundState.activeMode!,
           trumpSuit: _roundState.trumpSuit,
           doubleStatus: _roundState.doubleStatus,
           isOpenPlay: _roundState.isOpenPlay,
-          playerSeat: seatIndex,
+          seatIndex: seatIndex,
+          trickNumber: _turnManager!.trickNumber,
+          teamAAbnat: _turnManager!.teamAAbnat,
+          teamBAbnat: _turnManager!.teamBAbnat,
         );
-        if (validCards.isNotEmpty) {
-          // Play lowest value card
-          validCards.sort((a, b) => a
-              .getPointValue(
-                  mode: _roundState.activeMode!,
-                  trumpSuit: _roundState.trumpSuit)
-              .compareTo(b.getPointValue(
-                  mode: _roundState.activeMode!,
-                  trumpSuit: _roundState.trumpSuit)));
-          playCard(seatIndex, validCards.first);
-        }
+        playCard(seatIndex, card);
+
       default:
         break;
+    }
+  }
+
+  /// Bot auto-declares all available non-Baloot projects during trick 1.
+  void _botDeclareProjects(int seatIndex) {
+    final projects = _detectedProjects[seatIndex];
+    if (projects == null) return;
+
+    for (int i = 0; i < projects.length; i++) {
+      if (projects[i].type == ProjectType.baloot) continue;
+      final alreadyDeclared = _activeDeclaredProjects
+          .where(
+              (p) => p.playerIndex == seatIndex && p.type != ProjectType.baloot)
+          .length;
+      if (alreadyDeclared >= 2) break;
+      try {
+        declareProject(seatIndex, i);
+      } catch (_) {
+        break;
+      }
     }
   }
 
