@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../data/models/card_model.dart';
 import '../domain/baloot_game_controller.dart' show GamePhase;
 import 'game_provider.dart';
+import 'game_table_screen.dart';
 import 'widgets/playing_card.dart';
 
 /// Debug screen: verifies all 32 Baloot card images (Step 1)
@@ -47,6 +48,20 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
               'Start Engine',
               style: GoogleFonts.montserrat(
                 color: const Color(0xFFD4AF37),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const GameTableScreen()),
+            ),
+            icon: const Icon(Icons.table_restaurant, color: Color(0xFF80DEEA)),
+            label: Text(
+              'Step 3 →',
+              style: GoogleFonts.montserrat(
+                color: const Color(0xFF80DEEA),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),

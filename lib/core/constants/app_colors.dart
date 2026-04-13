@@ -40,5 +40,21 @@ class AppColors {
   );
 
   /// Glassmorphism surface with transparency
-  static Color get glassSurface => slateGlass.withOpacity(0.75);
+  static Color get glassSurface => slateGlass.withValues(alpha: 0.75);
+
+  // ── Arabic Carpet Theme ─────────────────────────────────────────
+  /// Deep warm wood — game table screen background
+  static const Color darkWood = Color(0xFF1A0F08);
+
+  /// Warm brown — table edge, borders
+  static const Color warmBrown = Color(0xFF4E342E);
+
+  /// Cream — carpet base color
+  static const Color carpetCream = Color(0xFFF5F0E8);
+
+  /// Deep red — carpet accent / لهم score
+  static const Color carpetRed = Color(0xFFD32F2F);
+
+  /// Gold accent — ornate borders, highlights
+  static const Color goldAccent = Color(0xFFD4AF37);
 }
