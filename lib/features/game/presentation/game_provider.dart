@@ -6,6 +6,7 @@ import '../../../data/models/card_play_model.dart';
 import '../../../data/models/round_state_model.dart';
 import '../domain/baloot_game_controller.dart';
 import '../domain/engines/project_detector.dart';
+import '../domain/engines/scoring_engine.dart' show RoundScoreResult;
 import '../domain/managers/bidding_manager.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -61,8 +62,8 @@ class GameProvider extends ChangeNotifier {
   final BalootGameController _engine;
   final Random _rng;
 
-  // ── Player names (seat 0 = human) ──
-  static const _playerNames = ['أنت', 'لاعب ٢', 'شريك', 'لاعب ٤'];
+  // ── Player names (seat 0 = human) — always initialised, safe before startGame() ──
+  static const List<String> _playerNames = ['You', 'Player 2', 'Partner', 'Player 4'];
 
   // ── Turn timer ──
   Timer? _turnTimer;
@@ -94,16 +95,24 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   GamePhase get phase => _engine.gamePhase;
-  RoundStateModel get roundState => _engine.roundState;
-  ({int teamA, int teamB}) get gameScore => _engine.gameScore;
+
+  /// Safe accessor — returns a dummy empty RoundStateModel before game starts.
+  RoundStateModel get roundState =>
+      phase == GamePhase.notStarted ? RoundStateModel.empty() : _engine.roundState;
+
+  ({int teamA, int teamB}) get gameScore =>
+      phase == GamePhase.notStarted ? (teamA: 0, teamB: 0) : _engine.gameScore;
+
   bool get isGameOver => _engine.isGameOver;
   String? get gameWinner => _engine.gameWinner;
 
   /// The player's own hand (seat 0).
-  List<CardModel> get playerHand => _engine.getHand(0);
+  List<CardModel> get playerHand =>
+      phase == GamePhase.notStarted ? [] : _engine.getHand(0);
 
   /// Get any player's hand size (for opponent card-count display).
-  int handSize(int seat) => _engine.getHand(seat).length;
+  int handSize(int seat) =>
+      phase == GamePhase.notStarted ? 0 : _engine.getHand(seat).length;
 
   /// Current player whose turn it is.
   int get currentPlayerIndex => roundState.currentPlayerIndex;
@@ -114,11 +123,11 @@ class GameProvider extends ChangeNotifier {
   /// Timer countdown value (0–10).
   int get timerSeconds => _timerSeconds;
 
-  /// Game mode label for bottom bar ("صن" / "حكم" / "—").
+  /// Game mode label for UI ("Sun" / "Hakam" / "—").
   String get gameModeLabel {
     final mode = roundState.activeMode;
     if (mode == null) return '—';
-    return mode == GameMode.sun ? 'صن' : 'حكم';
+    return mode == GameMode.sun ? 'Sun' : 'Hakam';
   }
 
   /// Trump suit (null for Sun mode or before bidding resolves).
@@ -145,6 +154,10 @@ class GameProvider extends ChangeNotifier {
   /// Bidding phase (round1 / round2 / completed / cancelled).
   BiddingPhase get biddingPhase => roundState.biddingPhase;
 
+  /// Whether someone has already bid Hakam in Round 1 (Sawa available).
+  bool get hasActiveHakamBid =>
+      phase == GamePhase.notStarted ? false : _engine.hasActiveHakamBid;
+
   /// Which seat is the dealer.
   int get dealerIndex => roundState.dealerIndex;
 
@@ -164,14 +177,46 @@ class GameProvider extends ChangeNotifier {
   /// Result of the last completed round.
   LastRoundResult? get lastRoundResult => _lastRoundResult;
 
+  /// Rich scoring breakdown from the engine (Khams, Kabout, etc.).
+  RoundScoreResult? get lastRoundScoreResult {
+    if (phase == GamePhase.notStarted) return null;
+    return _engine.lastRoundScoreResult;
+  }
+
+  /// Human (seat 0) is on team A — "Us" in the top bar.
+  bool get isHumanTeamA => true;
+
+  /// Whether team A (human) won the match — handles Gahwa when [gameWinner] is null.
+  bool get didHumanWinGame {
+    final w = gameWinner;
+    if (w != null) return w == 'A';
+    final s = gameScore;
+    if (s.teamA >= 152 && s.teamB < 152) return true;
+    if (s.teamB >= 152 && s.teamA < 152) return false;
+    return s.teamA > s.teamB;
+  }
+
   /// The currently selected card in the human's hand.
   CardModel? get selectedCard => _selectedCard;
 
   /// Detected projects for the human player (seat 0).
-  List<DetectedProject> get playerProjects => _engine.getDetectedProjects(0);
+  List<DetectedProject> get playerProjects =>
+      phase == GamePhase.notStarted ? [] : _engine.getDetectedProjects(0);
+
+  /// Projects already declared by the human (seat 0) this round.
+  List<DeclaredProject> get humanDeclaredProjects =>
+      roundState.declaredProjects
+          .where((p) => p.playerIndex == 0 && p.type != ProjectType.baloot)
+          .toList();
+
+  /// All declared projects in the current round (for reveal on trick 2).
+  List<DeclaredProject> get allDeclaredProjects => roundState.declaredProjects;
+
+  /// Legally playable cards for the human player (seat 0).
+  List<CardModel> get validCards => _engine.getValidCards(0);
 
   /// Player names.
-  String playerName(int seat) => _playerNames[seat];
+  String playerName(int seat) => _playerNames[seat % _playerNames.length];
 
   // ══════════════════════════════════════════════════════════════════
   //  GAME LIFECYCLE
@@ -285,8 +330,9 @@ class GameProvider extends ChangeNotifier {
     _lastRoundResult = null; // clear stale result
     final newPhase = _engine.gamePhase;
 
-    // Detect round completion → capture scoring result
-    if (_prevPhase == GamePhase.playing && newPhase == GamePhase.scoring) {
+    // Round scored: playing → scoring, or playing → gameOver (skips visible scoring)
+    if (_prevPhase == GamePhase.playing &&
+        (newPhase == GamePhase.scoring || newPhase == GamePhase.gameOver)) {
       _captureLastRoundResult();
     }
 
@@ -343,24 +389,56 @@ class GameProvider extends ChangeNotifier {
 
   void _executeBotTurn(int seat) {
     if (_engine.isGameOver) return;
-    // Confirm it's still this bot's turn
     final current = roundState.currentPlayerIndex;
     if (current != seat) return;
+
+    final phaseBefore = _engine.gamePhase;
 
     try {
       _engine.botPlay(seat);
 
-      // Show speech bubble for bot bid/double actions
-      final p = _engine.gamePhase;
-      if (p == GamePhase.bidding || p == GamePhase.doubleWindow) {
-        // Bubble already handled; just notify
+      // Show speech bubble for bot bid actions
+      if (phaseBefore == GamePhase.bidding) {
+        _inferBotBidBubble(seat);
+      } else if (phaseBefore == GamePhase.doubleWindow) {
+        _inferBotDoubleBubble(seat);
       }
 
       _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] botPlay error (seat $seat): $e');
-      // If bot errors, still advance to avoid stalling
       _afterEngineAction();
+    }
+  }
+
+  /// Infer what the bot bid and show a speech bubble.
+  void _inferBotBidBubble(int seat) {
+    final rs = _engine.roundState;
+    final bp = rs.biddingPhase;
+
+    if (bp == BiddingPhase.completed) {
+      // Bidding just ended — the bot made the winning bid
+      final mode = rs.activeMode;
+      if (rs.isAshkal) {
+        _showBubble(seat, 'Ashkal');
+      } else if (mode == GameMode.sun) {
+        _showBubble(seat, 'Sun');
+      } else {
+        _showBubble(seat, 'Hakam');
+      }
+    } else {
+      // Bidding continues — bot either passed or bid Hakam in R1
+      _showBubble(seat, 'Pass');
+    }
+  }
+
+  /// Infer what the bot did in the double window.
+  void _inferBotDoubleBubble(int seat) {
+    final ds = _engine.roundState.doubleStatus;
+    if (ds != DoubleStatus.none) {
+      _showBubble(seat, _doubleLabel(ds));
+    } else {
+      _showBubble(seat, 'Pass');
     }
   }
 
@@ -424,15 +502,15 @@ class GameProvider extends ChangeNotifier {
   void _captureLastRoundResult() {
     final rs = _engine.roundState;
     final score = _engine.gameScore;
+    final detail = _engine.lastRoundScoreResult;
 
-    // Extract abnat from round state
     _lastRoundResult = LastRoundResult(
       teamAPoints: score.teamA,
       teamBPoints: score.teamB,
-      teamAAbnat: rs.teamAAbnat,
-      teamBAbnat: rs.teamBAbnat,
-      isKhams: false, // ScoringEngine determines this — simplified for now
-      isKabout: false,
+      teamAAbnat: detail?.teamARawAbnat ?? rs.teamAAbnat,
+      teamBAbnat: detail?.teamBRawAbnat ?? rs.teamBAbnat,
+      isKhams: detail?.isKhams ?? false,
+      isKabout: detail?.isKabout ?? false,
       mode: rs.activeMode ?? GameMode.hakam,
       trumpSuit: rs.trumpSuit,
     );
@@ -444,26 +522,26 @@ class GameProvider extends ChangeNotifier {
 
   String _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
     switch (action) {
-      case BidAction.hakam:   return 'حكم';
-      case BidAction.sun:     return 'صن';
-      case BidAction.secondHakam: return 'حكم ${_suitAr(secondHakamSuit)}';
-      case BidAction.ashkal:  return 'أشكل';
-      case BidAction.pass:    return 'بس';
-      case BidAction.sawa:    return 'سوى';
+      case BidAction.hakam:       return 'Hakam';
+      case BidAction.sun:         return 'Sun';
+      case BidAction.secondHakam: return 'Hakam ${_suitSymbol(secondHakamSuit)}';
+      case BidAction.ashkal:      return 'Ashkal';
+      case BidAction.pass:        return 'Pass';
+      case BidAction.sawa:        return 'Sawa';
     }
   }
 
   String _doubleLabel(DoubleStatus level) {
     switch (level) {
-      case DoubleStatus.none:     return 'بس';
-      case DoubleStatus.doubled:  return 'دبل';
-      case DoubleStatus.tripled:  return 'تريبل';
-      case DoubleStatus.four:     return 'فور';
-      case DoubleStatus.gahwa:    return 'قهوة';
+      case DoubleStatus.none:     return 'Pass';
+      case DoubleStatus.doubled:  return 'Double';
+      case DoubleStatus.tripled:  return 'Triple';
+      case DoubleStatus.four:     return 'Four';
+      case DoubleStatus.gahwa:    return 'Gahwa';
     }
   }
 
-  String _suitAr(Suit? suit) {
+  String _suitSymbol(Suit? suit) {
     switch (suit) {
       case Suit.hearts:   return '♥';
       case Suit.diamonds: return '♦';

@@ -61,10 +61,10 @@ class DeckManager {
     _hands = List.generate(4, (_) => []);
     _buyerCard = null;
 
-    // Counter-clockwise from dealer's right.
-    // "Right" in counter-clockwise seating = (dealer - 1 + 4) % 4
-    // Then we go: dealer-1, dealer-2, dealer-3, dealer (counter-clockwise)
-    final order = List.generate(4, (i) => (dealerIndex + 3 - i) % 4);
+    // Deal to dealer's right first, then continue clockwise on screen
+    // (= counter-clockwise at a real table).
+    // Screen seats: 0=bottom, 1=right, 2=top, 3=left → +1 = right.
+    final order = List.generate(4, (i) => (dealerIndex + 1 + i) % 4);
 
     // Deal 3 cards to each
     for (final seat in order) {
@@ -98,7 +98,7 @@ class DeckManager {
     final recipientIndex =
         isAshkal ? _teammateOf(buyerIndex) : buyerIndex;
 
-    final dealOrder = List.generate(4, (i) => (buyerIndex + 3 - i) % 4);
+    final dealOrder = List.generate(4, (i) => (buyerIndex + 1 + i) % 4);
 
     for (final seat in dealOrder) {
       if (seat == recipientIndex) {

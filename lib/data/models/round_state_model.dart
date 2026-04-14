@@ -188,6 +188,12 @@ class RoundStateModel {
     );
   }
 
+  /// Safe empty state used before a game starts (avoids late-init errors).
+  factory RoundStateModel.empty() => const RoundStateModel(
+        dealerIndex: 0,
+        currentPlayerIndex: 0,
+      );
+
   /// Serializable snapshot for reconnection.
   Map<String, dynamic> toSnapshot() {
     return {

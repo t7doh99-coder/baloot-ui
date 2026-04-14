@@ -71,8 +71,8 @@ class TurnManager {
     _currentTrick.add(CardPlayModel(card: card, playerIndex: seatIndex));
 
     if (_currentTrick.length < 4) {
-      // Advance to next player (counter-clockwise)
-      _currentPlayerIndex = (_currentPlayerIndex + 3) % 4;
+      // Advance to next player (clockwise on screen = CCW at table = to the right)
+      _currentPlayerIndex = (_currentPlayerIndex + 1) % 4;
       return null;
     }
 

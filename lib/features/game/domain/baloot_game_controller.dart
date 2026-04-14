@@ -49,7 +49,13 @@ class BalootGameController implements IBalootController {
   // Track if Baloot has been declared (auto, on 2nd card of K-Q pair)
   final Set<int> _balootDeclaredBy = {};
 
+  /// Result of the most recently scored round (for UI overlay).
+  RoundScoreResult? _lastRoundScoreResult;
+
   BalootGameController({Random? random}) : _rng = random ?? Random();
+
+  /// Points and flags from the last completed round (cleared on new round).
+  RoundScoreResult? get lastRoundScoreResult => _lastRoundScoreResult;
 
   GamePhase get gamePhase => _gamePhase;
 
@@ -70,6 +76,7 @@ class BalootGameController implements IBalootController {
 
   @override
   void startNewRound() {
+    _lastRoundScoreResult = null;
     _deckManager = DeckManager(random: _rng);
     _deckManager.createDeck();
     _deckManager.shuffle();
@@ -80,7 +87,7 @@ class BalootGameController implements IBalootController {
 
     _roundState = RoundStateModel(
       dealerIndex: _dealerIndex,
-      currentPlayerIndex: (_dealerIndex + 3) % 4,
+      currentPlayerIndex: (_dealerIndex + 1) % 4, // first bidder = to dealer's right
       buyerCard: _deckManager.buyerCard,
     );
 
@@ -118,7 +125,7 @@ class BalootGameController implements IBalootController {
         _roundState = _roundState.copyWith(
           biddingPhase: BiddingPhase.cancelled,
         );
-        _dealerIndex = (_dealerIndex + 3) % 4;
+        _dealerIndex = (_dealerIndex + 1) % 4; // dealer passes to the right
         _gamePhase = GamePhase.dealing;
         startNewRound();
         return;
@@ -146,7 +153,7 @@ class BalootGameController implements IBalootController {
         trumpSuit: bidResult.trumpSuit,
         buyerIndex: bidResult.buyerIndex,
         isAshkal: bidResult.isAshkal,
-        currentPlayerIndex: (bidResult.buyerIndex + 3) % 4,
+        currentPlayerIndex: (bidResult.buyerIndex + 1) % 4, // next player clockwise
         isDoubleWindowOpen: true,
       );
 
@@ -220,7 +227,8 @@ class BalootGameController implements IBalootController {
   }
 
   void _startPlayPhase() {
-    final firstPlayer = (_roundState.buyerIndex! + 3) % 4;
+    // Jawaker rule: the player to dealer's right leads the first trick.
+    final firstPlayer = (_dealerIndex + 1) % 4;
     _turnManager = TurnManager(
       mode: _roundState.activeMode!,
       trumpSuit: _roundState.trumpSuit,
@@ -420,6 +428,8 @@ class BalootGameController implements IBalootController {
       doubleCallerTeam: doubleCallerTeam,
     );
 
+    _lastRoundScoreResult = scoreResult;
+
     _teamAScore += scoreResult.teamAPoints;
     _teamBScore += scoreResult.teamBPoints;
 
@@ -428,8 +438,8 @@ class BalootGameController implements IBalootController {
         _teamAScore, _teamBScore, _roundState.doubleStatus)) {
       _gamePhase = GamePhase.gameOver;
     } else {
-      // Advance dealer for next round
-      _dealerIndex = (_dealerIndex + 3) % 4;
+      // Advance dealer to the right for next round
+      _dealerIndex = (_dealerIndex + 1) % 4;
       _gamePhase = GamePhase.dealing;
     }
   }
@@ -531,6 +541,23 @@ class BalootGameController implements IBalootController {
 
   @override
   bool get isGameOver => _gamePhase == GamePhase.gameOver;
+
+  /// Whether there's an active Hakam bid in Round 1 (Sawa is available).
+  bool get hasActiveHakamBid =>
+      _biddingManager?.hasActiveHakamBid ?? false;
+
+  /// Returns the list of legally playable cards for [seatIndex].
+  List<CardModel> getValidCards(int seatIndex) {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return [];
+    return _playValidator.getValidCards(
+      hand: _hands[seatIndex],
+      currentTrick: _turnManager!.currentTrick,
+      mode: _roundState.activeMode ?? GameMode.sun,
+      trumpSuit: _roundState.trumpSuit,
+      doubleStatus: _roundState.doubleStatus,
+      isOpenPlay: _roundState.isOpenPlay,
+    );
+  }
 
   @override
   String? get gameWinner {

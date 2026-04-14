@@ -33,7 +33,7 @@
 |----------------|---------------------------------------------|
 | Players        | 4 (2 teams of 2, sitting across)            |
 | Deck           | 32 cards (7 through A, no 2-6 or jokers)    |
-| Dealing Order  | Counter-Clockwise (right to left)           |
+| Dealing Order  | Counter-Clockwise at table (= clockwise on screen; to each player's RIGHT) |
 | Hand Size      | 8 cards per player (after full distribution)|
 | Teams          | Team A: Seats 0 & 2 / Team B: Seats 1 & 3  |
 | Game End       | First team to reach **152 points** OR Gahwa win |
@@ -114,7 +114,8 @@ All suits equal. Rank: `A > 10 > K > Q > J > 9 > 8 > 7`
 ## 4. Bidding System
 
 ### 4.1 Turn Order
-Starting from the player to the **right of the dealer**, continuing counter-clockwise.
+Starting from the player to the **right of the dealer**, continuing to the right (counter-clockwise at a real table = clockwise on screen).
+Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next player.
 
 ### 4.2 Round 1 Options (all players)
 | Option | Result |

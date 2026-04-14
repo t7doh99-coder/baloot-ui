@@ -31,8 +31,9 @@ class BiddingManager {
     required this.dealerIndex,
     required this.buyerCard,
   }) {
-    // First bidder is to the dealer's right (counter-clockwise)
-    _currentBidder = (dealerIndex + 3) % 4;
+    // First bidder is to the dealer's right.
+    // Screen seats: 0=bottom, 1=right, 2=top, 3=left → +1 = right.
+    _currentBidder = (dealerIndex + 1) % 4;
   }
 
   BiddingPhase get phase => _phase;
@@ -40,8 +41,12 @@ class BiddingManager {
   bool get isFinished => _isFinished;
   BidResult? get result => _result;
 
-  /// The Sane is the player to the dealer's left.
-  int get _saneIndex => (dealerIndex + 1) % 4;
+  /// Whether someone has already bid Hakam in Round 1 (Sawa becomes available).
+  bool get hasActiveHakamBid => _round1HakamBidder != null;
+
+  /// The Sane (صانع) is the player to the dealer's LEFT.
+  /// Screen: 0=bottom,1=right,2=top,3=left → left of dealer = +3 (≡ -1).
+  int get _saneIndex => (dealerIndex + 3) % 4;
 
   /// Process a bid action from the current player.
   ///
@@ -130,7 +135,7 @@ class BiddingManager {
             // All 4 passed Round 1 → move to Round 2
             _phase = BiddingPhase.round2;
             _passCount = 0;
-            _currentBidder = (dealerIndex + 3) % 4;
+            _currentBidder = (dealerIndex + 1) % 4;
           } else {
             _advanceBidder();
           }
@@ -220,6 +225,6 @@ class BiddingManager {
 
   /// Move to next player counter-clockwise.
   void _advanceBidder() {
-    _currentBidder = (_currentBidder + 3) % 4;
+    _currentBidder = (_currentBidder + 1) % 4;
   }
 }

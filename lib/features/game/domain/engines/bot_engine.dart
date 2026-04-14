@@ -67,7 +67,8 @@ class BotEngine {
     }
 
     // Ashkal — only dealer or sane can do this; requires weaker hand than Sun
-    final saneIndex = (dealerIndex + 1) % 4;
+    // Sane = player to dealer's LEFT = (dealer + 3) % 4 on screen
+    final saneIndex = (dealerIndex + 3) % 4;
     if (seatIndex == dealerIndex || seatIndex == saneIndex) {
       if (sunScore >= 30) {
         return const BotBidDecision(action: BidAction.ashkal);
