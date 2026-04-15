@@ -159,17 +159,9 @@ void main() {
   });
 
   group('Ashkal', () {
-    BiddingManager toRound2() {
+    test('Dealer (seat 0) can bid Ashkal in Round 1', () {
       final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
-      for (int i = 0; i < 4; i++) {
-        bm.placeBid(bm.currentBidder, BidAction.pass);
-      }
-      return bm;
-    }
-
-    test('Dealer (seat 0) can bid Ashkal', () {
-      final bm = toRound2();
-      // R2 order: 1→2→3→0. Advance to dealer's turn (seat 0).
+      // R1 order: 1→2→3→0. Advance to dealer's turn (seat 0).
       bm.placeBid(1, BidAction.pass);
       bm.placeBid(2, BidAction.pass);
       bm.placeBid(3, BidAction.pass);
@@ -181,9 +173,9 @@ void main() {
       expect(bm.result!.buyerIndex, 0);
     });
 
-    test('Sane (seat 3, dealer LEFT) can bid Ashkal', () {
-      final bm = toRound2();
-      // R2 order: 1→2→3. Seat 3 is sane = (0+3)%4 = 3.
+    test('Sane (seat 3, dealer LEFT) can bid Ashkal in Round 1', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+      // R1 order: 1→2→3. Seat 3 is sane = (0+3)%4 = 3.
       bm.placeBid(1, BidAction.pass);
       bm.placeBid(2, BidAction.pass);
       bm.placeBid(3, BidAction.ashkal); // Sane = dealer(0)'s left = seat 3
@@ -192,11 +184,29 @@ void main() {
       expect(bm.result!.isAshkal, true);
     });
 
-    test('non-dealer/non-sane cannot bid Ashkal', () {
-      final bm = toRound2();
+    test('non-dealer/non-sane cannot bid Ashkal in Round 1', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
 
       expect(
-        () => bm.placeBid(1, BidAction.ashkal), // seat 1 is dealer's right, not dealer/sane
+        () => bm.placeBid(1, BidAction.ashkal),
+        throwsA(isA<InvalidBidException>()),
+      );
+    });
+
+    test('Ashkal is NOT allowed in Round 2 (Jawaker/Kamelna)', () {
+      // Advance to Round 2
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+      for (int i = 0; i < 4; i++) {
+        bm.placeBid(bm.currentBidder, BidAction.pass);
+      }
+      expect(bm.phase, BiddingPhase.round2);
+
+      // Even dealer should not be able to Ashkal in Round 2
+      bm.placeBid(1, BidAction.pass);
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      expect(
+        () => bm.placeBid(0, BidAction.ashkal),
         throwsA(isA<InvalidBidException>()),
       );
     });

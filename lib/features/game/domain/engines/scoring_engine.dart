@@ -1,16 +1,26 @@
 import '../../../../data/models/card_model.dart';
 import '../../../../data/models/round_state_model.dart';
 
-/// Result of scoring a completed round.
+/// Result of scoring a completed round, with full breakdown for overlay UI.
 class RoundScoreResult {
   final int teamAPoints; // Scoreboard points awarded
   final int teamBPoints;
-  final int teamARawAbnat;
+  final int teamARawAbnat; // Total Abnat (tricks + ground + projects)
   final int teamBRawAbnat;
-  final bool isKhams; // Buyer's team lost
-  final bool isKabout; // One team swept all 8 tricks
+  final bool isKhams;
+  final bool isKabout;
   final String winningTeam; // 'A' or 'B'
-  final String? reason; // e.g. 'khams', 'kabout', 'normal'
+  final String? reason; // 'khams', 'kabout', 'kabout_ace', 'normal'
+
+  // Breakdown fields for Kamelna-style overlay
+  final int teamATrickAbnat; // Card points from tricks only (no ground, no projects)
+  final int teamBTrickAbnat;
+  final String? lastTrickBonusTeam; // 'A', 'B', or null
+  final int teamAProjectAbnat;
+  final int teamBProjectAbnat;
+  final GameMode mode;
+  final String buyerTeam;
+  final DoubleStatus doubleStatus;
 
   const RoundScoreResult({
     required this.teamAPoints,
@@ -21,13 +31,21 @@ class RoundScoreResult {
     required this.isKabout,
     required this.winningTeam,
     this.reason,
+    this.teamATrickAbnat = 0,
+    this.teamBTrickAbnat = 0,
+    this.lastTrickBonusTeam,
+    this.teamAProjectAbnat = 0,
+    this.teamBProjectAbnat = 0,
+    this.mode = GameMode.hakam,
+    this.buyerTeam = 'A',
+    this.doubleStatus = DoubleStatus.none,
   });
 }
 
 /// Pure scoring math per BALOOT_RULES.md Section 8.
 ///
 /// Handles:
-/// - Raw Abnat → scoreboard point conversion
+/// - Raw Abnat -> scoreboard point conversion
 /// - Sun formula: round(abnat / 10) * 2
 /// - Hakam formula: Jawaker rounding (.5 rounds DOWN)
 /// - Khams (buyer loses), Kabout (all-trick sweep)
@@ -44,40 +62,33 @@ class ScoringEngine {
     if (mode == GameMode.sun) {
       return (abnat / 10).round() * 2;
     }
-    // Hakam: Jawaker rounding — .5 rounds DOWN, .6+ rounds UP
+    // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
     return _jawakerRound(abnat / 10);
   }
 
   /// Jawaker-style rounding: exactly .5 rounds DOWN, .6+ rounds UP.
-  /// 15.5 → 15, 15.6 → 16
+  /// 15.5 -> 15, 15.6 -> 16
   int _jawakerRound(double value) {
     final fractional = value - value.truncate();
-    // Use a small epsilon for floating point comparison
     if ((fractional - 0.5).abs() < 0.0001) {
       return value.truncate(); // .5 rounds DOWN
     }
-    return value.round(); // standard rounding for everything else
+    return value.round();
   }
 
   /// Calculate the full round score.
   ///
   /// [teamAAbnat], [teamBAbnat]: raw Abnat from tricks (including last trick bonus).
-  /// [mode]: Sun or Hakam.
-  /// [buyerTeam]: 'A' or 'B'.
-  /// [teamAProjectAbnat], [teamBProjectAbnat]: Abnat from projects.
-  /// [teamAProjectScoreboard], [teamBProjectScoreboard]: scoreboard pts from projects.
-  /// [balootPoints]: Baloot scoreboard pts (always 2, immune to doubling).
-  /// [balootTeam]: which team has Baloot ('A', 'B', or null).
-  /// [doubleStatus]: current double level.
-  /// [isKabout]: whether one team swept all 8 tricks.
-  /// [buyerCardIsAce]: for Kabout Ace bonus (88 pts).
-  /// [projectWinningTeam]: which team's projects count ('A', 'B', or null).
-  /// [doubleCallerTeam]: which team called the double (for tie-breaker).
+  /// [teamATricksCount], [teamBTricksCount]: actual trick win counts (for Kabout).
+  /// [lastTrickBonusTeam]: which team won the last trick ('A', 'B', or null).
   RoundScoreResult calculateRoundScore({
     required int teamAAbnat,
     required int teamBAbnat,
     required GameMode mode,
     required String buyerTeam,
+    required int teamATricksCount,
+    required int teamBTricksCount,
+    String? lastTrickBonusTeam,
     int teamAProjectAbnat = 0,
     int teamBProjectAbnat = 0,
     int teamAProjectScoreboard = 0,
@@ -90,25 +101,57 @@ class ScoringEngine {
     String? projectWinningTeam,
     String? doubleCallerTeam,
   }) {
-    // Add project Abnat to the winning team
+    // Preserve raw trick Abnat before adding project Abnat
+    final trickAbnatA = teamAAbnat;
+    final trickAbnatB = teamBAbnat;
+
+    // Add project Abnat to the winning team's total
     int aAbnat = teamAAbnat;
     int bAbnat = teamBAbnat;
 
+    int effectiveProjectA = 0;
+    int effectiveProjectB = 0;
     if (projectWinningTeam == 'A') {
       aAbnat += teamAProjectAbnat;
+      effectiveProjectA = teamAProjectAbnat;
     } else if (projectWinningTeam == 'B') {
       bAbnat += teamBProjectAbnat;
+      effectiveProjectB = teamBProjectAbnat;
     }
 
-    // --- Kabout check ---
+    // Shared breakdown context passed into sub-functions
+    RoundScoreResult _withBreakdown(RoundScoreResult base) {
+      return RoundScoreResult(
+        teamAPoints: base.teamAPoints,
+        teamBPoints: base.teamBPoints,
+        teamARawAbnat: base.teamARawAbnat,
+        teamBRawAbnat: base.teamBRawAbnat,
+        isKhams: base.isKhams,
+        isKabout: base.isKabout,
+        winningTeam: base.winningTeam,
+        reason: base.reason,
+        teamATrickAbnat: trickAbnatA,
+        teamBTrickAbnat: trickAbnatB,
+        lastTrickBonusTeam: lastTrickBonusTeam,
+        teamAProjectAbnat: effectiveProjectA,
+        teamBProjectAbnat: effectiveProjectB,
+        mode: mode,
+        buyerTeam: buyerTeam,
+        doubleStatus: doubleStatus,
+      );
+    }
+
+    // --- Kabout check (uses actual trick counts, not Abnat) ---
     if (isKabout) {
-      return _scoreKabout(
+      return _withBreakdown(_scoreKabout(
         teamAAbnat: aAbnat,
         teamBAbnat: bAbnat,
         buyerCardIsAce: buyerCardIsAce,
-        teamATricksWon: aAbnat > 0 ? 8 : 0,
-        teamBTricksWon: bAbnat > 0 ? 8 : 0,
-      );
+        teamATricksWon: teamATricksCount,
+        teamBTricksWon: teamBTricksCount,
+        mode: mode,
+        doubleStatus: doubleStatus,
+      ));
     }
 
     // --- Determine round winner ---
@@ -116,10 +159,8 @@ class ScoringEngine {
     final buyerAbnat = buyerTeam == 'A' ? aAbnat : bAbnat;
     final defenderAbnat = buyerTeam == 'A' ? bAbnat : aAbnat;
 
-    // Double tie-breaker: double caller loses on exact tie
     bool buyerWins;
     if (doubleStatus != DoubleStatus.none && buyerAbnat == defenderAbnat) {
-      // Tie with double active → double caller loses
       buyerWins = doubleCallerTeam != buyerTeam;
     } else {
       buyerWins = buyerAbnat > threshold;
@@ -127,7 +168,7 @@ class ScoringEngine {
 
     // --- Khams (buyer loses) ---
     if (!buyerWins) {
-      return _scoreKhams(
+      return _withBreakdown(_scoreKhams(
         mode: mode,
         buyerTeam: buyerTeam,
         teamAAbnat: aAbnat,
@@ -138,11 +179,11 @@ class ScoringEngine {
         teamBProjectScoreboard: teamBProjectScoreboard,
         balootPoints: balootPoints,
         balootTeam: balootTeam,
-      );
+      ));
     }
 
     // --- Normal scoring (buyer wins) ---
-    return _scoreNormal(
+    return _withBreakdown(_scoreNormal(
       mode: mode,
       buyerTeam: buyerTeam,
       teamAAbnat: aAbnat,
@@ -153,7 +194,7 @@ class ScoringEngine {
       teamBProjectScoreboard: teamBProjectScoreboard,
       balootPoints: balootPoints,
       balootTeam: balootTeam,
-    );
+    ));
   }
 
   RoundScoreResult _scoreKabout({
@@ -162,8 +203,15 @@ class ScoringEngine {
     required bool buyerCardIsAce,
     required int teamATricksWon,
     required int teamBTricksWon,
+    required GameMode mode,
+    DoubleStatus doubleStatus = DoubleStatus.none,
   }) {
-    final kaboutPts = buyerCardIsAce ? 88 : 44;
+    // Jawaker/Kamelna: Hakam Kabout = 25, Sun Kabout = 44
+    // Ace doubles the base (Hakam=50, Sun=88)
+    final baseKabout = mode == GameMode.hakam ? 25 : 44;
+    final aceMultiplier = buyerCardIsAce ? 2 : 1;
+    final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
+    final kaboutPts = baseKabout * aceMultiplier * doubleMultiplier;
     final winnerIsA = teamATricksWon == 8;
 
     return RoundScoreResult(
@@ -192,19 +240,18 @@ class ScoringEngine {
   }) {
     final defenderTeam = buyerTeam == 'A' ? 'B' : 'A';
     int defenderPts;
-    int buyerPts = 0;
 
     if (doubleStatus != DoubleStatus.none) {
-      // With double active: defender gets base double value
       defenderPts = _doubleBaseValue(doubleStatus);
     } else {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
 
-    // Add project scoreboard points to winning project team
+    // Khams gives a fixed score. Project scoreboard pts are added separately
+    // because the Abnat-to-scoreboard conversion is bypassed.
     int aBonus = 0, bBonus = 0;
     if (projectWinningTeam != null) {
-      final multiplier = _doubleMultiplier(doubleStatus);
+      final multiplier = _projectMultiplier(doubleStatus);
       if (projectWinningTeam == 'A') {
         aBonus = teamAProjectScoreboard * multiplier;
       } else {
@@ -212,7 +259,6 @@ class ScoringEngine {
       }
     }
 
-    // Baloot (immune to multiplier)
     if (balootTeam == 'A') aBonus += balootPoints;
     if (balootTeam == 'B') bBonus += balootPoints;
 
@@ -251,25 +297,26 @@ class ScoringEngine {
     int aPts, bPts;
 
     if (doubleStatus != DoubleStatus.none) {
-      // With double: winner gets base value, loser gets 0
+      // With double: winner gets base value, loser gets 0.
+      // Project scoreboard pts added separately (Abnat conversion bypassed).
       final basePts = _doubleBaseValue(doubleStatus);
       aPts = buyerTeam == 'A' ? basePts : 0;
       bPts = buyerTeam == 'B' ? basePts : 0;
+
+      final multiplier = _projectMultiplier(doubleStatus);
+      if (projectWinningTeam == 'A') {
+        aPts += teamAProjectScoreboard * multiplier;
+      } else if (projectWinningTeam == 'B') {
+        bPts += teamBProjectScoreboard * multiplier;
+      }
     } else {
-      // Normal: convert Abnat to scoreboard for both teams
+      // No double: Abnat -> scoreboard conversion already includes project
+      // Abnat contribution. Do NOT add project scoreboard pts separately.
       aPts = abnatToScoreboard(teamAAbnat, mode);
       bPts = abnatToScoreboard(teamBAbnat, mode);
     }
 
-    // Add project points
-    final multiplier = _doubleMultiplier(doubleStatus);
-    if (projectWinningTeam == 'A') {
-      aPts += teamAProjectScoreboard * multiplier;
-    } else if (projectWinningTeam == 'B') {
-      bPts += teamBProjectScoreboard * multiplier;
-    }
-
-    // Baloot (always 2, never multiplied)
+    // Baloot is always 2 pts (never derived from Abnat, immune to doubling)
     if (balootTeam == 'A') aPts += balootPoints;
     if (balootTeam == 'B') bPts += balootPoints;
 
@@ -285,22 +332,40 @@ class ScoringEngine {
     );
   }
 
+  /// Base round reward when Double is active.
+  /// Jawaker/Kamelna: 16 × multiplier (32/48/64).
   int _doubleBaseValue(DoubleStatus status) {
     switch (status) {
       case DoubleStatus.none:
         return 0;
       case DoubleStatus.doubled:
-        return 32;
+        return 32;  // 16 × 2
       case DoubleStatus.tripled:
-        return 40;
+        return 48;  // 16 × 3
       case DoubleStatus.four:
-        return 48;
+        return 64;  // 16 × 4
       case DoubleStatus.gahwa:
-        return 0; // Gahwa = instant game win, no point value
+        return 0;
     }
   }
 
-  int _doubleMultiplier(DoubleStatus status) {
+  /// Project multiplier: capped at ×2 per Jawaker/Kamelna/Tournament rules.
+  /// Even in Triple/Four, projects are only doubled, never tripled/quadrupled.
+  int _projectMultiplier(DoubleStatus status) {
+    switch (status) {
+      case DoubleStatus.none:
+        return 1;
+      case DoubleStatus.doubled:
+      case DoubleStatus.tripled:
+      case DoubleStatus.four:
+        return 2;  // Capped at ×2
+      case DoubleStatus.gahwa:
+        return 1;
+    }
+  }
+
+  /// Card point multiplier for Kabout calculation.
+  int _cardDoubleMultiplier(DoubleStatus status) {
     switch (status) {
       case DoubleStatus.none:
         return 1;
@@ -315,21 +380,17 @@ class ScoringEngine {
     }
   }
 
-  /// Check if the game has ended (152 scoreboard points or Gahwa).
   bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (lastDouble == DoubleStatus.gahwa) return true;
     return teamATotal >= 152 || teamBTotal >= 152;
   }
 
-  /// Which team won the game. Returns 'A', 'B', or null if not over.
   String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
     if (lastDouble == DoubleStatus.gahwa) {
-      // Gahwa: the team that called it wins (handled externally)
       return null; // caller must determine
     }
     if (teamATotal >= 152 && teamBTotal >= 152) {
-      // Both crossed — higher score wins
       return teamATotal >= teamBTotal ? 'A' : 'B';
     }
     if (teamATotal >= 152) return 'A';

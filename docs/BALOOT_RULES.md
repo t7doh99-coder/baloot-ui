@@ -3,7 +3,7 @@
 #
 # Source: Abdul Sami's Project Doc + Client (Visca ME) + Jawaker + Meeting Videos
 # Benchmark App: Kammelna (كملنا) / Jawaker (القوانين)
-# Status: v3.0 — FINAL — All rules confirmed. No open questions remaining.
+# Status: v3.1 — FINAL — All rules verified against Jawaker + Kamelna apps.
 # ══════════════════════════════════════════════════════════════════════
 
 ---
@@ -133,8 +133,10 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 |--------|--------|
 | **Sun** | No-trump game. Takes effect immediately. |
 | **Second Hakam** | Choose a NEW trump suit (must differ from Buyer Card's suit). |
-| **Ashkal** | Special Sun variant (Dealer and Player-Left-of-Dealer only). |
 | **Pass** | Pass to next player. |
+
+> [!WARNING] **Ashkal is NOT available in Round 2** (verified: Jawaker + Kamelna + Pagat).
+> Round 2 options are: Sun, Second Hakam, or Pass only.
 
 ### 4.4 Sawa (سوى) — Bid Matching
 > [!IMPORTANT] **Confirmed from client meeting video (14-00-32.mp4 @ 00:54):**
@@ -156,6 +158,9 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 ---
 
 ## 5. Rules of Play
+
+### 5.0 First Trick Leader (Jawaker/Kamelna — VERIFIED)
+The **buyer** (player who won the bidding) leads the first trick.
 
 ### 5.1 Mandatory Rules (Both Modes)
 1. **Follow Suit:** Player MUST play the leading suit if they hold it.
@@ -202,11 +207,12 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 - Team with the **superior project** has their Abnat added (only winning team's project counts).
 - If tied project rank → compare highest card in the sequence; higher wins.
 
-### 6.4 Project Multiplier Rule (Jawaker — IMPORTANT)
+### 6.4 Project Multiplier Rule (Jawaker/Kamelna — VERIFIED)
 > [!IMPORTANT] When a Double/Triple/Four is active:
-> - All project scoreboard points (Sera/50/100/400) are **also multiplied** by the same factor.
+> - Project scoreboard points are multiplied by **×2 MAXIMUM** (capped), even in Triple/Four.
 > - Example: Double active + Sera (2 pts) = **2 × 2 = 4 pts** from Sera alone.
-> - **Exception: Baloot is ALWAYS exactly 2 pts — it is immune to doubling multipliers.**
+> - Example: Triple active + Sera (2 pts) = **2 × 2 = 4 pts** (NOT 2 × 3).
+> - **Exception: Baloot is ALWAYS exactly 2 pts — it is immune to ALL multipliers.**
 
 ### 6.4 Baloot Declaration Timing
 - NOT declared during the first trick.
@@ -217,26 +223,35 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 
 ## 7. Double System (Hakam Mode Only)
 
-### 7.1 Who Can Double
-- Only the **Defending Team** (non-buyer) can initiate a Double.
+### 7.1 Double Escalation Chain (Jawaker/Kamelna/Pagat — VERIFIED)
+The double escalation **alternates between teams**:
+
+| Level | Called By | Response To |
+|-------|-----------|------------|
+| **Double** | Defending Team | — (initiation) |
+| **Triple** | Buyer Team | Response to Double |
+| **Four** | Defending Team | Response to Triple |
+| **Gahwa** | Buyer Team | Response to Four |
+
 - Only available in **Hakam** mode.
-- **Sun Double Exception (GameRules confirmed):** In Sun mode, a Double is ONLY allowed if:
+- **Sun Double Exception:** In Sun mode, a Double is ONLY allowed if:
   - The Sun declarer has **more than 100 total scoreboard points**
   - AND the opposing team has **fewer than 100 scoreboard points**
+  - In Sun, **no further escalation** beyond Double is possible.
 
 ### 7.2 Double Initiation Timing
 > [!IMPORTANT] **Confirmed from client meeting video (13-51-23.mp4 @ 02:04):**
 > The Double window is open only **BEFORE the first card of the round is played**.
 > Once the lead player plays their first card, the Double option is permanently closed for that round.
 
-### 7.3 Double Values (Base Round Reward)
+### 7.3 Double Values (Base Round Reward — 16 × multiplier)
 
-| Action   | Base Scoreboard Points |
-|----------|------------------------|
-| Double   | 32 pts                 |
-| Triple   | 40 pts                 |
-| Four     | 48 pts                 |
-| Gahwa    | Instant Game Win       |
+| Action   | Base Scoreboard Points | Formula |
+|----------|------------------------|--------|
+| Double   | **32** pts             | 16 × 2 |
+| Triple   | **48** pts             | 16 × 3 |
+| Four     | **64** pts             | 16 × 4 |
+| Gahwa    | Instant Game Win       | — |
 
 > [!IMPORTANT] **Double = BASE reward only.** Final score = Base Value + Project Scoreboard Points.
 > Abnat determines WHO wins. It does NOT directly set the final score number.
@@ -273,14 +288,17 @@ Each team totals: card point values from all tricks won + any project Abnat
 | Sun    | 26 pts              | 0 pts           |
 | Hakam  | 16 pts              | 0 pts           |
 
-### 8.4 Kabout (كبوت / All-Tricks Sweep — Confirmed by 2 sources)
+### 8.4 Kabout (كبوت / All-Tricks Sweep — Jawaker/Kamelna VERIFIED)
 If one team wins **ALL 8 tricks**:
-| Situation | Winner Gets | Loser Gets |
-|---|---|---|
-| Normal Kabout | 44 pts | 0 pts |
-| **Kabout when bid card was an Ace** | **88 pts** | 0 pts |
+| Mode | Normal Kabout | Ace Kabout | Doubled | Tripled |
+|------|--------------|------------|---------|--------|
+| **Sun** | **44** pts | **88** pts | 88 pts | — |
+| **Hakam** | **25** pts | **50** pts | 50 pts | 75 pts |
 
-> [!IMPORTANT] **Ace Kabout Bonus** (GameRules source): If the face-up Buyer Card was an Ace AND a team sweeps all tricks, the winner scores **88 points** instead of 44.
+> [!IMPORTANT] **Mode-dependent scoring:**
+> - Sun Kabout = 44 (from 220 total Abnat ÷ 5)
+> - Hakam Kabout = 25 (from 252 total Abnat ÷ 10)
+> - Ace doubles the base. Double/Triple/Four **also multiplies** the Kabout base.
 
 ### 8.5 Step 3 — Convert Abnat to Scoreboard Points
 
@@ -310,7 +328,7 @@ Example: 15.5 → 15 | 15.6 → 16
 Final Score = Scoreboard Points (from Abnat conversion) + Project Scoreboard Pts + Baloot Pts
 
 // With Double:
-Final Score = Base Double Value (32 / 40 / 48) + Project Scoreboard Pts
+Final Score = Base Double Value (32 / 48 / 64) + Project Scoreboard Pts (×2 cap)
 ```
 
 **Double + Project Example (confirmed by client):**

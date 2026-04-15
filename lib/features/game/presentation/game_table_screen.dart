@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/card_model.dart' show Suit;
@@ -13,6 +14,7 @@ import 'widgets/player_seat_widget.dart';
 import 'widgets/project_sheet.dart';
 import 'widgets/scoring_overlays.dart';
 import 'widgets/trick_area_widget.dart';
+import 'widgets/last_trick_mini_widget.dart';
 
 bool _showHand(GamePhase phase) {
   return phase != GamePhase.notStarted &&
@@ -42,23 +44,45 @@ class GameTableScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
+    final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: const Color(0xFFB8B0A0),
       body: Stack(
+        clipBehavior: Clip.none,
         children: [
           SafeArea(
             child: Column(
               children: [
                 _TopBar(game: game),
                 Expanded(child: _PlayArea(game: game)),
-                if (_showHand(game.phase))
-                  const HumanHandWidget(),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SizeTransition(
+                      sizeFactor: anim,
+                      axisAlignment: 1.0,
+                      child: child,
+                    ),
+                  ),
+                  child: _showHand(game.phase)
+                      ? const HumanHandWidget(key: ValueKey('hand'))
+                      : const SizedBox(key: ValueKey('no-hand'), height: 8),
+                ),
                 _BottomBar(game: game),
               ],
             ),
           ),
-          if (game.phase == GamePhase.scoring &&
-              game.lastRoundScoreResult != null)
+          // Jawaker-style: last trick mini (red backs until first trick completes)
+          if (game.phase != GamePhase.notStarted)
+            Positioned(
+              top: topInset + 52,
+              right: 10,
+              child: const LastTrickMiniWidget(),
+            ),
+          // Show overlay whenever a round result exists
+          // (engine goes scoring→dealing in one step, so we match on result != null)
+          if (game.lastRoundResult != null && game.phase != GamePhase.gameOver)
             const RoundScoreOverlay(),
           if (game.phase == GamePhase.gameOver) const GameOverOverlay(),
         ],
@@ -163,12 +187,19 @@ class _ScoreBox extends StatelessWidget {
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
                 height: 1)),
-        Text('$score',
+        TweenAnimationBuilder<int>(
+          tween: IntTween(begin: score, end: score),
+          duration: const Duration(milliseconds: 600),
+          builder: (ctx, val, _) => Text(
+            '$val',
             style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                height: 1)),
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -316,7 +347,10 @@ class _StartBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.heavyImpact();
+        onTap();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
         decoration: BoxDecoration(
@@ -713,7 +747,7 @@ class _OpenClosedSheet extends StatelessWidget {
 //  GAME BUTTON  — clean, flat, with color accent
 // ══════════════════════════════════════════════════════════════════
 
-class _GameBtn extends StatelessWidget {
+class _GameBtn extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -724,37 +758,76 @@ class _GameBtn extends StatelessWidget {
   });
 
   @override
+  State<_GameBtn> createState() => _GameBtnState();
+}
+
+class _GameBtnState extends State<_GameBtn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      reverseDuration: const Duration(milliseconds: 160),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.92).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    HapticFeedback.lightImpact();
+    _ctrl.forward().then((_) {
+      _ctrl.reverse();
+      widget.onTap();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isNeutral = color == const Color(0xFFB0B0B0);
+    final isNeutral = widget.color == const Color(0xFFB0B0B0);
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: isNeutral
-              ? Colors.white.withValues(alpha: 0.92)
-              : color.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
+      onTap: _handleTap,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
             color: isNeutral
-                ? Colors.grey.withValues(alpha: 0.3)
-                : color.withValues(alpha: 0.55),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 4, offset: const Offset(0, 2),
+                ? Colors.white.withValues(alpha: 0.92)
+                : widget.color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isNeutral
+                  ? Colors.grey.withValues(alpha: 0.3)
+                  : widget.color.withValues(alpha: 0.55),
+              width: 1.2,
             ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isNeutral ? Colors.black87 : color,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 4, offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: isNeutral ? Colors.black87 : widget.color,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),

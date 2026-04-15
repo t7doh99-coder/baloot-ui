@@ -63,6 +63,8 @@ void main() {
         teamBAbnat: 90,
         mode: GameMode.sun,
         buyerTeam: 'A',
+        teamATricksCount: 3,
+        teamBTricksCount: 5,
       );
 
       expect(result.isKhams, true);
@@ -77,6 +79,8 @@ void main() {
         teamBAbnat: 92,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 3,
+        teamBTricksCount: 5,
       );
 
       expect(result.isKhams, true);
@@ -86,12 +90,14 @@ void main() {
   });
 
   group('Kabout (all-tricks sweep)', () {
-    test('normal Kabout: winner gets 44', () {
+    test('Sun Kabout: winner gets 44', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 130,
         teamBAbnat: 0,
         mode: GameMode.sun,
         buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
         isKabout: true,
       );
 
@@ -100,20 +106,71 @@ void main() {
       expect(result.teamBPoints, 0);
     });
 
-    test('Kabout with Ace buyer card: winner gets 88', () {
+    test('Hakam Kabout: winner gets 25 (not 44)', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 162,
         teamBAbnat: 0,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+      );
+
+      expect(result.isKabout, true);
+      expect(result.teamAPoints, 25);
+      expect(result.teamBPoints, 0);
+    });
+
+    test('Hakam Kabout with Ace buyer card: winner gets 50', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
         isKabout: true,
         buyerCardIsAce: true,
       );
 
       expect(result.isKabout, true);
-      expect(result.teamAPoints, 88);
+      expect(result.teamAPoints, 50); // 25 × 2
       expect(result.teamBPoints, 0);
       expect(result.reason, 'kabout_ace');
+    });
+
+    test('Sun Kabout with Ace buyer card: winner gets 88', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 130,
+        teamBAbnat: 0,
+        mode: GameMode.sun,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        buyerCardIsAce: true,
+      );
+
+      expect(result.isKabout, true);
+      expect(result.teamAPoints, 88); // 44 × 2
+      expect(result.teamBPoints, 0);
+    });
+
+    test('Hakam Kabout + Double: winner gets 50', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        doubleStatus: DoubleStatus.doubled,
+      );
+
+      expect(result.isKabout, true);
+      expect(result.teamAPoints, 50); // 25 × 2
     });
   });
 
@@ -124,6 +181,8 @@ void main() {
         teamBAbnat: 62,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
         doubleStatus: DoubleStatus.doubled,
       );
 
@@ -137,6 +196,8 @@ void main() {
         teamBAbnat: 62,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
         doubleStatus: DoubleStatus.doubled,
         projectWinningTeam: 'A',
         teamAProjectScoreboard: 2, // Sera = 2 pts
@@ -151,6 +212,8 @@ void main() {
         teamBAbnat: 62,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
         doubleStatus: DoubleStatus.doubled,
         balootPoints: 2,
         balootTeam: 'A',
@@ -159,28 +222,49 @@ void main() {
       expect(result.teamAPoints, 34); // 32 + 2 (Baloot not multiplied)
     });
 
-    test('Triple: base 40 pts', () {
+    test('Triple: base 48 pts (16×3)', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 100,
         teamBAbnat: 62,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
         doubleStatus: DoubleStatus.tripled,
       );
 
-      expect(result.teamAPoints, 40);
+      expect(result.teamAPoints, 48);
     });
 
-    test('Four: base 48 pts', () {
+    test('Four: base 64 pts (16×4)', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 100,
         teamBAbnat: 62,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
         doubleStatus: DoubleStatus.four,
       );
 
-      expect(result.teamAPoints, 48);
+      expect(result.teamAPoints, 64);
+    });
+
+    test('Triple + Sera: project multiplier capped at ×2', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 100,
+        teamBAbnat: 62,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
+        doubleStatus: DoubleStatus.tripled,
+        projectWinningTeam: 'A',
+        teamAProjectScoreboard: 2, // Sera = 2 pts
+      );
+
+      // 48 (triple base) + 2×2 (project capped at ×2) = 52
+      expect(result.teamAPoints, 52);
     });
 
     test('Tie with double: double caller loses (81 vs 81)', () {
@@ -189,6 +273,8 @@ void main() {
         teamBAbnat: 81,
         mode: GameMode.hakam,
         buyerTeam: 'A',
+        teamATricksCount: 4,
+        teamBTricksCount: 4,
         doubleStatus: DoubleStatus.doubled,
         doubleCallerTeam: 'B', // Team B called double
       );
@@ -206,6 +292,8 @@ void main() {
         teamBAbnat: 42,
         mode: GameMode.sun,
         buyerTeam: 'A',
+        teamATricksCount: 5,
+        teamBTricksCount: 3,
       );
 
       expect(result.teamAPoints, 18); // round(88/10)*2

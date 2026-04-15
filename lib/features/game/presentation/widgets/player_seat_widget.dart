@@ -108,14 +108,25 @@ class _TopSeat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      // Stretch so avatar row gets a bounded max width; avoids Row overflow
+      // when [isActive] (thicker border / shadow) on narrow center column.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 1. Face-down card fan (above everything)
-        if (cardCount > 0) _TopCardFan(count: cardCount, teamColor: teamColor),
+        if (cardCount > 0)
+          Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _TopCardFan(count: cardCount, teamColor: teamColor),
+            ),
+          ),
 
         const SizedBox(height: 4),
 
         // 2. Speech bubble
-        _SpeechBubble(bubble: bubble, teamColor: teamColor),
+        Center(
+          child: _SpeechBubble(bubble: bubble, teamColor: teamColor),
+        ),
 
         // 3. Avatar with timer ring
         _AvatarCard(
@@ -366,7 +377,6 @@ class _AvatarCard extends StatelessWidget {
         ],
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           // Avatar with optional timer ring
           _TimerAvatar(
@@ -377,38 +387,42 @@ class _AvatarCard extends StatelessWidget {
           ),
           const SizedBox(width: 5),
 
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  fontSize: compact ? 9 : 10,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Tajawal',
-                  height: 1.1,
+          // Expanded: Row(mainAxisSize: min) gives unbounded width to non-flex
+          // children — that breaks ellipsis and causes RIGHT OVERFLOW when active.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    fontSize: compact ? 9 : 10,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Tajawal',
+                    height: 1.1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _LevelBadge(level: _levels[0], teamColor: teamColor, compact: compact),
-                  if (isDealer) ...[
-                    const SizedBox(width: 3),
-                    _DealerChip(compact: compact),
+                const SizedBox(height: 2),
+                Wrap(
+                  spacing: 3,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _LevelBadge(
+                        level: _levels[0],
+                        teamColor: teamColor,
+                        compact: compact),
+                    if (isDealer) _DealerChip(compact: compact),
+                    if (isBuyer && !isDealer)
+                      Icon(Icons.star, color: teamColor, size: compact ? 9 : 11),
                   ],
-                  if (isBuyer && !isDealer) ...[
-                    const SizedBox(width: 3),
-                    Icon(Icons.star, color: teamColor, size: compact ? 9 : 11),
-                  ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -600,7 +614,7 @@ class _DealerChip extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(
-        'د',
+        'D',
         style: TextStyle(
             color: const Color(0xFF3D2518),
             fontSize: compact ? 7 : 9,
@@ -628,26 +642,36 @@ class _SpeechBubble extends StatelessWidget {
           ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
       child: bubble == null
           ? const SizedBox(key: ValueKey('empty'))
-          : Container(
+          : LayoutBuilder(
               key: ValueKey(bubble!.shownAt),
-              margin: const EdgeInsets.only(bottom: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: teamColor.withValues(alpha: 0.6), width: 1),
-              ),
-              child: Text(
-                bubble!.text,
-                style: TextStyle(
-                  color: teamColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Tajawal',
-                  height: 1,
-                ),
-              ),
+              builder: (context, c) {
+                final maxW = c.maxWidth.isFinite ? c.maxWidth : 280.0;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: teamColor.withValues(alpha: 0.6), width: 1),
+                  ),
+                  child: Text(
+                    bubble!.text,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: teamColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Tajawal',
+                      height: 1.15,
+                    ),
+                  ),
+                );
+              },
             ),
     );
   }

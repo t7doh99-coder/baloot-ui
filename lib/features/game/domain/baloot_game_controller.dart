@@ -57,6 +57,20 @@ class BalootGameController implements IBalootController {
   /// Points and flags from the last completed round (cleared on new round).
   RoundScoreResult? get lastRoundScoreResult => _lastRoundScoreResult;
 
+  /// Cards from the last completed trick, indexed by seat 0–3 (for mini history UI).
+  /// Only non-null while a [TurnManager] exists with at least one finished trick.
+  List<CardModel>? get lastTrickCardsBySeat {
+    final tm = _turnManager;
+    if (tm == null || tm.trickHistory.isEmpty) return null;
+    final last = tm.trickHistory.last;
+    if (last.cards.length != 4) return null;
+    final map = <int, CardModel>{};
+    for (final p in last.cards) {
+      map[p.playerIndex] = p.card;
+    }
+    return List.generate(4, (i) => map[i]!);
+  }
+
   GamePhase get gamePhase => _gamePhase;
 
   // ── IBalootController implementation ──
@@ -171,11 +185,23 @@ class BalootGameController implements IBalootController {
     final buyerIsTeamA = buyerIndex % 2 == 0;
     final callerIsTeamA = seatIndex % 2 == 0;
 
-    // Only defending team can double (BALOOT_RULES.md Section 7.1)
-    if (callerIsTeamA == buyerIsTeamA) {
+    // Jawaker/Kamelna: Double escalation alternates between teams.
+    // Defending → Double, Buyer → Triple, Defending → Four, Buyer → Gahwa
+    final bool callerShouldBeDefender =
+        level == DoubleStatus.doubled || level == DoubleStatus.four;
+    final bool callerShouldBeBuyer =
+        level == DoubleStatus.tripled || level == DoubleStatus.gahwa;
+
+    if (callerShouldBeDefender && callerIsTeamA == buyerIsTeamA) {
       throw InvalidBidException(
         playerIndex: seatIndex,
-        message: 'Only the defending team can call double.',
+        message: 'Double/Four can only be called by the defending team.',
+      );
+    }
+    if (callerShouldBeBuyer && callerIsTeamA != buyerIsTeamA) {
+      throw InvalidBidException(
+        playerIndex: seatIndex,
+        message: 'Triple/Gahwa can only be called by the buyer team.',
       );
     }
 
@@ -196,12 +222,12 @@ class BalootGameController implements IBalootController {
 
     _roundState = _roundState.copyWith(
       doubleStatus: level,
-      isDoubleWindowOpen: false,
       isOpenPlay: isOpenPlay,
     );
 
     if (level == DoubleStatus.gahwa) {
-      // Gahwa = instant game win
+      // Gahwa = instant game win for the buyer team (who calls Gahwa)
+      _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
       final winnerTeam = callerIsTeamA ? 'A' : 'B';
       if (winnerTeam == 'A') {
         _teamAScore = 152;
@@ -212,8 +238,8 @@ class BalootGameController implements IBalootController {
       return;
     }
 
-    _gamePhase = GamePhase.playing;
-    _startPlayPhase();
+    // Double window stays open for the other team to escalate or skip.
+    // Phase remains GamePhase.doubleWindow until skipDoubleWindow() is called.
   }
 
   /// Skip the double window and proceed to play.
@@ -227,8 +253,8 @@ class BalootGameController implements IBalootController {
   }
 
   void _startPlayPhase() {
-    // Jawaker rule: the player to dealer's right leads the first trick.
-    final firstPlayer = (_dealerIndex + 1) % 4;
+    // Jawaker/Kamelna: the buyer leads the first trick.
+    final firstPlayer = _roundState.buyerIndex!;
     _turnManager = TurnManager(
       mode: _roundState.activeMode!,
       trumpSuit: _roundState.trumpSuit,
@@ -410,11 +436,19 @@ class BalootGameController implements IBalootController {
 
     final buyerCardIsAce = _roundState.buyerCard?.rank == Rank.ace;
 
+    // Determine which team won the last trick (for +10 ground bonus display)
+    final lastTrickTeam = _turnManager!.trickHistory.isNotEmpty
+        ? (_turnManager!.trickHistory.last.winnerIndex % 2 == 0 ? 'A' : 'B')
+        : null;
+
     final scoreResult = _scoringEngine.calculateRoundScore(
       teamAAbnat: _turnManager!.teamAAbnat,
       teamBAbnat: _turnManager!.teamBAbnat,
       mode: mode,
       buyerTeam: buyerTeam,
+      teamATricksCount: _turnManager!.teamATricksWon.length,
+      teamBTricksCount: _turnManager!.teamBTricksWon.length,
+      lastTrickBonusTeam: lastTrickTeam,
       teamAProjectAbnat: teamAProjectAbnat,
       teamBProjectAbnat: teamBProjectAbnat,
       teamAProjectScoreboard: teamAProjectScoreboard,

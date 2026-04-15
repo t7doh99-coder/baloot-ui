@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../../../data/models/card_model.dart';
 import '../../../data/models/card_play_model.dart';
 import '../../../data/models/round_state_model.dart';
@@ -34,26 +35,54 @@ class PlayerBubble {
   });
 }
 
-/// Result data from the last completed round (for score overlay).
+/// Result data from the last completed round (for Kamelna-style score overlay).
 class LastRoundResult {
+  // Scoreboard points
   final int teamAPoints;
   final int teamBPoints;
+
+  // Total Abnat (tricks + ground + projects)
   final int teamAAbnat;
   final int teamBAbnat;
+
+  // Breakdown: trick card points only (no ground, no projects)
+  final int teamATrickAbnat;
+  final int teamBTrickAbnat;
+
+  // Which team won the last trick (+10 ground bonus)
+  final String? lastTrickBonusTeam;
+
+  // Project Abnat (only the winning team's projects)
+  final int teamAProjectAbnat;
+  final int teamBProjectAbnat;
+
   final bool isKhams;
   final bool isKabout;
+  final String? reason; // 'khams', 'kabout', 'kabout_ace', 'normal'
+  final String winningTeam;
+  final String buyerTeam;
   final GameMode mode;
   final Suit? trumpSuit;
+  final DoubleStatus doubleStatus;
 
   const LastRoundResult({
     required this.teamAPoints,
     required this.teamBPoints,
     required this.teamAAbnat,
     required this.teamBAbnat,
+    this.teamATrickAbnat = 0,
+    this.teamBTrickAbnat = 0,
+    this.lastTrickBonusTeam,
+    this.teamAProjectAbnat = 0,
+    this.teamBProjectAbnat = 0,
     required this.isKhams,
     required this.isKabout,
+    this.reason,
+    this.winningTeam = 'A',
+    this.buyerTeam = 'A',
     required this.mode,
     this.trumpSuit,
+    this.doubleStatus = DoubleStatus.none,
   });
 }
 
@@ -79,6 +108,9 @@ class GameProvider extends ChangeNotifier {
 
   // ── Last round result (for score overlay UI) ──
   LastRoundResult? _lastRoundResult;
+
+  // ── Last trick mini (top-right Jawaker-style); persists across rounds ──
+  List<CardModel>? _lastTrickMiniBySeat;
 
   // ── Phase tracking for transition detection ──
   GamePhase _prevPhase = GamePhase.notStarted;
@@ -177,6 +209,11 @@ class GameProvider extends ChangeNotifier {
   /// Result of the last completed round.
   LastRoundResult? get lastRoundResult => _lastRoundResult;
 
+  /// Last completed trick (4 cards by seat) for the top-right mini panel.
+  /// Persists after a round ends until a new trick is played in the next round.
+  /// Null before the first trick of the session → show red card backs.
+  List<CardModel>? get lastTrickMiniBySeat => _lastTrickMiniBySeat;
+
   /// Rich scoring breakdown from the engine (Khams, Kabout, etc.).
   RoundScoreResult? get lastRoundScoreResult {
     if (phase == GamePhase.notStarted) return null;
@@ -224,6 +261,7 @@ class GameProvider extends ChangeNotifier {
 
   /// Start a new game. Call this once after creating the provider.
   void startGame() {
+    _lastTrickMiniBySeat = null;
     _engine.startNewGame(_playerNames);
     _prevPhase = _engine.gamePhase;
     _lastRoundResult = null;
@@ -250,6 +288,7 @@ class GameProvider extends ChangeNotifier {
     try {
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
       _showBubble(0, _bidActionLabel(action, secondHakamSuit));
+      HapticFeedback.lightImpact();
       _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] humanBid error: $e');
@@ -263,6 +302,7 @@ class GameProvider extends ChangeNotifier {
     try {
       _engine.callDouble(0, level, isOpenPlay: isOpenPlay);
       _showBubble(0, _doubleLabel(level));
+      HapticFeedback.heavyImpact();
       _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] humanDouble error: $e');
@@ -288,6 +328,7 @@ class GameProvider extends ChangeNotifier {
       _selectedCard = null;
     } else {
       _selectedCard = card;
+      HapticFeedback.selectionClick();
     }
     notifyListeners();
   }
@@ -305,6 +346,7 @@ class GameProvider extends ChangeNotifier {
     try {
       _engine.playCard(0, card);
       _selectedCard = null;
+      HapticFeedback.mediumImpact();
       _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] humanPlayCard error: $e');
@@ -327,13 +369,21 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   void _afterEngineAction() {
-    _lastRoundResult = null; // clear stale result
+    _syncLastTrickMini();
+
     final newPhase = _engine.gamePhase;
 
-    // Round scored: playing → scoring, or playing → gameOver (skips visible scoring)
-    if (_prevPhase == GamePhase.playing &&
-        (newPhase == GamePhase.scoring || newPhase == GamePhase.gameOver)) {
+    // The engine's _scoreRound() transitions: scoring (transient) → dealing or gameOver.
+    // By the time we read it the phase is already 'dealing' or 'gameOver', not 'scoring'.
+    // Detect "round just completed" by watching playing → dealing|gameOver.
+    final roundJustScored = _prevPhase == GamePhase.playing &&
+        (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
+
+    if (roundJustScored) {
       _captureLastRoundResult();
+      HapticFeedback.heavyImpact();
+    } else {
+      _lastRoundResult = null; // clear stale result from previous round
     }
 
     _prevPhase = newPhase;
@@ -348,19 +398,28 @@ class GameProvider extends ChangeNotifier {
 
     final p = _engine.gamePhase;
 
-    // Dealing phase auto-progresses (no user input needed)
+    // 'dealing' is the phase the engine sits in between rounds.
+    // If _lastRoundResult is set, we just finished a round → show overlay
+    // for 3.5 s then start the next round.
+    // If _lastRoundResult is null, this is the very first deal → advance
+    // quickly after a short animation pause.
     if (p == GamePhase.dealing) {
-      _botTimer = Timer(const Duration(milliseconds: 800), () {
-        // Engine already starts new round from dealing phase internally
-        // Just notify so UI can show the deal animation
+      final delay = _lastRoundResult != null
+          ? const Duration(milliseconds: 3500) // score overlay display time
+          : const Duration(milliseconds: 900);  // initial deal animation
+      _botTimer = Timer(delay, () {
+        _lastRoundResult = null;
+        _engine.startNewRound();
+        _prevPhase = _engine.gamePhase;
         notifyListeners();
+        _scheduleNextAction();
       });
       return;
     }
 
-    // Scoring phase: show result briefly then start next round
+    // The engine no longer stays in 'scoring' — handled above.
+    // Keep this guard for safety:
     if (p == GamePhase.scoring) {
-      notifyListeners();
       _botTimer = Timer(const Duration(milliseconds: 3500), () {
         _lastRoundResult = null;
         _engine.startNewRound();
@@ -495,24 +554,40 @@ class GameProvider extends ChangeNotifier {
     });
   }
 
+  void _syncLastTrickMini() {
+    final fromEngine = _engine.lastTrickCardsBySeat;
+    if (fromEngine != null) {
+      _lastTrickMiniBySeat = fromEngine;
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  SCORE CAPTURE
   // ══════════════════════════════════════════════════════════════════
 
   void _captureLastRoundResult() {
     final rs = _engine.roundState;
-    final score = _engine.gameScore;
-    final detail = _engine.lastRoundScoreResult;
+    final d = _engine.lastRoundScoreResult;
+    if (d == null) return;
 
     _lastRoundResult = LastRoundResult(
-      teamAPoints: score.teamA,
-      teamBPoints: score.teamB,
-      teamAAbnat: detail?.teamARawAbnat ?? rs.teamAAbnat,
-      teamBAbnat: detail?.teamBRawAbnat ?? rs.teamBAbnat,
-      isKhams: detail?.isKhams ?? false,
-      isKabout: detail?.isKabout ?? false,
-      mode: rs.activeMode ?? GameMode.hakam,
+      teamAPoints: d.teamAPoints,
+      teamBPoints: d.teamBPoints,
+      teamAAbnat: d.teamARawAbnat,
+      teamBAbnat: d.teamBRawAbnat,
+      teamATrickAbnat: d.teamATrickAbnat,
+      teamBTrickAbnat: d.teamBTrickAbnat,
+      lastTrickBonusTeam: d.lastTrickBonusTeam,
+      teamAProjectAbnat: d.teamAProjectAbnat,
+      teamBProjectAbnat: d.teamBProjectAbnat,
+      isKhams: d.isKhams,
+      isKabout: d.isKabout,
+      reason: d.reason,
+      winningTeam: d.winningTeam,
+      buyerTeam: d.buyerTeam,
+      mode: d.mode,
       trumpSuit: rs.trumpSuit,
+      doubleStatus: d.doubleStatus,
     );
   }
 

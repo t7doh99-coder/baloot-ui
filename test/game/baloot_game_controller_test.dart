@@ -186,17 +186,17 @@ void main() {
 
       expect(ctrl.gamePhase, GamePhase.doubleWindow);
 
-      // Find a defender (non-buyer) seat
+      // Escalation chain must alternate teams:
+      // Defending → Double, Buyer → Triple, Defending → Four, Buyer → Gahwa
       final buyerIndex = ctrl.roundState.buyerIndex!;
       final buyerIsTeamA = buyerIndex % 2 == 0;
-      int defenderSeat;
-      if (buyerIsTeamA) {
-        defenderSeat = 1; // Team B
-      } else {
-        defenderSeat = 0; // Team A
-      }
+      final defenderSeat = buyerIsTeamA ? 1 : 0;
+      final buyerTeamSeat = buyerIsTeamA ? 0 : 1;
 
-      ctrl.callDouble(defenderSeat, DoubleStatus.gahwa);
+      ctrl.callDouble(defenderSeat, DoubleStatus.doubled);
+      ctrl.callDouble(buyerTeamSeat, DoubleStatus.tripled);
+      ctrl.callDouble(defenderSeat, DoubleStatus.four);
+      ctrl.callDouble(buyerTeamSeat, DoubleStatus.gahwa);
 
       expect(ctrl.isGameOver, true);
       expect(ctrl.gamePhase, GamePhase.gameOver);

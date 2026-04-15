@@ -1,12 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../data/models/card_model.dart' show GameMode;
 import '../../../../data/models/round_state_model.dart' show DoubleStatus;
-import '../../domain/engines/scoring_engine.dart';
 import '../game_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
-//  ROUND SCORE OVERLAY — shown during [GamePhase.scoring]
+//  ROUND SCORE OVERLAY — Kamelna-style detailed breakdown
+//
+//  ┌─────────────────────────────────────┐
+//  │  Mode: Hakam   Buyer: Us   Won ✓   │
+//  ├───────────┬──────────┬──────────────┤
+//  │           │   Us     │   Them       │
+//  │  Tricks   │   137    │    15        │
+//  │  Ground   │   +10    │              │
+//  │  Projects │ Sera 20  │              │
+//  │           │  100     │              │
+//  │  Abnat    │   267    │    15        │
+//  ├───────────┴──────────┴──────────────┤
+//  │  Score       27         1           │
+//  │  Game total  27 — 1                 │
+//  │           Next round…               │
+//  └─────────────────────────────────────┘
 // ══════════════════════════════════════════════════════════════════
 
 class RoundScoreOverlay extends StatelessWidget {
@@ -15,26 +30,49 @@ class RoundScoreOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
-    final detail = game.lastRoundScoreResult;
+    final r = game.lastRoundResult;
     final total = game.gameScore;
-    if (detail == null) return const SizedBox.shrink();
+    if (r == null) return const SizedBox.shrink();
+
+    final modeLabel = r.mode == GameMode.sun ? 'Sun' : 'Hakam';
+    final buyerLabel = r.buyerTeam == 'A' ? 'Us' : 'Them';
+    final buyerWon = r.winningTeam == r.buyerTeam;
+    final resultLabel = r.isKabout
+        ? 'Kabout'
+        : r.isKhams
+            ? 'Khams'
+            : buyerWon
+                ? 'Won'
+                : 'Lost';
+
+    final resultColor = r.isKabout
+        ? AppColors.goldAccent
+        : r.isKhams
+            ? const Color(0xFFE63946)
+            : const Color(0xFF28802E);
+
+    // Compute ground display: last trick bonus is +10
+    final groundA = r.lastTrickBonusTeam == 'A' ? 10 : 0;
+    final groundB = r.lastTrickBonusTeam == 'B' ? 10 : 0;
+
+    // Trick Abnat = raw trick card points minus the ground bonus
+    // (since turnManager.teamAAbnat includes the +10)
+    final trickA = r.teamATrickAbnat - groundA;
+    final trickB = r.teamBTrickAbnat - groundB;
 
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: Colors.black.withValues(alpha: 0.60),
         child: Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.92, end: 1.0),
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutBack,
-            builder: (ctx, scale, child) => Transform.scale(
-              scale: scale,
-              child: child,
-            ),
+            builder: (ctx, scale, child) =>
+                Transform.scale(scale: scale, child: child),
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 28),
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-              constraints: const BoxConstraints(maxWidth: 340),
+              margin: const EdgeInsets.symmetric(horizontal: 22),
+              constraints: const BoxConstraints(maxWidth: 360),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1810),
                 borderRadius: BorderRadius.circular(18),
@@ -44,79 +82,169 @@ class RoundScoreOverlay extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
+                    color: Colors.black.withValues(alpha: 0.50),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Round complete',
-                    style: TextStyle(
-                      color: AppColors.goldAccent,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                  // ── Header: Mode + Buyer + Result ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(17)),
+                    ),
+                    child: Row(
+                      children: [
+                        _HeaderPill(label: modeLabel),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Buyer: $buyerLabel',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: resultColor.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: resultColor.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(
+                            resultLabel,
+                            style: TextStyle(
+                              color: resultColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  _RoundTags(detail: detail),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _TeamRoundColumn(
-                          label: 'Us',
-                          color: const Color(0xFF28802E),
-                          roundPts: detail.teamAPoints,
-                          abnat: detail.teamARawAbnat,
+
+                  // ── Breakdown Table ──
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    child: Column(
+                      children: [
+                        // Column headers
+                        _TableRow(
+                          label: '',
+                          valA: 'Us',
+                          valB: 'Them',
+                          isHeader: true,
                         ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 56,
-                        color: Colors.white.withValues(alpha: 0.12),
-                      ),
-                      Expanded(
-                        child: _TeamRoundColumn(
-                          label: 'Them',
-                          color: const Color(0xFFE63946),
-                          roundPts: detail.teamBPoints,
-                          abnat: detail.teamBRawAbnat,
+                        _divider(),
+
+                        // Tricks
+                        _TableRow(
+                          label: 'Tricks',
+                          valA: '$trickA',
+                          valB: '$trickB',
                         ),
-                      ),
-                    ],
+
+                        // Ground (+10 last trick)
+                        if (r.lastTrickBonusTeam != null)
+                          _TableRow(
+                            label: 'Ground',
+                            valA: groundA > 0 ? '+$groundA' : '',
+                            valB: groundB > 0 ? '+$groundB' : '',
+                            subtle: true,
+                          ),
+
+                        // Projects
+                        if (r.teamAProjectAbnat > 0 ||
+                            r.teamBProjectAbnat > 0)
+                          _TableRow(
+                            label: 'Projects',
+                            valA: r.teamAProjectAbnat > 0
+                                ? '${r.teamAProjectAbnat}'
+                                : '',
+                            valB: r.teamBProjectAbnat > 0
+                                ? '${r.teamBProjectAbnat}'
+                                : '',
+                            highlight: true,
+                          ),
+
+                        _divider(),
+
+                        // Total Abnat
+                        _TableRow(
+                          label: 'Abnat',
+                          valA: '${r.teamAAbnat}',
+                          valB: '${r.teamBAbnat}',
+                          bold: true,
+                        ),
+
+                        _thickDivider(),
+
+                        // Score (scoreboard points)
+                        _TableRow(
+                          label: 'Score',
+                          valA: '${r.teamAPoints}',
+                          valB: '${r.teamBPoints}',
+                          bold: true,
+                          scoreRow: true,
+                          aColor: const Color(0xFF28802E),
+                          bColor: const Color(0xFFE63946),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  Divider(color: Colors.white.withValues(alpha: 0.12)),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Game total',
+
+                  // ── Footer: Game Total + Next Round ──
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Column(
+                      children: [
+                        Divider(
+                            color: Colors.white.withValues(alpha: 0.10)),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Game total',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.40),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${total.teamA} — ${total.teamB}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Next round\u2026',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.45),
-                            fontSize: 12,
-                          )),
-                      Text(
-                        '${total.teamA} — ${total.teamB}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                            color: Colors.white.withValues(alpha: 0.30),
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Next round…',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 11,
+                        const SizedBox(height: 10),
+                      ],
                     ),
                   ),
                 ],
@@ -127,88 +255,131 @@ class RoundScoreOverlay extends StatelessWidget {
       ),
     );
   }
+
+  static Widget _divider() => Divider(
+        height: 1,
+        thickness: 0.5,
+        color: Colors.white.withValues(alpha: 0.07),
+      );
+
+  static Widget _thickDivider() => Divider(
+        height: 2,
+        thickness: 1,
+        color: AppColors.goldAccent.withValues(alpha: 0.25),
+      );
 }
 
-class _RoundTags extends StatelessWidget {
-  final RoundScoreResult detail;
-  const _RoundTags({required this.detail});
+// ── Header pill (mode badge) ───────────────────────────────────────
+
+class _HeaderPill extends StatelessWidget {
+  final String label;
+  const _HeaderPill({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    final chips = <Widget>[];
-    if (detail.isKhams) {
-      chips.add(_chip('Khams', const Color(0xFFE63946)));
-    }
-    if (detail.isKabout) {
-      chips.add(_chip('Kabout', const Color(0xFFD4AF37)));
-    }
-    if (chips.isEmpty) {
-      chips.add(_chip('Normal', Colors.white24));
-    }
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      alignment: WrapAlignment.center,
-      children: chips,
-    );
-  }
-
-  Widget _chip(String text, Color c) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.2),
+        color: AppColors.goldAccent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: c.withValues(alpha: 0.5)),
+        border: Border.all(
+            color: AppColors.goldAccent.withValues(alpha: 0.35)),
       ),
       child: Text(
-        text,
-        style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.w700),
+        label,
+        style: TextStyle(
+          color: AppColors.goldAccent,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
 }
 
-class _TeamRoundColumn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final int roundPts;
-  final int abnat;
+// ── Breakdown table row ────────────────────────────────────────────
 
-  const _TeamRoundColumn({
+class _TableRow extends StatelessWidget {
+  final String label;
+  final String valA;
+  final String valB;
+  final bool isHeader;
+  final bool subtle;
+  final bool bold;
+  final bool highlight;
+  final bool scoreRow;
+  final Color? aColor;
+  final Color? bColor;
+
+  const _TableRow({
     required this.label,
-    required this.color,
-    required this.roundPts,
-    required this.abnat,
+    required this.valA,
+    required this.valB,
+    this.isHeader = false,
+    this.subtle = false,
+    this.bold = false,
+    this.highlight = false,
+    this.scoreRow = false,
+    this.aColor,
+    this.bColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            )),
-        const SizedBox(height: 4),
-        Text(
-          '+$roundPts',
-          style: TextStyle(
-            color: color,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
+    final baseAlpha = subtle ? 0.35 : isHeader ? 0.45 : 0.80;
+    final baseColor = Colors.white.withValues(alpha: baseAlpha);
+    final fontSize = scoreRow ? 18.0 : isHeader ? 10.0 : 13.0;
+    final weight = bold || scoreRow
+        ? FontWeight.w900
+        : isHeader
+            ? FontWeight.w600
+            : FontWeight.w500;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: scoreRow ? 6 : 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: highlight
+                    ? AppColors.goldAccent.withValues(alpha: 0.8)
+                    : baseColor,
+                fontSize: isHeader ? 10 : 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-        ),
-        Text(
-          '$abnat Abnat',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.35),
-            fontSize: 10,
+          Expanded(
+            child: Text(
+              valA,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: aColor ?? (highlight
+                    ? AppColors.goldAccent
+                    : baseColor),
+                fontSize: fontSize,
+                fontWeight: weight,
+              ),
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: Text(
+              valB,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: bColor ?? (highlight
+                    ? AppColors.goldAccent
+                    : baseColor),
+                fontSize: fontSize,
+                fontWeight: weight,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -224,7 +395,7 @@ class GameOverOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final total = game.gameScore;
-    final detail = game.lastRoundScoreResult;
+    final lastRound = game.lastRoundResult;
     final winner = game.gameWinner;
 
     final humanWon = game.didHumanWinGame;
@@ -265,7 +436,9 @@ class GameOverOverlay extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        winner == 'A' ? 'Team Us reached 152' : 'Team Them reached 152',
+                        winner == 'A'
+                            ? 'Team Us reached 152'
+                            : 'Team Them reached 152',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.55),
                           fontSize: 13,
@@ -304,9 +477,10 @@ class GameOverOverlay extends StatelessWidget {
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),
-                              child: Text('—',
+                              child: Text('\u2014',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.3),
+                                    color:
+                                        Colors.white.withValues(alpha: 0.3),
                                     fontSize: 24,
                                   )),
                             ),
@@ -318,10 +492,10 @@ class GameOverOverlay extends StatelessWidget {
                                 )),
                           ],
                         ),
-                        if (detail != null) ...[
+                        if (lastRound != null) ...[
                           const SizedBox(height: 12),
                           Text(
-                            'Last round +${detail.teamAPoints} / +${detail.teamBPoints}',
+                            'Last round +${lastRound.teamAPoints} / +${lastRound.teamBPoints}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.4),
                               fontSize: 11,
@@ -342,7 +516,8 @@ class GameOverOverlay extends StatelessWidget {
                             side: BorderSide(
                               color: Colors.white.withValues(alpha: 0.3),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                           ),
                           child: const Text('Exit'),
                         ),
@@ -356,7 +531,8 @@ class GameOverOverlay extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.goldAccent,
                             foregroundColor: const Color(0xFF1E1810),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                           ),
                           child: const Text(
                             'Play again',

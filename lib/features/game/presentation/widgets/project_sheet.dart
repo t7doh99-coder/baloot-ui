@@ -345,34 +345,59 @@ class ProjectRevealBanner extends StatelessWidget {
               )),
           const SizedBox(height: 8),
           ...projects.map((p) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              children: [
-                Text(playerName(p.playerIndex),
-                    style: TextStyle(
-                      color: p.playerIndex % 2 == 0
-                          ? const Color(0xFF28802E)
-                          : const Color(0xFFE63946),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    )),
-                const SizedBox(width: 6),
-                Text(_typeLabel(p.type),
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 13)),
-                const Spacer(),
-                // Card previews
-                ...p.cards.take(5).map((c) => Padding(
-                  padding: const EdgeInsets.only(left: 2),
-                  child: PlayingCard(
-                    card: c,
-                    size: CardSize.small,
-                    faceUp: true,
-                  ),
-                )),
-              ],
-            ),
-          )),
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            playerName(p.playerIndex),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: p.playerIndex % 2 == 0
+                                  ? const Color(0xFF28802E)
+                                  : const Color(0xFFE63946),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _typeLabel(p.type),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Horizontal scroll avoids Row overflow on narrow widths.
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: p.cards
+                            .take(5)
+                            .map(
+                              (c) => Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: PlayingCard(
+                                  card: c,
+                                  size: CardSize.small,
+                                  faceUp: true,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
         ],
       ),
     );
