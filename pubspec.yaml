@@ -32,8 +32,10 @@ flutter:
   assets:
     - assets/images/
     - assets/images/cards/
+    - assets/images/avatars/
     - assets/icons/
     - assets/lottie/
+    - assets/figma/
 
 flutter_launcher_icons:
   android: "launcher_icon"

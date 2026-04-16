@@ -7,6 +7,7 @@ import '../../../../data/models/card_model.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart';
+import 'player_seat_widget.dart' show PlayerAvatarRing;
 
 // ══════════════════════════════════════════════════════════════════
 //  HUMAN HAND WIDGET  (Seat 0 — bottom player)
@@ -31,7 +32,9 @@ class HumanHandWidget extends StatelessWidget {
     final hand  = game.playerHand;
     final phase = game.phase;
 
-    if (hand.isEmpty) return const SizedBox(height: 8);
+    if (phase == GamePhase.notStarted) {
+      return const SizedBox(height: 8);
+    }
 
     final isPlayPhase  = phase == GamePhase.playing;
     final isHumanTurn  = game.isHumanTurn;
@@ -40,39 +43,61 @@ class HumanHandWidget extends StatelessWidget {
 
     final screenW = MediaQuery.sizeOf(context).width;
 
+    const teamColor = Color(0xFF28802E); // seat 0 — team A
+
+    // Tighter layout on short screens to avoid Column overflow vs play area.
+    final handH = MediaQuery.sizeOf(context).height < 700 ? 104.0 : 112.0;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: PlayerAvatarRing(
+            seatIndex: 0,
+            name: game.playerName(0),
+            isActive: game.isHumanTurn,
+            isDealer: game.dealerIndex == 0,
+            isBuyer: game.buyerIndex == 0,
+            teamColor: teamColor,
+            timerSecs: game.turnTimerSeconds,
+            avatarDiameter: 40,
+          ),
+        ),
+
         // Turn indicator + Play button
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: (isPlayPhase && isHumanTurn && selectedCard != null)
               ? Padding(
                   key: const ValueKey('play'),
-                  padding: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.only(bottom: 2),
                   child: _PlayButton(onTap: () => game.playSelectedCard()),
                 )
               : (isPlayPhase && isHumanTurn)
                   ? const Padding(
                       key: ValueKey('turn'),
-                      padding: EdgeInsets.only(bottom: 4),
+                      padding: EdgeInsets.only(bottom: 2),
                       child: _TurnIndicator(),
                     )
-                  : const SizedBox(key: ValueKey('no-play'), height: 4),
+                  : const SizedBox(key: ValueKey('no-play'), height: 2),
         ),
 
-        // Curved card fan
-        SizedBox(
-          width: screenW,
-          height: 120,
-          child: _CurvedHand(
-            hand: hand,
-            selectedCard: selectedCard,
-            validCards: validCards,
-            interactive: isPlayPhase && isHumanTurn,
-            onCardTap: (card) => game.selectCard(card),
+        // Curved card fan (may be empty briefly between phases)
+        if (hand.isEmpty)
+          const SizedBox(height: 6)
+        else
+          SizedBox(
+            width: screenW,
+            height: handH,
+            child: _CurvedHand(
+              hand: hand,
+              selectedCard: selectedCard,
+              validCards: validCards,
+              interactive: isPlayPhase && isHumanTurn,
+              onCardTap: (card) => game.selectCard(card),
+            ),
           ),
-        ),
       ],
     );
   }

@@ -445,6 +445,16 @@ class _BottomBar extends StatelessWidget {
       ];
     }
 
+    // Hakam Confirmation — buyer confirms Hakam or switches to Sun
+    if (bp == BiddingPhase.hakamConfirmation) {
+      return [
+        _GameBtn(label: 'Confirm Hakam', color: const Color(0xFFD4AF37),
+            onTap: () => gp.humanBid(BidAction.confirmHakam)),
+        _GameBtn(label: 'Switch to Sun', color: const Color(0xFFE63946),
+            onTap: () => gp.humanBid(BidAction.sun)),
+      ];
+    }
+
     // Round 2 — dynamic set
     final dealer = game.dealerIndex;
     final sane   = (dealer + 3) % 4; // player to dealer's left (CCW)

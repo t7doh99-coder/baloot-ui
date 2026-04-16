@@ -28,6 +28,10 @@ class BotEngine {
     if (phase == BiddingPhase.round1) {
       return _decideRound1(hand, buyerCard);
     }
+    if (phase == BiddingPhase.hakamConfirmation) {
+      // Bot already bid Hakam — confirm it (could add Sun-switch logic later)
+      return const BotBidDecision(action: BidAction.confirmHakam);
+    }
     return _decideRound2(hand, buyerCard, seatIndex, dealerIndex);
   }
 

@@ -10,7 +10,7 @@ void main() {
   const buyerCard = CardModel(suit: Suit.hearts, rank: Rank.ten);
 
   group('Round 1 — Hakam or Pass', () {
-    test('player bids Hakam → becomes buyer with buyer card suit as trump', () {
+    test('player bids Hakam → 3 passes → enters hakamConfirmation', () {
       final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
 
       expect(bm.currentBidder, 1);
@@ -21,10 +21,71 @@ void main() {
       bm.placeBid(3, BidAction.pass);
       bm.placeBid(0, BidAction.pass);
 
+      // Now in hakamConfirmation — bidder must confirm or switch
+      expect(bm.isFinished, false);
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+      expect(bm.currentBidder, 1);
+
+      // Confirm Hakam
+      bm.placeBid(1, BidAction.confirmHakam);
+
       expect(bm.isFinished, true);
       expect(bm.result!.mode, GameMode.hakam);
       expect(bm.result!.buyerIndex, 1);
       expect(bm.result!.trumpSuit, Suit.hearts);
+    });
+
+    test('Hakam bid → 3 passes → buyer switches to Sun', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+
+      bm.placeBid(1, BidAction.hakam);
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
+
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+
+      // Switch to Sun
+      bm.placeBid(1, BidAction.sun);
+
+      expect(bm.isFinished, true);
+      expect(bm.result!.mode, GameMode.sun);
+      expect(bm.result!.buyerIndex, 1);
+      expect(bm.result!.trumpSuit, isNull);
+    });
+
+    test('hakamConfirmation — wrong player throws', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+
+      bm.placeBid(1, BidAction.hakam);
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
+
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+
+      // Seat 2 (not the bidder) tries to act
+      expect(
+        () => bm.placeBid(2, BidAction.confirmHakam),
+        throwsA(isA<InvalidBidException>()),
+      );
+    });
+
+    test('hakamConfirmation — invalid action throws', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+
+      bm.placeBid(1, BidAction.hakam);
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
+
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+
+      // Pass is not valid during confirmation
+      expect(
+        () => bm.placeBid(1, BidAction.pass),
+        throwsA(isA<InvalidBidException>()),
+      );
     });
 
     test('all pass Round 1 → moves to Round 2', () {

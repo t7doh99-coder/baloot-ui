@@ -37,9 +37,12 @@ void main() {
       // Bid Hakam
       ctrl.placeBid(bidder, BidAction.hakam);
 
-      // Others pass
-      for (int i = 0; i < 3; i++) {
-        if (ctrl.gamePhase == GamePhase.bidding) {
+      // Others pass, then buyer confirms Hakam
+      while (ctrl.gamePhase == GamePhase.bidding) {
+        final bp = ctrl.roundState.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+        } else {
           ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
         }
       }
@@ -84,7 +87,12 @@ void main() {
       // Bid Hakam
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
       while (ctrl.gamePhase == GamePhase.bidding) {
-        ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        final bp = ctrl.roundState.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+        } else {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        }
       }
 
       // Skip double
@@ -125,7 +133,12 @@ void main() {
       // Bid Sun for simplicity
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
       while (ctrl.gamePhase == GamePhase.bidding) {
-        ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        final bp = ctrl.roundState.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+        } else {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        }
       }
       ctrl.skipDoubleWindow();
 
@@ -158,7 +171,12 @@ void main() {
 
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
       while (ctrl.gamePhase == GamePhase.bidding) {
-        ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        final bp = ctrl.roundState.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+        } else {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        }
       }
       ctrl.skipDoubleWindow();
 
@@ -181,7 +199,12 @@ void main() {
       // Bid Hakam
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
       while (ctrl.gamePhase == GamePhase.bidding) {
-        ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        final bp = ctrl.roundState.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+        } else {
+          ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+        }
       }
 
       expect(ctrl.gamePhase, GamePhase.doubleWindow);
@@ -231,7 +254,12 @@ void main() {
         if (ctrl.gamePhase == GamePhase.bidding) {
           ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
           while (ctrl.gamePhase == GamePhase.bidding) {
-            ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+            final bp = ctrl.roundState.biddingPhase;
+            if (bp == BiddingPhase.hakamConfirmation) {
+              ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.confirmHakam);
+            } else {
+              ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
+            }
           }
         }
 

@@ -151,6 +151,11 @@ class ScoringEngine {
         teamBTricksWon: teamBTricksCount,
         mode: mode,
         doubleStatus: doubleStatus,
+        projectWinningTeam: projectWinningTeam,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPoints,
+        balootTeam: balootTeam,
       ));
     }
 
@@ -205,18 +210,38 @@ class ScoringEngine {
     required int teamBTricksWon,
     required GameMode mode,
     DoubleStatus doubleStatus = DoubleStatus.none,
+    String? projectWinningTeam,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
   }) {
-    // Jawaker/Kamelna: Hakam Kabout = 25, Sun Kabout = 44
-    // Ace doubles the base (Hakam=50, Sun=88)
+    // Client / Jawaker-Kamelna: Sun Kabout = 44 + projects, Hakam Kabout = 25 + projects
+    // Ace doubles the Kabout base. Double/Triple/Four multiplies the Kabout base.
     final baseKabout = mode == GameMode.hakam ? 25 : 44;
     final aceMultiplier = buyerCardIsAce ? 2 : 1;
     final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
     final kaboutPts = baseKabout * aceMultiplier * doubleMultiplier;
     final winnerIsA = teamATricksWon == 8;
 
+    int aPts = winnerIsA ? kaboutPts : 0;
+    int bPts = winnerIsA ? 0 : kaboutPts;
+
+    // Project scoreboard points (Abnat conversion is skipped for Kabout; add explicitly)
+    if (projectWinningTeam != null) {
+      final pm = _projectMultiplier(doubleStatus);
+      if (projectWinningTeam == 'A') {
+        aPts += teamAProjectScoreboard * pm;
+      } else {
+        bPts += teamBProjectScoreboard * pm;
+      }
+    }
+    if (balootTeam == 'A') aPts += balootPoints;
+    if (balootTeam == 'B') bPts += balootPoints;
+
     return RoundScoreResult(
-      teamAPoints: winnerIsA ? kaboutPts : 0,
-      teamBPoints: winnerIsA ? 0 : kaboutPts,
+      teamAPoints: aPts,
+      teamBPoints: bPts,
       teamARawAbnat: teamAAbnat,
       teamBRawAbnat: teamBAbnat,
       isKhams: false,

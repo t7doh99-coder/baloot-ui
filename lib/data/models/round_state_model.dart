@@ -2,7 +2,9 @@ import 'card_model.dart';
 import 'card_play_model.dart';
 
 /// The phase of bidding within a round.
-enum BiddingPhase { round1, round2, completed, cancelled }
+/// [hakamConfirmation] is the step where the Hakam bidder
+/// (after all others passed in Round 1) may confirm Hakam or switch to Sun.
+enum BiddingPhase { round1, round2, hakamConfirmation, completed, cancelled }
 
 /// Double escalation levels (Hakam mode primarily).
 enum DoubleStatus { none, doubled, tripled, four, gahwa }

@@ -6,8 +6,8 @@ import '../../../core/widgets/vip_background_shell.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../session/presentation/create_session_screen.dart';
-import '../../game/presentation/finding_game_popup.dart';
 import '../../game/presentation/card_debug_screen.dart';
+import '../../game/presentation/table_background_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -66,6 +66,12 @@ class _NavigationShellState extends State<NavigationShell>
     // TODO: Replace with FindingGamePopup.show(context) after Step 1 review
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const CardDebugScreen()),
+    );
+  }
+
+  void _onTableBackground() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TableBackgroundScreen()),
     );
   }
 
@@ -138,6 +144,7 @@ class _NavigationShellState extends State<NavigationShell>
                               isArabic: isArabic,
                               glowAnim: _glowAnim,
                               onPlay: _onPlayNow,
+                              onTableBackground: _onTableBackground,
                               onCreateSession: _onCreateSession,
                               onJoinSessions: _onJoinSessions,
                               onVipAccess: _onVipAccess,
@@ -402,6 +409,7 @@ class _GameHub extends StatelessWidget {
     required this.isArabic,
     required this.glowAnim,
     required this.onPlay,
+    required this.onTableBackground,
     required this.onCreateSession,
     required this.onJoinSessions,
     required this.onVipAccess,
@@ -410,6 +418,7 @@ class _GameHub extends StatelessWidget {
   final bool isArabic;
   final Animation<double> glowAnim;
   final VoidCallback onPlay;
+  final VoidCallback onTableBackground;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
   final VoidCallback onVipAccess;
@@ -428,7 +437,15 @@ class _GameHub extends StatelessWidget {
             onTap: onPlay,
           ),
 
-          const SizedBox(height: 36),
+          const SizedBox(height: 20),
+
+          // Figma table / rug background — placeholder route
+          _TableBackgroundButton(
+            isArabic: isArabic,
+            onTap: onTableBackground,
+          ),
+
+          const SizedBox(height: 28),
 
           // ── 3 Satellite Actions ──
           Row(
@@ -458,6 +475,75 @@ class _GameHub extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  TABLE BACKGROUND — secondary hub action (Figma preview route)
+// ══════════════════════════════════════════════════════════════════
+
+class _TableBackgroundButton extends StatefulWidget {
+  const _TableBackgroundButton({
+    required this.isArabic,
+    required this.onTap,
+  });
+
+  final bool isArabic;
+  final VoidCallback onTap;
+
+  @override
+  State<_TableBackgroundButton> createState() => _TableBackgroundButtonState();
+}
+
+class _TableBackgroundButtonState extends State<_TableBackgroundButton> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 280),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.royalGold.withValues(alpha: 0.45),
+              width: 1.2,
+            ),
+            color: const Color(0xFF1A1D25).withValues(alpha: 0.85),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.layers_outlined,
+                color: AppColors.royalGold.withValues(alpha: 0.9),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.isArabic ? 'خلفية الطاولة' : 'Table background',
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFFF4E4B7),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

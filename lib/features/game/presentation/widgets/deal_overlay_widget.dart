@@ -219,7 +219,11 @@ class _PhasePill extends StatelessWidget {
     switch (phase) {
       case GamePhase.bidding:
         final bp = game.biddingPhase;
-        label = bp == BiddingPhase.round2 ? 'Bid Round 2' : 'Bid Round 1';
+        if (bp == BiddingPhase.hakamConfirmation) {
+          label = 'Confirm or Switch?';
+        } else {
+          label = bp == BiddingPhase.round2 ? 'Bid Round 2' : 'Bid Round 1';
+        }
         color = AppColors.goldAccent;
         break;
       case GamePhase.doubleWindow:

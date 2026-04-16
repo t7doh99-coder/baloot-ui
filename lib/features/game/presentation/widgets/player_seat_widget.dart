@@ -1,25 +1,19 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../game_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
-//  PLAYER SEAT WIDGET  (Step 4 — refined)
+//  PLAYER SEAT WIDGET  — Jawaker-style circular avatar
 //
-//  Card position layout (matching reference screenshot):
-//
-//  TOP seat (seat 2):
-//    [ face-down card fan  ]   ← above avatar
-//    [ speech bubble       ]
-//    [ avatar circle       ]
-//    [ name + level badge  ]
-//
-//  SIDE seats (seats 1 & 3):
-//    [ face-down card fan  ]   ← above info
-//    [ avatar + name pill  ]
-//
-//  BOTTOM seat (seat 0) — no seat widget; hand shown separately.
+//  Layout per seat:
+//    • Face-down card fan
+//    • Speech bubble
+//    • Circular dark-sphere avatar with gold ring
+//      - Ring starts FULL, depletes CLOCKWISE as turn runs out
+//      - Sparkle particle at the shrinking tip (clockwise end)
+//    • Name tag overlapping BOTTOM of the avatar circle (Jawaker style)
 // ══════════════════════════════════════════════════════════════════
 
 enum SeatOrientation { top, left, right, bottom }
@@ -43,7 +37,6 @@ class PlayerSeatWidget extends StatelessWidget {
     final name      = game.playerName(seat);
     final cardCount = game.handSize(seat);
     final bubble    = game.bubbles[seat];
-    final timerSecs = isActive && seat == 0 ? game.timerSeconds : null;
 
     final teamColor = (seat % 2 == 0)
         ? const Color(0xFF28802E)
@@ -52,6 +45,7 @@ class PlayerSeatWidget extends StatelessWidget {
     if (orientation == SeatOrientation.left ||
         orientation == SeatOrientation.right) {
       return _SideSeat(
+        seat: seat,
         cardCount: cardCount,
         name: name,
         isActive: isActive,
@@ -62,7 +56,6 @@ class PlayerSeatWidget extends StatelessWidget {
       );
     }
 
-    // Top seat
     return _TopSeat(
       seat: seat,
       cardCount: cardCount,
@@ -71,14 +64,13 @@ class PlayerSeatWidget extends StatelessWidget {
       isDealer: isDealer,
       isBuyer: isBuyer,
       teamColor: teamColor,
-      timerSecs: timerSecs,
       bubble: bubble,
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  TOP SEAT  (seat 2 — opponent directly across)
+//  TOP SEAT  (seat 2 — partner)
 // ══════════════════════════════════════════════════════════════════
 
 class _TopSeat extends StatelessWidget {
@@ -89,7 +81,6 @@ class _TopSeat extends StatelessWidget {
   final bool isDealer;
   final bool isBuyer;
   final Color teamColor;
-  final int? timerSecs;
   final PlayerBubble? bubble;
 
   const _TopSeat({
@@ -100,7 +91,6 @@ class _TopSeat extends StatelessWidget {
     required this.isDealer,
     required this.isBuyer,
     required this.teamColor,
-    required this.timerSecs,
     required this.bubble,
   });
 
@@ -108,11 +98,8 @@ class _TopSeat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      // Stretch so avatar row gets a bounded max width; avoids Row overflow
-      // when [isActive] (thicker border / shadow) on narrow center column.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // 1. Face-down card fan (above everything)
         if (cardCount > 0)
           Center(
             child: FittedBox(
@@ -120,22 +107,19 @@ class _TopSeat extends StatelessWidget {
               child: _TopCardFan(count: cardCount, teamColor: teamColor),
             ),
           ),
-
         const SizedBox(height: 4),
-
-        // 2. Speech bubble
+        Center(child: _SpeechBubble(bubble: bubble, teamColor: teamColor)),
+        const SizedBox(height: 2),
         Center(
-          child: _SpeechBubble(bubble: bubble, teamColor: teamColor),
-        ),
-
-        // 3. Avatar with timer ring
-        _AvatarCard(
-          name: name,
-          isActive: isActive,
-          isDealer: isDealer,
-          isBuyer: isBuyer,
-          teamColor: teamColor,
-          timerSecs: timerSecs,
+          child: PlayerAvatarRing(
+            seatIndex: seat,
+            name: name,
+            isActive: isActive,
+            isDealer: isDealer,
+            isBuyer: isBuyer,
+            teamColor: teamColor,
+            avatarDiameter: 40.0,
+          ),
         ),
       ],
     );
@@ -143,10 +127,11 @@ class _TopSeat extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SIDE SEAT  (seats 1 & 3 — left / right opponents)
+//  SIDE SEAT  (seats 1 & 3 — left/right opponents)
 // ══════════════════════════════════════════════════════════════════
 
 class _SideSeat extends StatelessWidget {
+  final int seat;
   final int cardCount;
   final String name;
   final bool isActive;
@@ -156,6 +141,7 @@ class _SideSeat extends StatelessWidget {
   final PlayerBubble? bubble;
 
   const _SideSeat({
+    required this.seat,
     required this.cardCount,
     required this.name,
     required this.isActive,
@@ -165,461 +151,544 @@ class _SideSeat extends StatelessWidget {
     required this.bubble,
   });
 
-  // Strictly constrained width for the whole side seat
-  static const double _colW = 64.0;
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _colW,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 1. Face-down card fan
-          if (cardCount > 0)
-            _SideCardFan(count: cardCount, teamColor: teamColor),
-
-          const SizedBox(height: 4),
-
-          // 2. Speech bubble (compact, centred)
-          if (bubble != null)
-            _SpeechBubble(bubble: bubble, teamColor: teamColor),
-
-          // 3. Vertical info pill — avatar + name + badge, all centred
-          _SideInfoPill(
-            name: name,
-            isActive: isActive,
-            isDealer: isDealer,
-            isBuyer: isBuyer,
-            teamColor: teamColor,
-            width: _colW,
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (cardCount > 0)
+          _SideCardFan(count: cardCount, teamColor: teamColor),
+        const SizedBox(height: 4),
+        _SpeechBubble(bubble: bubble, teamColor: teamColor),
+        const SizedBox(height: 2),
+        PlayerAvatarRing(
+          seatIndex: seat,
+          name: name,
+          isActive: isActive,
+          isDealer: isDealer,
+          isBuyer: isBuyer,
+          teamColor: teamColor,
+          avatarDiameter: 34.0,
+        ),
+      ],
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SIDE INFO PILL  (strict width, vertical layout)
+//  PLAYER AVATAR RING  — dark sphere + gold timer ring
+//  Matches Jawaker exactly:
+//    • Full gold ring when turn starts
+//    • Ring depletes CLOCKWISE (remaining gold = remaining time)
+//    • Sparkle particle at the shrinking TIP (clockwise leading edge)
+//    • Name tag overlaps the bottom of the avatar (dark pill style)
 // ══════════════════════════════════════════════════════════════════
 
-class _SideInfoPill extends StatelessWidget {
+class PlayerAvatarRing extends StatefulWidget {
+  final int seatIndex;
   final String name;
   final bool isActive;
   final bool isDealer;
   final bool isBuyer;
   final Color teamColor;
-  final double width;
+  final double avatarDiameter;
 
-  const _SideInfoPill({
+  // Kept for backward-compatible call-sites
+  final int? timerSecs;
+  final int maxTimerSecs;
+
+  const PlayerAvatarRing({
+    super.key,
+    required this.seatIndex,
     required this.name,
     required this.isActive,
     required this.isDealer,
     required this.isBuyer,
     required this.teamColor,
-    required this.width,
+    this.timerSecs,
+    this.maxTimerSecs = 10,
+    this.avatarDiameter = 46.0,
   });
 
   @override
+  State<PlayerAvatarRing> createState() => _PlayerAvatarRingState();
+}
+
+class _PlayerAvatarRingState extends State<PlayerAvatarRing>
+    with TickerProviderStateMixin {
+
+  // Controls sparkle brightness oscillation (~3.5 Hz)
+  late AnimationController _flickerCtrl;
+  late Animation<double> _flickerAnim;
+
+  // 60fps repaint ticker — smooth comet/ring movement
+  Ticker? _repaintTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _flickerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    )..repeat(reverse: true);
+    _flickerAnim = Tween<double>(begin: 0.45, end: 1.0).animate(_flickerCtrl);
+
+    if (widget.isActive) {
+      _repaintTicker = createTicker((_) => setState(() {}))..start();
+    }
+  }
+
+  @override
+  void didUpdateWidget(PlayerAvatarRing old) {
+    super.didUpdateWidget(old);
+    if (widget.isActive && _repaintTicker == null) {
+      _repaintTicker = createTicker((_) => setState(() {}))..start();
+    } else if (!widget.isActive && _repaintTicker != null) {
+      _repaintTicker?.dispose();
+      _repaintTicker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _repaintTicker?.dispose();
+    _flickerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: width,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: isActive ? 0.68 : 0.50),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isActive
-              ? AppColors.goldAccent.withValues(alpha: 0.85)
-              : teamColor.withValues(alpha: 0.45),
-          width: isActive ? 1.8 : 1.1,
-        ),
-        boxShadow: [
-          if (isActive)
-            BoxShadow(
-              color: AppColors.goldAccent.withValues(alpha: 0.25),
-              blurRadius: 10,
-            ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Avatar circle
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: teamColor.withValues(alpha: isActive ? 0.25 : 0.12),
-              border: Border.all(
-                color: isActive
-                    ? AppColors.goldAccent.withValues(alpha: 0.8)
-                    : teamColor.withValues(alpha: 0.5),
-                width: isActive ? 2.0 : 1.2,
-              ),
-            ),
-            child: Icon(
-              Icons.person,
-              color: teamColor.withValues(alpha: 0.85),
-              size: 16,
-            ),
-          ),
+    // Live progress from provider — updated every frame by ticker
+    final game      = context.watch<GameProvider>();
+    final ringT     = (widget.avatarDiameter * 0.13).clamp(4.0, 7.0);
+    final totalSz   = widget.avatarDiameter + ringT * 2 + 6;
+    final progress  = widget.isActive ? game.activeSeatTimerProgress : 1.0;
 
-          const SizedBox(height: 3),
+    const nameImages = [
+      'assets/images/avatars/Screenshot 2026-04-16 194030.png',
+      'assets/images/avatars/Screenshot 2026-04-16 194232.png',
+      'assets/images/avatars/Screenshot 2026-04-16 194821.png',
+      'assets/images/avatars/bc9fd4bd-de9b-4555-976c-8360576c6708.jpg',
+    ];
+    // Map seat index directly to ensure 4 different images for 4 players
+    final avatarImagePath = nameImages[widget.seatIndex % 4];
 
-          // Name
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.90),
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Tajawal',
-              height: 1.1,
-            ),
-          ),
-
-          const SizedBox(height: 3),
-
-          // Level / dealer row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return AnimatedBuilder(
+      animation: _flickerCtrl,
+      builder: (context, _) {
+        final flicker = _flickerAnim.value;
+        // Stack: ring canvas + dark sphere + name tag overlapping bottom
+        return SizedBox(
+          width: totalSz,
+          // Extra height for the name tag that overlaps bottom
+          height: totalSz + 16,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: teamColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                      color: teamColor.withValues(alpha: 0.4), width: 0.7),
+              // ── Gold ring + comet ───────────────────────────────
+              CustomPaint(
+                size: Size(totalSz, totalSz),
+                painter: _RingPainter(
+                  progress: progress,
+                  ringThickness: ringT,
+                  teamColor: widget.teamColor,
+                  isActive: widget.isActive,
+                  flicker: flicker,
                 ),
-                child: Text(
-                  'Mid',
-                  style: TextStyle(
-                    color: teamColor.withValues(alpha: 0.9),
-                    fontSize: 7,
-                    fontFamily: 'Tajawal',
-                    height: 1.2,
+              ),
+
+              // ── Dark sphere ─────────────────────────────────────
+              Positioned(
+                top: ringT + 3,
+                left: ringT + 3,
+                child: _DarkSphere(
+                  diameter: widget.avatarDiameter,
+                  teamColor: widget.teamColor,
+                  isActive: widget.isActive,
+                  avatarImagePath: avatarImagePath,
+                ),
+              ),
+
+              // ── Name tag overlapping bottom of ring ─────────────
+              // Positioned so it sits at the bottom edge of the circle
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _NameTag(
+                    name: widget.name,
+                    teamColor: widget.teamColor,
+                    isDealer: widget.isDealer,
+                    isBuyer: widget.isBuyer,
+                    compact: widget.avatarDiameter < 40,
                   ),
                 ),
               ),
-              if (isDealer) ...[
-                const SizedBox(width: 2),
-                _DealerChip(compact: true),
-              ],
-              if (isBuyer && !isDealer) ...[
-                const SizedBox(width: 2),
-                Icon(Icons.star, color: teamColor, size: 9),
-              ],
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  AVATAR CARD  (avatar circle + name + level badge)
+//  DARK SPHERE  (inner avatar circle)
 // ══════════════════════════════════════════════════════════════════
 
-class _AvatarCard extends StatelessWidget {
-  final String name;
-  final bool isActive;
-  final bool isDealer;
-  final bool isBuyer;
+class _DarkSphere extends StatelessWidget {
+  final double diameter;
   final Color teamColor;
-  final int? timerSecs;
-  final bool compact;
-
-  const _AvatarCard({
-    required this.name,
-    required this.isActive,
-    required this.isDealer,
-    required this.isBuyer,
-    required this.teamColor,
-    required this.timerSecs,
-    this.compact = false,
-  });
-
-  static const _levels = ['Beginner', 'Mid', 'Advanced', 'Pro', 'Expert'];
-
-  @override
-  Widget build(BuildContext context) {
-    final avatarR = compact ? 16.0 : 20.0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: EdgeInsets.symmetric(
-          horizontal: compact ? 5 : 7, vertical: compact ? 4 : 5),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: isActive ? 0.72 : 0.52),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(
-          color: isActive
-              ? AppColors.goldAccent.withValues(alpha: 0.85)
-              : teamColor.withValues(alpha: 0.45),
-          width: isActive ? 1.8 : 1.1,
-        ),
-        boxShadow: [
-          if (isActive)
-            BoxShadow(
-              color: AppColors.goldAccent.withValues(alpha: 0.28),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Avatar with optional timer ring
-          _TimerAvatar(
-            isActive: isActive,
-            teamColor: teamColor,
-            timerSecs: timerSecs,
-            avatarR: avatarR,
-          ),
-          const SizedBox(width: 5),
-
-          // Expanded: Row(mainAxisSize: min) gives unbounded width to non-flex
-          // children — that breaks ellipsis and causes RIGHT OVERFLOW when active.
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontSize: compact ? 9 : 10,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Tajawal',
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Wrap(
-                  spacing: 3,
-                  runSpacing: 2,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _LevelBadge(
-                        level: _levels[0],
-                        teamColor: teamColor,
-                        compact: compact),
-                    if (isDealer) _DealerChip(compact: compact),
-                    if (isBuyer && !isDealer)
-                      Icon(Icons.star, color: teamColor, size: compact ? 9 : 11),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  TIMER AVATAR
-// ══════════════════════════════════════════════════════════════════
-
-class _TimerAvatar extends StatelessWidget {
   final bool isActive;
-  final Color teamColor;
-  final int? timerSecs;
-  final double avatarR;
+  final String avatarImagePath;
 
-  const _TimerAvatar({
-    required this.isActive,
+  const _DarkSphere({
+    required this.diameter,
     required this.teamColor,
-    required this.timerSecs,
-    required this.avatarR,
+    required this.isActive,
+    required this.avatarImagePath,
   });
 
   @override
   Widget build(BuildContext context) {
-    final ring = avatarR * 2 + 6;
-    return SizedBox(
-      width: ring,
-      height: ring,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (isActive)
-            CustomPaint(
-              size: Size(ring, ring),
-              painter: _TimerRingPainter(
-                progress: timerSecs != null ? timerSecs! / 10.0 : 1.0,
-                ringColor: timerSecs != null && timerSecs! <= 3
-                    ? const Color(0xFFE63946)
-                    : AppColors.goldAccent,
-              ),
-            ),
-          Container(
-            width: avatarR * 2,
-            height: avatarR * 2,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: teamColor.withValues(alpha: 0.18),
-              border: Border.all(
-                color: isActive
-                    ? AppColors.goldAccent.withValues(alpha: 0.7)
-                    : teamColor.withValues(alpha: 0.4),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(Icons.person,
-                color: teamColor.withValues(alpha: 0.85),
-                size: avatarR),
-          ),
-          if (isActive && timerSecs != null)
-            Positioned(
-              bottom: 1, right: 1,
-              child: Container(
-                width: 12, height: 12,
-                decoration: BoxDecoration(
-                  color: timerSecs! <= 3
-                      ? const Color(0xFFE63946)
-                      : AppColors.goldAccent,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$timerSecs',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 6.5,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  TIMER RING PAINTER
-// ══════════════════════════════════════════════════════════════════
-
-class _TimerRingPainter extends CustomPainter {
-  final double progress;
-  final Color ringColor;
-  const _TimerRingPainter({required this.progress, required this.ringColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2, cy = size.height / 2;
-    final r = min(cx, cy) - 1.5;
-
-    canvas.drawCircle(Offset(cx, cy), r,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.10)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.0);
-
-    if (progress <= 0) return;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r),
-      -pi / 2, 2 * pi * progress, false,
-      Paint()
-        ..color = ringColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_TimerRingPainter old) =>
-      old.progress != progress || old.ringColor != ringColor;
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  LEVEL BADGE
-// ══════════════════════════════════════════════════════════════════
-
-class _LevelBadge extends StatelessWidget {
-  final String level;
-  final Color teamColor;
-  final bool compact;
-  const _LevelBadge(
-      {required this.level, required this.teamColor, this.compact = false});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: compact ? 4 : 5, vertical: compact ? 1 : 1),
-      decoration: BoxDecoration(
-        color: teamColor.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-            color: teamColor.withValues(alpha: 0.45), width: 0.8),
-      ),
-      child: Text(
-        level,
-        style: TextStyle(
-          color: teamColor.withValues(alpha: 0.9),
-          fontSize: compact ? 7 : 8,
-          fontFamily: 'Tajawal',
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  DEALER CHIP
-// ══════════════════════════════════════════════════════════════════
-
-class _DealerChip extends StatelessWidget {
-  final bool compact;
-  const _DealerChip({this.compact = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final size = compact ? 14.0 : 18.0;
-    return Container(
-      width: size, height: size,
+      width: diameter,
+      height: diameter,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [Color(0xFFD4AF37), Color(0xFFFFE066)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: const RadialGradient(
+          center: Alignment(-0.28, -0.38),
+          radius: 0.85,
+          colors: [
+            Color(0xFF383860),
+            Color(0xFF141428),
+            Color(0xFF060610),
+          ],
+          stops: [0.0, 0.55, 1.0],
         ),
         boxShadow: [
           BoxShadow(
-              color: AppColors.goldAccent.withValues(alpha: 0.4),
-              blurRadius: 4),
+            color: Colors.black.withValues(alpha: 0.75),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
         ],
+      ),
+      child: Stack(
+        children: [
+          // Avatar Image
+          Positioned.fill(
+            child: ClipOval(
+              child: Opacity(
+                opacity: isActive ? 1.0 : 0.6,
+                child: Image.asset(
+                  avatarImagePath,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          // Specular highlight (top-left glass shine) over the image
+          Positioned(
+            top: diameter * 0.09,
+            left: diameter * 0.17,
+            child: Container(
+              width: diameter * 0.44,
+              height: diameter * 0.25,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(diameter * 0.15),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.32),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  BURNING FUSE RING PAINTER
+//
+//  A premium 60-fps circular countdown timer that looks like a
+//  burning fuse wrapped around the avatar:
+//
+//  • progress = 1.0  →  full gold circle
+//  • progress = 0.0  →  ring has fully burned away
+//  • The ring burns CLOCKWISE from 12 o'clock
+//    (arc CCW = remaining time; clockwise tip = burning point)
+//
+//  Layers (back → front):
+//    1. Glowing bloom  — wide blurred arc behind the gold line
+//    2. Gold fuse line — solid metallic arc (StrokeCap.round)
+//    3. Tip corona     — soft blurred halo at the burning head
+//    4. Tip core dot   — bright white centre of the flame
+//    5. Sparkle cloud  — 8 tiny dots with independent flicker
+// ══════════════════════════════════════════════════════════════════
+
+class _RingPainter extends CustomPainter {
+  // 1.0 = full ring, 0.0 = completely burned away
+  final double progress;
+  final double ringThickness;
+  final Color  teamColor;
+  final bool   isActive;
+  // Oscillates 0.45 → 1.0 at ~3.5 Hz (driven by _flickerCtrl)
+  final double flicker;
+
+  // ── Palette ──────────────────────────────────────────────────────
+  static const _fuseGold  = Color(0xFFD4A017); // main fuse line
+  static const _fuseBright = Color(0xFFFFE566); // highlight / sparkles
+  static const _fuseCore  = Color(0xFFFFF4AA); // very bright centre
+  static const _fuseHot   = Color(0xFFFF8C00); // tip when < 30% left
+  static const _fuseBloom = Color(0xFFB8860B); // broad glow behind arc
+
+  const _RingPainter({
+    required this.progress,
+    required this.ringThickness,
+    required this.teamColor,
+    required this.isActive,
+    required this.flicker,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!isActive || progress <= 0.001) return;
+
+    final cx     = size.width  / 2;
+    final cy     = size.height / 2;
+    final r      = min(cx, cy) - ringThickness / 2 - 1;
+    final center = Offset(cx, cy);
+    final rect   = Rect.fromCircle(center: center, radius: r);
+
+    // ── Geometry ─────────────────────────────────────────────────
+    // Arc starts at 12 o'clock and sweeps CCW for (progress × 360°).
+    // The CLOCKWISE end of the arc is the burning TIP.
+    const startAngle = -pi / 2;           // 12 o'clock (top)
+    final arcSweep   = 2 * pi * progress; // CCW extent of gold arc
+    final tipAngle   = startAngle - arcSweep; // burning tip position
+
+    final tipX = cx + cos(tipAngle) * r;
+    final tipY = cy + sin(tipAngle) * r;
+    final tip  = Offset(tipX, tipY);
+
+    // Hot state (< 30% remaining): tip turns orange
+    final isHot     = progress < 0.30;
+    final hotLerp   = isHot ? ((0.30 - progress) / 0.30).clamp(0.0, 1.0) : 0.0;
+    final tipColor  = Color.lerp(_fuseBright, _fuseHot, hotLerp * flicker)!;
+
+    // ── LAYER 1: Bloom glow behind the fuse line ─────────────────
+    // A wide, soft, blurred arc that makes the line look "hot".
+    canvas.drawArc(
+      rect,
+      tipAngle,
+      arcSweep,
+      false,
+      Paint()
+        ..color       = _fuseBloom.withValues(alpha: 0.40 * flicker)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = ringThickness * 2.8
+        ..strokeCap   = StrokeCap.butt
+        ..maskFilter  = MaskFilter.blur(BlurStyle.normal, ringThickness * 1.4),
+    );
+
+    // ── LAYER 2: Gold fuse line ───────────────────────────────────
+    // Solid, metallic arc. StrokeCap.round gives rounded ends.
+    canvas.drawArc(
+      rect,
+      tipAngle,
+      arcSweep,
+      false,
+      Paint()
+        ..color       = _fuseGold
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = ringThickness
+        ..strokeCap   = StrokeCap.butt,
+    );
+
+    // Thin bright highlight on top (makes it look metallic)
+    canvas.drawArc(
+      rect,
+      tipAngle,
+      arcSweep,
+      false,
+      Paint()
+        ..color       = _fuseBright.withValues(alpha: 0.45)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = ringThickness * 0.35
+        ..strokeCap   = StrokeCap.butt,
+    );
+
+    // ── LAYER 3: Tip corona (wide soft halo) ─────────────────────
+    canvas.drawCircle(
+      tip,
+      ringThickness * 2.5,
+      Paint()
+        ..color      = tipColor.withValues(alpha: 0.55 * flicker)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, ringThickness * 1.6),
+    );
+
+    // Tighter inner glow
+    canvas.drawCircle(
+      tip,
+      ringThickness * 1.2,
+      Paint()
+        ..color      = tipColor.withValues(alpha: 0.70 * flicker)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, ringThickness * 0.5),
+    );
+
+    // ── LAYER 4: Tip core — bright white centre dot ───────────────
+    canvas.drawCircle(
+      tip,
+      ringThickness * 0.65,
+      Paint()..color = Colors.white.withValues(alpha: 0.95 * flicker),
+    );
+
+    // ── LAYER 5: Sparkle cloud around the burning tip ─────────────
+    // 8 particles — each at a slightly different angle, distance,
+    // and blink phase — giving an organic, randomly-twinkling feel.
+    //
+    // (angleOffsetDeg, radialOffset, dotRadius, phaseShift)
+    // rOff values are plain numbers — ringThickness can't be used in const
+    final particles = [
+      ( 0.0,  2.2,  1.4, 0.00),
+      ( 5.0,  1.8,  1.0, 0.55),
+      (-6.0,  2.0,  1.1, 1.10),
+      (11.0,  3.2,  0.8, 1.65),
+      (-13.0, 2.8,  0.9, 2.20),
+      ( 3.0, -2.1,  0.7, 2.75),
+      (-4.0, -2.4,  0.8, 3.30),
+      ( 8.0, -1.9,  0.6, 3.85),
+    ];
+
+    for (final (deg, rOff, dotR, phase) in particles) {
+      final pAngle = tipAngle + deg * pi / 180;
+      final pr     = r + rOff;
+      final pPos   = Offset(cx + cos(pAngle) * pr, cy + sin(pAngle) * pr);
+
+      // Each particle blinks independently: phase shifts sine wave
+      final blink = (sin(tipAngle * 11.3 + phase) * 0.5 + 0.5);
+      final alpha = (flicker * blink).clamp(0.0, 1.0);
+
+      // Tiny corona per particle
+      canvas.drawCircle(
+        pPos, dotR + 1.2,
+        Paint()
+          ..color      = tipColor.withValues(alpha: alpha * 0.40)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+      );
+      // Solid sparkle dot
+      canvas.drawCircle(
+        pPos, dotR,
+        Paint()..color = _fuseCore.withValues(alpha: alpha),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.progress  != progress  ||
+      old.isActive  != isActive  ||
+      old.flicker   != flicker;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NAME TAG  — dark pill overlapping BOTTOM of avatar circle
+//  Matches Jawaker: "New-UQD38Z" dark translucent bar at circle bottom
+// ══════════════════════════════════════════════════════════════════
+
+class _NameTag extends StatelessWidget {
+  final String name;
+  final Color teamColor;
+  final bool isDealer;
+  final bool isBuyer;
+  final bool compact;
+
+  const _NameTag({
+    required this.name,
+    required this.teamColor,
+    required this.isDealer,
+    required this.isBuyer,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5 : 7,
+        vertical: compact ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(compact ? 8 : 10),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: compact ? 8.0 : 10.0,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Tajawal',
+                height: 1.1,
+              ),
+            ),
+          ),
+          if (isDealer) ...[
+            const SizedBox(width: 3),
+            _MiniDealerChip(compact: compact),
+          ],
+          if (isBuyer && !isDealer) ...[
+            const SizedBox(width: 2),
+            Icon(Icons.star, color: const Color(0xFFFFD700), size: compact ? 8 : 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniDealerChip extends StatelessWidget {
+  final bool compact;
+  const _MiniDealerChip({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final sz = compact ? 12.0 : 15.0;
+    return Container(
+      width: sz, height: sz,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFD4AF37),
       ),
       alignment: Alignment.center,
       child: Text(
         'D',
         style: TextStyle(
-            color: const Color(0xFF3D2518),
-            fontSize: compact ? 7 : 9,
-            fontWeight: FontWeight.w900,
-            height: 1),
+          color: const Color(0xFF3D2518),
+          fontSize: compact ? 6.5 : 8.0,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
       ),
     );
   }
@@ -638,36 +707,36 @@ class _SpeechBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
-      transitionBuilder: (child, anim) =>
-          ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+      transitionBuilder: (child, anim) => ScaleTransition(
+          scale: anim, child: FadeTransition(opacity: anim, child: child)),
       child: bubble == null
           ? const SizedBox(key: ValueKey('empty'))
           : LayoutBuilder(
               key: ValueKey(bubble!.shownAt),
               builder: (context, c) {
-                final maxW = c.maxWidth.isFinite ? c.maxWidth : 280.0;
+                final maxW = c.maxWidth.isFinite ? c.maxWidth : 200.0;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 3),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   constraints: BoxConstraints(maxWidth: maxW),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
+                    color: Colors.black.withValues(alpha: 0.78),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                         color: teamColor.withValues(alpha: 0.6), width: 1),
                   ),
                   child: Text(
                     bubble!.text,
-                    maxLines: 3,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: teamColor,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Tajawal',
-                      height: 1.15,
+                      height: 1.2,
                     ),
                   ),
                 );
@@ -678,10 +747,7 @@ class _SpeechBubble extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  TOP CARD FAN  (horizontal fan for seat 2)
-//
-//  Cards spread in a gentle arc — widest card in center,
-//  slightly fanned outward like a hand held face-down.
+//  TOP CARD FAN  (horizontal fan, seat 2)
 // ══════════════════════════════════════════════════════════════════
 
 class _TopCardFan extends StatelessWidget {
@@ -691,25 +757,24 @@ class _TopCardFan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const cardW = 26.0;
-    const cardH = 37.0;
+    const cardW       = 26.0;
+    const cardH       = 37.0;
     const maxFanWidth = 130.0;
     final overlap = count > 1
         ? ((maxFanWidth - cardW) / (count - 1)).clamp(6.0, 14.0)
         : 0.0;
     final fanWidth = cardW + (count - 1) * overlap;
-    const maxAngle = 20.0; // degrees total spread
+    const maxAngle = 20.0;
 
     return SizedBox(
       width: fanWidth,
-      height: cardH + 10, // room for arc rotation
+      height: cardH + 10,
       child: Stack(
         alignment: Alignment.bottomLeft,
         clipBehavior: Clip.none,
         children: List.generate(count, (i) {
           final t = count > 1 ? i / (count - 1) : 0.5;
-          final angleDeg = (t - 0.5) * maxAngle;
-          final angleRad = angleDeg * pi / 180;
+          final angleRad = (t - 0.5) * maxAngle * pi / 180;
           return Positioned(
             left: i * overlap,
             bottom: 0,
@@ -727,10 +792,7 @@ class _TopCardFan extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SIDE CARD FAN  (compact fan for seats 1 & 3)
-//
-//  Fits within ~68px column width. Cards stacked with a small
-//  diagonal offset to show depth.
+//  SIDE CARD FAN  (seats 1 & 3)
 // ══════════════════════════════════════════════════════════════════
 
 class _SideCardFan extends StatelessWidget {
@@ -740,9 +802,8 @@ class _SideCardFan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const cardW = 24.0;
-    const cardH = 34.0;
-    // Fit all cards in 64px width
+    const cardW  = 24.0;
+    const cardH  = 34.0;
     final overlap =
         count > 1 ? ((64.0 - cardW) / (count - 1)).clamp(4.0, 10.0) : 0.0;
     final fanWidth = cardW + (count - 1) * overlap;
@@ -790,8 +851,8 @@ class _FaceDownCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E2878),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-            color: Colors.white.withValues(alpha: 0.35), width: 0.7),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.35), width: 0.7),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),

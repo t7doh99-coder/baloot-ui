@@ -129,6 +129,7 @@ class BalootGameController implements IBalootController {
 
     _roundState = _roundState.copyWith(
       currentPlayerIndex: _biddingManager!.currentBidder,
+      biddingPhase: _biddingManager!.phase,
     );
 
     if (_biddingManager!.isFinished) {

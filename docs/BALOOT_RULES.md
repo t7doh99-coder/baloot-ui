@@ -123,10 +123,16 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 | **Hakam** | Accept the revealed card's suit as trump. Bidding continues (see note below). |
 | **Pass (Bess)** | Pass to next player. |
 
-> [!IMPORTANT] **Jawaker Rule — Round 1 Hakam Nuance:**
+> [!IMPORTANT] **Hakam Confirmation Step (Jawaker/Kamelna/Client — VERIFIED):**
 > Selecting Hakam in Round 1 does NOT immediately lock in Hukm.
-> - If the same player later picks Sun → game becomes Sun immediately (Sun > Hukm).
-> - If others Pass after a Hakam bid → the bidder must confirm or switch to Sun.
+> - If another player picks Sun → game becomes Sun immediately (Sun > Hukm).
+> - If another player calls Sawa → Hakam is locked immediately.
+> - If all 3 other players Pass → the Hakam bidder enters a **Confirmation Step**:
+>   1. **Confirm Hakam** — locks in Hakam with the buyer card suit as trump.
+>   2. **Switch to Sun** — converts the game to Sun mode instead.
+> - This confirmation step is mandatory before the bid finalizes.
+>
+> **Client note (Visca):** Applies when the buyer chose Hakam in Round 1 and no one switched to Sun; after everyone else passes, the **same player** sees **Confirm Hakam** vs **Switch to Sun** before the deal finalizes. (Round 2 **Second Hakam** in this app locks trump when chosen in the UI—no separate confirmation step.)
 
 ### 4.3 Round 2 Options (if all pass Round 1)
 | Option | Result |
@@ -295,10 +301,11 @@ If one team wins **ALL 8 tricks**:
 | **Sun** | **44** pts | **88** pts | 88 pts | — |
 | **Hakam** | **25** pts | **50** pts | 50 pts | 75 pts |
 
-> [!IMPORTANT] **Mode-dependent scoring:**
-> - Sun Kabout = 44 (from 220 total Abnat ÷ 5)
-> - Hakam Kabout = 25 (from 252 total Abnat ÷ 10)
-> - Ace doubles the base. Double/Triple/Four **also multiplies** the Kabout base.
+> [!IMPORTANT] **Mode-dependent scoring (client / Kammelna & Jawaker):**
+> - **Sun (Sann) Kabout** = **44** scoreboard points **+ declared project scoreboard points** (+ Baloot if any).
+> - **Hakam Kabout** = **25** scoreboard points **+ declared project scoreboard points** (+ Baloot if any).
+> - Sun/Hakam bases are as above (derived from full trick Abnat ÷ 5 vs ÷ 10 in classic scoring).
+> - Ace **doubles** the Kabout base only. Double/Triple/Four **also multiply** the Kabout base; project lines use the usual project multiplier (capped ×2 when double is active).
 
 ### 8.5 Step 3 — Convert Abnat to Scoreboard Points
 

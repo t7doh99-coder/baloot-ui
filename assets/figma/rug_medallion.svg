@@ -1,0 +1,31 @@
+<svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer glow ring -->
+  <circle cx="70" cy="70" r="65" fill="rgba(193,163,110,0.04)" stroke="rgba(193,163,110,0.2)" stroke-width="0.5"/>
+
+  <!-- Main octagon -->
+  <polygon points="70,10 112,28 130,70 112,112 70,130 28,112 10,70 28,28"
+           fill="rgba(74,43,67,0.6)" stroke="#C1A36E" stroke-width="1"/>
+
+  <!-- Inner octagon -->
+  <polygon points="70,26 104,38 116,70 104,102 70,114 36,102 24,70 36,38"
+           fill="none" stroke="rgba(193,163,110,0.5)" stroke-width="0.6"/>
+
+  <!-- 8-pointed star -->
+  <polygon points="70,32 76,58 100,50 82,68 100,88 76,82 70,108 64,82 40,88 58,68 40,50 64,58"
+           fill="rgba(193,163,110,0.12)" stroke="#C1A36E" stroke-width="0.8"/>
+
+  <!-- Center circle -->
+  <circle cx="70" cy="70" r="18" fill="rgba(74,43,67,0.8)" stroke="#C1A36E" stroke-width="1"/>
+  <circle cx="70" cy="70" r="12" fill="none" stroke="rgba(193,163,110,0.6)" stroke-width="0.5"/>
+  <circle cx="70" cy="70" r="4" fill="#C1A36E" opacity="0.7"/>
+
+  <!-- Cross arms at 0, 45, 90, 135 degrees (from r=18 to r=32) -->
+  <line x1="88.00" y1="70.00" x2="102.00" y2="70.00" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="82.73" y1="82.73" x2="92.63" y2="92.63" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="70.00" y1="88.00" x2="70.00" y2="102.00" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="57.27" y1="82.73" x2="47.37" y2="92.63" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="52.00" y1="70.00" x2="38.00" y2="70.00" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="57.27" y1="57.27" x2="47.37" y2="47.37" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="70.00" y1="52.00" x2="70.00" y2="38.00" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+  <line x1="82.73" y1="57.27" x2="92.63" y2="47.37" stroke="rgba(193,163,110,0.4)" stroke-width="0.6"/>
+</svg>

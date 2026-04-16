@@ -172,6 +172,41 @@ void main() {
       expect(result.isKabout, true);
       expect(result.teamAPoints, 50); // 25 × 2
     });
+
+    test('Hakam Kabout: 25 + project scoreboard (client: + projects)', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        projectWinningTeam: 'A',
+        teamAProjectScoreboard: 10,
+        teamBProjectScoreboard: 0,
+      );
+
+      expect(result.teamAPoints, 35); // 25 + 10
+      expect(result.teamBPoints, 0);
+    });
+
+    test('Sun Kabout: 44 + project scoreboard', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 130,
+        teamBAbnat: 0,
+        mode: GameMode.sun,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        projectWinningTeam: 'A',
+        teamAProjectScoreboard: 2,
+        teamBProjectScoreboard: 0,
+      );
+
+      expect(result.teamAPoints, 46); // 44 + 2
+    });
   });
 
   group('Double system', () {

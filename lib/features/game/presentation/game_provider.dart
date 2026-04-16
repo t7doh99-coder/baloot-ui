@@ -101,6 +101,11 @@ class GameProvider extends ChangeNotifier {
 
   // ── Bot delay timer ──
   Timer? _botTimer;
+  DateTime? _botTurnStartedAt;  // tracks when bot turn began for ring animation
+  int _botTurnMaxMs = 1200;     // mirrors the random bot delay used in _scheduleNextAction
+
+  // ── Human turn start (for smooth sub-second timer ring) ──
+  DateTime? _humanTurnStartedAt;
 
   // ── Bubble display ──
   final Map<int, PlayerBubble> _bubbles = {};
@@ -152,8 +157,30 @@ class GameProvider extends ChangeNotifier {
   /// Whether it's the human player's turn.
   bool get isHumanTurn => currentPlayerIndex == 0;
 
-  /// Timer countdown value (0–10).
+  /// Timer countdown value (0–10), ticking only while the periodic timer runs.
   int get timerSeconds => _timerSeconds;
+
+  /// Use for the burn-ring UI: only meaningful on the human's turn (seat 0).
+  /// Opponents should not read raw [timerSeconds] — it can be stale after a bot turn.
+  int? get turnTimerSeconds =>
+      currentPlayerIndex == 0 ? _timerSeconds : null;
+
+  /// 0.0 → 1.0 progress for the active seat's burn ring (works for all seats).
+  /// 1.0 = full ring (just started), 0.0 = ring empty (time up).
+  ///
+  /// ALL seats use the same _turnDuration (10s) as the visual window so the
+  /// ring always depletes at an identical speed. For bots the ring simply
+  /// stops (seat becomes inactive) when the bot plays — before the ring
+  /// empties. This exactly matches Jawaker's behaviour.
+  double get activeSeatTimerProgress {
+    final seat    = currentPlayerIndex;
+    final started = seat == 0 ? _humanTurnStartedAt : _botTurnStartedAt;
+    if (started == null) return 1.0;
+    final elapsedMs = DateTime.now().difference(started).inMilliseconds;
+    // Both human and bot use the same 10-second visual window
+    return (1.0 - elapsedMs / (_turnDuration * 1000)).clamp(0.0, 1.0);
+  }
+
 
   /// Game mode label for UI ("Sun" / "Hakam" / "—").
   String get gameModeLabel {
@@ -440,6 +467,8 @@ class GameProvider extends ChangeNotifier {
     } else {
       // Bot's turn — schedule with realistic delay
       final delay = 600 + _rng.nextInt(900); // 600–1500ms
+      _botTurnStartedAt = DateTime.now();
+      _botTurnMaxMs = delay;
       _botTimer = Timer(Duration(milliseconds: delay), () {
         _executeBotTurn(currentSeat);
       });
@@ -483,8 +512,11 @@ class GameProvider extends ChangeNotifier {
       } else if (mode == GameMode.sun) {
         _showBubble(seat, 'Sun');
       } else {
-        _showBubble(seat, 'Hakam');
+        _showBubble(seat, 'Hakam ✓');
       }
+    } else if (bp == BiddingPhase.hakamConfirmation) {
+      // Third pass just entered confirmation; this seat was the passer
+      _showBubble(seat, 'Pass');
     } else {
       // Bidding continues — bot either passed or bid Hakam in R1
       _showBubble(seat, 'Pass');
@@ -503,6 +535,7 @@ class GameProvider extends ChangeNotifier {
 
   void _startTurnTimer() {
     _timerSeconds = _turnDuration;
+    _humanTurnStartedAt = DateTime.now(); // start ms-based smooth tracking
     notifyListeners();
 
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -511,6 +544,7 @@ class GameProvider extends ChangeNotifier {
 
       if (_timerSeconds <= 0) {
         t.cancel();
+        _humanTurnStartedAt = null;
         _onHumanTimeout();
       }
     });
@@ -597,12 +631,13 @@ class GameProvider extends ChangeNotifier {
 
   String _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
     switch (action) {
-      case BidAction.hakam:       return 'Hakam';
-      case BidAction.sun:         return 'Sun';
-      case BidAction.secondHakam: return 'Hakam ${_suitSymbol(secondHakamSuit)}';
-      case BidAction.ashkal:      return 'Ashkal';
-      case BidAction.pass:        return 'Pass';
-      case BidAction.sawa:        return 'Sawa';
+      case BidAction.hakam:        return 'Hakam';
+      case BidAction.sun:          return 'Sun';
+      case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
+      case BidAction.ashkal:       return 'Ashkal';
+      case BidAction.pass:         return 'Pass';
+      case BidAction.sawa:         return 'Sawa';
+      case BidAction.confirmHakam: return 'Hakam ✓';
     }
   }
 

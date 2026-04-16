@@ -3,13 +3,17 @@ import '../../../../data/models/card_model.dart';
 import '../../../../data/models/round_state_model.dart';
 
 /// The action a player can take during bidding.
-enum BidAction { hakam, sun, secondHakam, ashkal, pass, sawa }
+/// [confirmHakam] is used only during the [BiddingPhase.hakamConfirmation] step.
+enum BidAction { hakam, sun, secondHakam, ashkal, pass, sawa, confirmHakam }
 
 /// Manages the Mzad (bidding) phase per BALOOT_RULES.md Section 4.
 ///
 /// Turn order: starts at dealer's right, counter-clockwise.
 /// Round 1: Hakam (buyer card suit) or Pass.
-/// Round 2: Sun, Second Hakam (different suit), Ashkal (dealer/sane only), Pass.
+///   - If all others pass a Hakam bid → [BiddingPhase.hakamConfirmation]:
+///     the buyer must [BidAction.confirmHakam] (keep Hakam) or [BidAction.sun]
+///     (switch to Sun). This is confirmed by Jawaker/Kamelna/client.
+/// Round 2: Sun, Second Hakam (different suit), Pass.
 /// Sawa: instantly locks bid and ends phase.
 class BiddingManager {
   final int dealerIndex;
@@ -69,6 +73,8 @@ class BiddingManager {
         _handleRound1(seatIndex, action);
       case BiddingPhase.round2:
         _handleRound2(seatIndex, action, secondHakamSuit);
+      case BiddingPhase.hakamConfirmation:
+        _handleHakamConfirmation(seatIndex, action);
       case BiddingPhase.completed:
       case BiddingPhase.cancelled:
         throw const InvalidMoveException('Bidding is not active.');
@@ -114,14 +120,10 @@ class BiddingManager {
         if (_round1HakamBidder != null) {
           // Someone bid Hakam — check if all others passed
           if (_passCount >= 3) {
-            // Hakam bidder confirmed
-            _result = BidResult(
-              mode: GameMode.hakam,
-              buyerIndex: _round1HakamBidder!,
-              trumpSuit: buyerCard.suit,
-            );
-            _phase = BiddingPhase.completed;
-            _isFinished = true;
+            // All 3 others passed → buyer must now confirm Hakam or switch to Sun
+            // (Jawaker/Kamelna/Client rule: buyer gets a final choice.)
+            _phase = BiddingPhase.hakamConfirmation;
+            _currentBidder = _round1HakamBidder!;
           } else {
             _advanceBidder();
             // Skip the hakam bidder — they already bid
@@ -163,6 +165,46 @@ class BiddingManager {
         throw InvalidBidException(
           playerIndex: seatIndex,
           message: '$action is not valid in Round 1.',
+        );
+    }
+  }
+
+  /// Hakam Confirmation — buyer chooses: confirm Hakam OR switch to Sun.
+  /// (Jawaker/Kamelna/Client rule: after all others pass a Round 1 Hakam bid.)
+  void _handleHakamConfirmation(int seatIndex, BidAction action) {
+    if (seatIndex != _round1HakamBidder) {
+      throw InvalidBidException(
+        playerIndex: seatIndex,
+        message:
+            'Only the Hakam bidder (seat $_round1HakamBidder) can act during confirmation.',
+      );
+    }
+
+    switch (action) {
+      case BidAction.confirmHakam:
+        // Lock in Hakam with buyer card suit
+        _result = BidResult(
+          mode: GameMode.hakam,
+          buyerIndex: seatIndex,
+          trumpSuit: buyerCard.suit,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.sun:
+        // Switch to Sun
+        _result = BidResult(
+          mode: GameMode.sun,
+          buyerIndex: seatIndex,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      default:
+        throw InvalidBidException(
+          playerIndex: seatIndex,
+          message:
+              'During Hakam confirmation, only confirmHakam or sun are allowed.',
         );
     }
   }
