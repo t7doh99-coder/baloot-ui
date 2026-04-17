@@ -136,24 +136,39 @@ class _NavigationShellState extends State<NavigationShell>
                     gems: user.gemsFormatted,
                   ),
 
-                  // ── Tab Content ──
+                  // ── Tab Content + floating side buttons ──
                   Expanded(
-                    child: _currentIndex == 2
-                        ? Center(
-                            child: _GameHub(
-                              isArabic: isArabic,
-                              glowAnim: _glowAnim,
-                              onPlay: _onPlayNow,
-                              onTableBackground: _onTableBackground,
-                              onCreateSession: _onCreateSession,
-                              onJoinSessions: _onJoinSessions,
-                              onVipAccess: _onVipAccess,
+                    child: Stack(
+                      children: [
+                        // ── Main content ──
+                        _currentIndex == 2
+                            ? Center(
+                                child: _GameHub(
+                                  isArabic: isArabic,
+                                  glowAnim: _glowAnim,
+                                  onPlay: _onPlayNow,
+                                  onTableBackground: _onTableBackground,
+                                  onCreateSession: _onCreateSession,
+                                  onJoinSessions: _onJoinSessions,
+                                  onVipAccess: _onVipAccess,
+                                ),
+                              )
+                            : _ComingSoonPage(
+                                title: tabNames[_currentIndex],
+                                isArabic: isArabic,
+                              ),
+
+                        // ── Floating VIP side button (left, Clash Royale style) ──
+                        if (_currentIndex == 2)
+                          Positioned(
+                            left: 16,
+                            top: 12,
+                            child: _VipSideButton(
+                              onTap: _onVipAccess,
                             ),
-                          )
-                        : _ComingSoonPage(
-                            title: tabNames[_currentIndex],
-                            isArabic: isArabic,
                           ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -211,7 +226,7 @@ class _TopBar extends StatelessWidget {
                         barBorder: const Color(0xFF7A6529),
                         btnColors: const [Color(0xFFD4AF37), Color(0xFFB8960B)],
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       _CRCurrencyBar(
                         value: gems,
                         iconImage: 'assets/images/gem.png',
@@ -221,16 +236,15 @@ class _TopBar extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // ── Menu button (bigger) ──
+                  // ── Square action buttons below gems (e.g. Settings) ──
                   Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.only(top: 8),
                     child: _QuickMenuButton(
                       onLanguage: () {
                         final locale = context.read<LocaleProvider>();
                         locale.toggleLocale();
                       },
                       onAlerts: () {
-                        // LOGIC_PLUG_IN: Open alerts/notifications
                         debugPrint('[Menu] Alerts tapped');
                       },
                       onSettings: () {
@@ -316,6 +330,119 @@ class _TopBar extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  VIP SIDE BUTTON — Clash Royale style floating round button.
+//  Sits on the right side of the screen below the top bar.
+//  Has a golden glow + subtle scale animation on press.
+// ══════════════════════════════════════════════════════════════════
+
+class _VipSideButton extends StatefulWidget {
+  const _VipSideButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  State<_VipSideButton> createState() => _VipSideButtonState();
+}
+
+class _VipSideButtonState extends State<_VipSideButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnim;
+  double _scale = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.88),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: AnimatedBuilder(
+          animation: _pulseAnim,
+          builder: (_, child) {
+            return Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // Outer pulsing glow ring with stronger baseline
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.royalGold.withValues(
+                      alpha: 0.35 + (_pulseAnim.value * 0.35),
+                    ),
+                    blurRadius: 18 + (_pulseAnim.value * 12),
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: child,
+            );
+          },
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  center: Alignment(0, -0.3),
+                  radius: 0.85,
+                  colors: [Color(0xFF2A2210), Color(0xFF12100A)],
+                ),
+                border: Border.all(
+                  color: AppColors.royalGold.withValues(alpha: 0.8),
+                  width: 3.5, // Thicker gold border
+                ),
+                // Inner static glow
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.royalGold.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    spreadRadius: -2,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.workspace_premium_rounded,
+                    color: AppColors.royalGold,
+                    size: 26,
+                  ),
+                ],
+              ),
+            ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  CLASH ROYALE-STYLE CURRENCY BAR
 //  Layout: [Green + button] [amount text] [custom icon image]
 // ══════════════════════════════════════════════════════════════════
@@ -341,8 +468,8 @@ class _CRCurrencyBar extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         color: barColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: barBorder, width: 1),
+        borderRadius: BorderRadius.circular(6), // Squarish
+        border: Border.all(color: barBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),
@@ -354,8 +481,9 @@ class _CRCurrencyBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // The green 'add' block on the left
           Container(
-            width: 22,
+            width: 28, // Square block
             height: 28,
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -363,7 +491,16 @@ class _CRCurrencyBar extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: btnColors,
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(5),
+                bottomLeft: Radius.circular(5),
+              ),
+              border: Border(
+                right: BorderSide(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  width: 1,
+                ),
+              ),
             ),
             child: const Center(
               child: Icon(Icons.add_rounded, size: 18, color: Colors.white),
@@ -425,57 +562,27 @@ class _GameHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── The Hero: Play Medallion ──
-          _PlayMedallion(
-            isArabic: isArabic,
-            glowAnim: glowAnim,
-            onTap: onPlay,
-          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── The Hero: Play Medallion (centered) ──
+        _PlayMedallion(
+          isArabic: isArabic,
+          glowAnim: glowAnim,
+          onTap: onPlay,
+        ),
 
-          const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
-          // Figma table / rug background — placeholder route
-          _TableBackgroundButton(
-            isArabic: isArabic,
-            onTap: onTableBackground,
-          ),
-
-          const SizedBox(height: 28),
-
-          // ── 3 Satellite Actions ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _SatelliteAction(
-                icon: Icons.add_rounded,
-                labelEn: 'Create\nSession',
-                labelAr: 'إنشاء\nجلسة',
-                isArabic: isArabic,
-                onTap: onCreateSession,
-              ),
-              _SatelliteAction(
-                icon: Icons.login_rounded,
-                labelEn: 'Join\nSessions',
-                labelAr: 'انضمام\nللجلسات',
-                isArabic: isArabic,
-                onTap: onJoinSessions,
-              ),
-              _SatelliteAction(
-                icon: Icons.workspace_premium_rounded,
-                labelEn: 'VIP\nStore',
-                labelAr: 'متجر\nVIP',
-                isArabic: isArabic,
-                onTap: onVipAccess,
-              ),
-            ],
-          ),
-        ],
-      ),
+        // ── Game Modes link — minimal, intentional, below the hero ──
+        _GameModesLink(
+          isArabic: isArabic,
+          onPlay: onPlay,
+          onCreateSession: onCreateSession,
+          onJoinSessions: onJoinSessions,
+          onVipAccess: onVipAccess,
+        ),
+      ],
     );
   }
 }
@@ -635,11 +742,13 @@ class _PlayMedallion extends StatefulWidget {
     required this.isArabic,
     required this.glowAnim,
     required this.onTap,
+    this.hideGlow = false,
   });
 
   final bool isArabic;
   final Animation<double> glowAnim;
   final VoidCallback onTap;
+  final bool hideGlow;
 
   @override
   State<_PlayMedallion> createState() => _PlayMedallionState();
@@ -665,37 +774,38 @@ class _PlayMedallionState extends State<_PlayMedallion> {
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutBack,
         child: SizedBox(
-          width: 170,
-          height: 170,
+          width: 190,
+          height: 190,
           child: Stack(
             children: [
-              // ── Layer 1: Animated glow only (repaints each frame) ──
-              AnimatedBuilder(
-                animation: widget.glowAnim,
-                builder: (_, __) {
-                  return Container(
-                    width: 170,
-                    height: 170,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.royalGold
-                              .withValues(alpha: widget.glowAnim.value),
-                          blurRadius: 50,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+              // ── Layer 1: Animated glow (skipped if hideGlow=true, handled by parent) ──
+              if (!widget.hideGlow)
+                AnimatedBuilder(
+                  animation: widget.glowAnim,
+                  builder: (_, __) {
+                    return Container(
+                      width: 190,
+                      height: 190,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.royalGold
+                                .withValues(alpha: widget.glowAnim.value),
+                            blurRadius: 50,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
 
-              // ── Layer 2: Static medallion content (never repaints) ──
+              // ── Layer 2: Static medallion content ──
               RepaintBoundary(
                 child: Container(
-                  width: 170,
-                  height: 170,
+                  width: 190,
+                  height: 190,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
@@ -711,26 +821,259 @@ class _PlayMedallionState extends State<_PlayMedallion> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         '♠',
                         style: TextStyle(
-                          color: AppColors.royalGold,
-                          fontSize: 40,
+                          color: Color(0xFF8B92A5),
+                          fontSize: 60,
                           height: 1,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
                       Text(
                         widget.isArabic ? 'العب' : 'PLAY',
                         style: GoogleFonts.montserrat(
                           color: const Color(0xFFF4E4B7),
-                          fontSize: 19,
+                          fontSize: 20,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: widget.isArabic ? 0 : 4,
+                          letterSpacing: widget.isArabic ? 0 : 5,
                         ),
                       ),
                     ],
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  GAME MODES LINK — Minimal text link below the medallion.
+//  Tapping it opens the Game Modes bottom sheet.
+// ══════════════════════════════════════════════════════════════════
+
+class _GameModesLink extends StatefulWidget {
+  const _GameModesLink({
+    required this.isArabic,
+    required this.onPlay,
+    required this.onCreateSession,
+    required this.onJoinSessions,
+    required this.onVipAccess,
+  });
+
+  final bool isArabic;
+  final VoidCallback onPlay;
+  final VoidCallback onCreateSession;
+  final VoidCallback onJoinSessions;
+  final VoidCallback onVipAccess;
+
+  @override
+  State<_GameModesLink> createState() => _GameModesLinkState();
+}
+
+class _GameModesLinkState extends State<_GameModesLink> {
+  double _opacity = 1.0;
+
+  void _handleTap() {
+    setState(() => _opacity = 0.5);
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (mounted) setState(() => _opacity = 1.0);
+    });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _GameModesSheet(
+        isArabic: widget.isArabic,
+        onPlay: widget.onPlay,
+        onCreateSession: widget.onCreateSession,
+        onJoinSessions: widget.onJoinSessions,
+        onVipAccess: widget.onVipAccess,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: AnimatedOpacity(
+        opacity: _opacity,
+        duration: const Duration(milliseconds: 100),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.isArabic ? 'أطوار اللعب' : 'Game Modes',
+              style: GoogleFonts.montserrat(
+                color: const Color(0xFFF4E4B7).withValues(alpha: 0.65),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: const Color(0xFFF4E4B7).withValues(alpha: 0.5),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  GAME MODES SHEET — Slides up from bottom, Clash Royale style.
+// ══════════════════════════════════════════════════════════════════
+
+class _GameModesSheet extends StatelessWidget {
+  const _GameModesSheet({
+    required this.isArabic,
+    required this.onPlay,
+    required this.onCreateSession,
+    required this.onJoinSessions,
+    required this.onVipAccess,
+  });
+
+  final bool isArabic;
+  final VoidCallback onPlay;
+  final VoidCallback onCreateSession;
+  final VoidCallback onJoinSessions;
+  final VoidCallback onVipAccess;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF12141C),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.2), width: 0.8)),
+      ),
+      padding: EdgeInsets.only(
+        top: 12,
+        left: 20,
+        right: 20,
+        bottom: MediaQuery.of(context).padding.bottom + 28,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Drag handle ──
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // ── Title ──
+          Text(
+            isArabic ? 'أطوار اللعب' : 'Game Modes',
+            style: GoogleFonts.montserrat(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // ── Options: unified style ──
+          _SheetOption(
+            icon: Icons.play_arrow_rounded,
+            title: isArabic ? 'العب بلوت' : 'Play Baloot',
+            onTap: () { Navigator.pop(context); onPlay(); },
+          ),
+          const SizedBox(height: 10),
+          _SheetOption(
+            icon: Icons.add_rounded,
+            title: isArabic ? 'إنشاء جلسة' : 'Create Session',
+            onTap: () { Navigator.pop(context); onCreateSession(); },
+          ),
+          const SizedBox(height: 10),
+          _SheetOption(
+            icon: Icons.login_rounded,
+            title: isArabic ? 'انضمام لجلسة' : 'Join Sessions',
+            onTap: () { Navigator.pop(context); onJoinSessions(); },
+          ),
+          const SizedBox(height: 10),
+          _SheetOption(
+            icon: Icons.workspace_premium_rounded,
+            title: isArabic ? 'متجر VIP' : 'VIP Store',
+            onTap: () { Navigator.pop(context); onVipAccess(); },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetOption extends StatefulWidget {
+  const _SheetOption({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  State<_SheetOption> createState() => _SheetOptionState();
+}
+
+class _SheetOptionState extends State<_SheetOption> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            // Unified: same dark card for all options
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.royalGold.withValues(alpha: 0.15),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Icon(
+                widget.icon,
+                color: AppColors.royalGold.withValues(alpha: 0.75),
+                size: 22,
+              ),
+              const SizedBox(width: 14),
+              Text(
+                widget.title,
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFFF4E4B7),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
                 ),
               ),
             ],
@@ -881,26 +1224,27 @@ class _QuickMenuButton extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showQuickMenu(context),
       child: Container(
-        width: 40,
-        height: 36,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1D25),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFF1E2129),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: AppColors.royalGold.withValues(alpha: 0.25),
+            color: AppColors.royalGold.withValues(alpha: 0.35),
+            width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 6,
+              blurRadius: 4,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Icon(
           Icons.menu_rounded,
-          color: AppColors.royalGold.withValues(alpha: 0.8),
-          size: 20,
+          color: AppColors.royalGold.withValues(alpha: 0.9),
+          size: 22,
         ),
       ),
     );
