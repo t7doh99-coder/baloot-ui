@@ -6,7 +6,7 @@ import '../../../core/widgets/vip_background_shell.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../session/presentation/create_session_screen.dart';
-import '../../game/presentation/finding_game_popup.dart';
+import '../../game/presentation/game_table_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -62,7 +62,9 @@ class _NavigationShellState extends State<NavigationShell>
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
   void _onPlayNow() {
-    FindingGamePopup.show(context);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const GameTableScreen()),
+    );
   }
 
   void _onCreateSession() {
@@ -621,7 +623,7 @@ class _PlayMedallionState extends State<_PlayMedallion> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         '♠',
                         style: TextStyle(
                           color: AppColors.royalGold,
@@ -895,7 +897,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Alerts ──
                       _menuItem(
-                        icon: Icon(Icons.notifications_none_rounded, size: 18, color: AppColors.royalGold),
+                        icon: const Icon(Icons.notifications_none_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'التنبيهات' : 'Alerts',
                         onTap: () {
                           Navigator.of(dialogContext).pop();
@@ -905,7 +907,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Settings ──
                       _menuItem(
-                        icon: Icon(Icons.settings_rounded, size: 18, color: AppColors.royalGold),
+                        icon: const Icon(Icons.settings_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'الإعدادات' : 'Settings',
                         onTap: () {
                           Navigator.of(dialogContext).pop();
