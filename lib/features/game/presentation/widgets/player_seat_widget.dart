@@ -96,7 +96,7 @@ class _TopSeat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final column = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -108,7 +108,14 @@ class _TopSeat extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 4),
-        Center(child: _SpeechBubble(bubble: bubble, teamColor: teamColor)),
+        Center(
+          child: _SpeechBubble(
+            bubble: bubble,
+            teamColor: teamColor,
+            maxLines: 1,
+            fontSize: 11,
+          ),
+        ),
         const SizedBox(height: 2),
         Center(
           child: PlayerAvatarRing(
@@ -122,6 +129,26 @@ class _TopSeat extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    // Top seat sits in a fixed-height band on [GameTableScreen]; speech + fan
+    // + avatar can exceed it when text scales or bubble wraps — scale down
+    // instead of overflowing.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : double.infinity,
+            ),
+            child: column,
+          ),
+        );
+      },
     );
   }
 }
@@ -701,7 +728,15 @@ class _MiniDealerChip extends StatelessWidget {
 class _SpeechBubble extends StatelessWidget {
   final PlayerBubble? bubble;
   final Color teamColor;
-  const _SpeechBubble({required this.bubble, required this.teamColor});
+  final int maxLines;
+  final double fontSize;
+
+  const _SpeechBubble({
+    required this.bubble,
+    required this.teamColor,
+    this.maxLines = 2,
+    this.fontSize = 12,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -728,12 +763,12 @@ class _SpeechBubble extends StatelessWidget {
                   ),
                   child: Text(
                     bubble!.text,
-                    maxLines: 2,
+                    maxLines: maxLines,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: teamColor,
-                      fontSize: 12,
+                      fontSize: fontSize,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Tajawal',
                       height: 1.2,

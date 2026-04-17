@@ -6,7 +6,7 @@ import '../../../core/widgets/vip_background_shell.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../session/presentation/create_session_screen.dart';
-import '../../game/presentation/card_debug_screen.dart';
+import '../../game/presentation/game_table_screen.dart';
 import '../../game/presentation/table_background_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 
@@ -63,9 +63,8 @@ class _NavigationShellState extends State<NavigationShell>
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
   void _onPlayNow() {
-    // TODO: Replace with FindingGamePopup.show(context) after Step 1 review
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CardDebugScreen()),
+      MaterialPageRoute(builder: (_) => const GameTableScreen()),
     );
   }
 

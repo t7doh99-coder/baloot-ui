@@ -221,7 +221,8 @@ class _PlayArea extends StatelessWidget {
 
       const seatColW   = 72.0;
       const seatColPad = 2.0;
-      const topSeatH   = 120.0;
+      // Room for card fan + avatar + bubble; [_TopSeat] also uses FittedBox if still tight
+      const topSeatH   = 140.0;
       const bottomPad  = 4.0;
 
       final rugW   = w - seatColW * 2 - seatColPad * 2;
@@ -321,20 +322,10 @@ class _TableArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width, height: height,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F0E8),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-            color: const Color(0xFF8B7355).withValues(alpha: 0.4), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.20),
-            blurRadius: 12, offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    // Open table surface — same tone as scaffold; no cream panel or frame
+    return SizedBox(
+      width: width,
+      height: height,
     );
   }
 }

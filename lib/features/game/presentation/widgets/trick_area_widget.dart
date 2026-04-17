@@ -29,8 +29,9 @@ class TrickAreaWidget extends StatefulWidget {
 
 class _TrickAreaWidgetState extends State<TrickAreaWidget>
     with SingleTickerProviderStateMixin {
-  static const _cardW = 44.0;
-  static const _cardH = 62.0;
+  // Must match [PlayingCard] with [CardSize.small]
+  static final double _cardW = CardSize.small.width;
+  static final double _cardH = CardSize.small.height;
 
   late final AnimationController _flashCtrl;
   late final Animation<double> _flashOpacity;
@@ -72,8 +73,14 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
       final areaW = box.maxWidth;
       final areaH = box.maxHeight;
 
+      // Shrink spread on short trick zones so four cards stay inside bounds
+      final maxSpreadY =
+          ((areaH - _cardH) / 2 - 2).clamp(4.0, 18.0);
+      final maxSpreadX =
+          ((areaW - _cardW) / 2 - 2).clamp(4.0, 26.0);
+
       return Stack(
-        clipBehavior: Clip.none,
+        clipBehavior: Clip.hardEdge,
         children: [
           // Trick-won flash
           FadeTransition(
@@ -91,17 +98,21 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
             ),
           ),
 
-          // Trick counter pill (top-center)
+          // Trick counter (top) — game state, not decoration
           if (isPlaying)
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: Center(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
                   child: Container(
                     key: ValueKey('trick-$trickNum'),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(10),
@@ -119,14 +130,16 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
               ),
             ),
 
-          // Mode / trump indicator
+          // Mode / trump (bottom)
           if (isPlaying && game.gameModeLabel != '—')
             Positioned(
-              bottom: 0, left: 0, right: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.30),
                     borderRadius: BorderRadius.circular(8),
@@ -147,52 +160,76 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
 
           // Played cards — each positioned by seat
           for (final play in trick)
-            _buildTrickCard(play, areaW, areaH, trickNum, trick.length),
+            _buildTrickCard(
+              play,
+              areaW,
+              areaH,
+              maxSpreadX,
+              maxSpreadY,
+            ),
         ],
       );
     });
   }
 
   Widget _buildTrickCard(
-      CardPlayModel play, double areaW, double areaH,
-      int trickNum, int trickSize) {
+    CardPlayModel play,
+    double areaW,
+    double areaH,
+    double spreadX,
+    double spreadY,
+  ) {
     final seat = play.playerIndex;
-    final pos = _cardOffset(seat, areaW, areaH);
+    final pos = _cardOffset(seat, areaW, areaH, spreadX, spreadY);
 
     return Positioned(
       left: pos.dx,
       top: pos.dy,
       child: _AnimatedTrickCard(
-        key: ValueKey('t$trickNum-s$seat'),
+        key: ValueKey('t${play.card.suit}-${play.card.rank}-s$seat'),
         play: play,
         seat: seat,
       ),
     );
   }
 
-  Offset _cardOffset(int seat, double areaW, double areaH) {
+  Offset _cardOffset(
+    int seat,
+    double areaW,
+    double areaH,
+    double spreadX,
+    double spreadY,
+  ) {
     final cx = (areaW - _cardW) / 2;
     final cy = (areaH - _cardH) / 2;
-    const spreadX = 26.0;
-    const spreadY = 18.0;
 
     switch (seat) {
-      case 0: return Offset(cx, cy + spreadY);        // below center
-      case 1: return Offset(cx + spreadX, cy);         // right of center
-      case 2: return Offset(cx, cy - spreadY);         // above center
-      case 3: return Offset(cx - spreadX, cy);         // left of center
-      default: return Offset(cx, cy);
+      case 0:
+        return Offset(cx, cy + spreadY);
+      case 1:
+        return Offset(cx + spreadX, cy);
+      case 2:
+        return Offset(cx, cy - spreadY);
+      case 3:
+        return Offset(cx - spreadX, cy);
+      default:
+        return Offset(cx, cy);
     }
   }
 
   static String _suitSymbol(dynamic suit) {
     final name = suit.toString().split('.').last;
     switch (name) {
-      case 'hearts':   return '♥';
-      case 'diamonds': return '♦';
-      case 'spades':   return '♠';
-      case 'clubs':    return '♣';
-      default:         return '';
+      case 'hearts':
+        return '♥';
+      case 'diamonds':
+        return '♦';
+      case 'spades':
+        return '♠';
+      case 'clubs':
+        return '♣';
+      default:
+        return '';
     }
   }
 }
