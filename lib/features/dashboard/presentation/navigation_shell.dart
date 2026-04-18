@@ -1328,7 +1328,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Alerts ──
                       _menuItem(
-                        icon: Icon(Icons.notifications_none_rounded, size: 18, color: AppColors.royalGold),
+                        icon: const Icon(Icons.notifications_none_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'التنبيهات' : 'Alerts',
                         onTap: () {
                           Navigator.of(dialogContext).pop();
@@ -1338,7 +1338,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Settings ──
                       _menuItem(
-                        icon: Icon(Icons.settings_rounded, size: 18, color: AppColors.royalGold),
+                        icon: const Icon(Icons.settings_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'الإعدادات' : 'Settings',
                         onTap: () {
                           Navigator.of(dialogContext).pop();

@@ -6,6 +6,8 @@ class AppAssets {
 
   // Images
   static const String logoImage = 'assets/images/logo.png';
+  static const String majlisTableReference = 'assets/images/majlis_table_reference.png';
+  static const String majlisTableMap = 'assets/images/majlis_table_map.svg';
 
   // SVG Icons (cards)
   static const String suitHeartsIcon = 'assets/icons/suit_hearts.svg';
