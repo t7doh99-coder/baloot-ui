@@ -2,7 +2,6 @@ import 'dart:math';
 import '../../../core/errors/game_exceptions.dart';
 import '../../../core/interfaces/i_baloot_controller.dart';
 import '../../../data/models/card_model.dart';
-import '../../../data/models/card_play_model.dart';
 import '../../../data/models/round_state_model.dart';
 import 'managers/deck_manager.dart';
 import 'managers/bidding_manager.dart';
@@ -69,6 +68,23 @@ class BalootGameController implements IBalootController {
       map[p.playerIndex] = p.card;
     }
     return List.generate(4, (i) => map[i]!);
+  }
+
+  /// Most recently completed trick (for UI throw / collect animations).
+  TrickResult? get lastTrickResult {
+    final tm = _turnManager;
+    if (tm == null || tm.trickHistory.isEmpty) return null;
+    return tm.trickHistory.last;
+  }
+
+  /// Number of tricks fully completed this round (for UI transitions).
+  int get completedTricksCount => _turnManager?.trickHistory.length ?? 0;
+
+  /// Completed tricks this round (empty when not in play or before first trick).
+  List<TrickResult> get trickHistoryThisRound {
+    final tm = _turnManager;
+    if (tm == null) return const <TrickResult>[];
+    return List<TrickResult>.unmodifiable(tm.trickHistory);
   }
 
   GamePhase get gamePhase => _gamePhase;

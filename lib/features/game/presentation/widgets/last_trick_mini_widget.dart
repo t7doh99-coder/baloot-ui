@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../data/models/card_model.dart';
 import '../game_provider.dart';
+import 'playing_card.dart' show CardSize, PlayingCard, cardBackForSeat;
 
 /// Top-right mini panel: last completed trick in a + layout on the table
 /// background (no dark container). Generous insets so the four glyphs are not
@@ -32,10 +33,17 @@ class LastTrickMiniWidget extends StatelessWidget {
     Widget cardForSeat(int seat) {
       final snap = cards;
       if (snap == null) {
-        return const SizedBox(
+        return SizedBox(
           width: _cardW,
           height: _cardH,
-          child: _MiniCardBack(),
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: PlayingCard(
+              faceUp: false,
+              back: cardBackForSeat(seat),
+              size: CardSize.small,
+            ),
+          ),
         );
       }
       return SizedBox(
@@ -47,87 +55,42 @@ class LastTrickMiniWidget extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 1,
-            height: 56,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(1),
-              color: Colors.white.withValues(alpha: 0.22),
+      child: SizedBox(
+        width: _crossSize,
+        height: _crossSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            // Top — seat 2 (partner)
+            Positioned(
+              top: _armInset,
+              left: 0,
+              right: 0,
+              child: Center(child: cardForSeat(2)),
             ),
-          ),
-          SizedBox(
-            width: _crossSize,
-            height: _crossSize,
-            child: Stack(
-              clipBehavior: Clip.hardEdge,
-              alignment: Alignment.center,
-              children: [
-                // Top — seat 2 (partner)
-                Positioned(
-                  top: _armInset,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: cardForSeat(2)),
-                ),
-                // Bottom — seat 0 (you)
-                Positioned(
-                  bottom: _armInset,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: cardForSeat(0)),
-                ),
-                // Left — seat 3
-                Positioned(
-                  left: _armInset,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(child: cardForSeat(3)),
-                ),
-                // Right — seat 1
-                Positioned(
-                  right: _armInset,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(child: cardForSeat(1)),
-                ),
-              ],
+            // Bottom — seat 0 (you)
+            Positioned(
+              bottom: _armInset,
+              left: 0,
+              right: 0,
+              child: Center(child: cardForSeat(0)),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Simple red back (no PNG) ─────────────────────────────────────────
-
-class _MiniCardBack extends StatelessWidget {
-  const _MiniCardBack();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFB71C1C),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 0.6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Icon(
-          Icons.style_outlined,
-          size: 11,
-          color: Colors.white.withValues(alpha: 0.45),
+            // Left — seat 3
+            Positioned(
+              left: _armInset,
+              top: 0,
+              bottom: 0,
+              child: Center(child: cardForSeat(3)),
+            ),
+            // Right — seat 1
+            Positioned(
+              right: _armInset,
+              top: 0,
+              bottom: 0,
+              child: Center(child: cardForSeat(1)),
+            ),
+          ],
         ),
       ),
     );

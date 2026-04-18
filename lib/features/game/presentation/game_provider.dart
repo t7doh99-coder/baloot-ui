@@ -7,6 +7,7 @@ import '../../../data/models/card_play_model.dart';
 import '../../../data/models/round_state_model.dart';
 import '../domain/baloot_game_controller.dart';
 import '../domain/engines/project_detector.dart';
+import '../domain/managers/turn_manager.dart' show TrickResult;
 import '../domain/engines/scoring_engine.dart' show RoundScoreResult;
 import '../domain/managers/bidding_manager.dart';
 
@@ -122,6 +123,10 @@ class GameProvider extends ChangeNotifier {
 
   // ── Currently selected card in hand (seat 0) ──
   CardModel? _selectedCard;
+
+  /// Designer throw: hand index when human (seat 0) plays a card.
+  int _lastHumanThrowCardIndex = 0;
+  int _lastHumanThrowHandCount = 8;
 
   GameProvider({Random? random})
       : _engine = BalootGameController(random: random ?? Random()),
@@ -279,6 +284,20 @@ class GameProvider extends ChangeNotifier {
   /// Legally playable cards for the human player (seat 0).
   List<CardModel> get validCards => _engine.getValidCards(0);
 
+  /// Last completed trick (same as engine history tail).
+  TrickResult? get lastTrickResult =>
+      phase == GamePhase.notStarted ? null : _engine.lastTrickResult;
+
+  /// Tricks completed this round (for designer collect / overlay timing).
+  int get completedTricksCount => _engine.completedTricksCount;
+
+  /// Full trick history for won-pile counts / angles in the designer trick zone.
+  List<TrickResult> get trickHistoryThisRound => _engine.trickHistoryThisRound;
+
+  /// Fan index / hand size for designer bottom throw (seat 0).
+  int get lastHumanThrowCardIndex => _lastHumanThrowCardIndex;
+  int get lastHumanThrowHandCount => _lastHumanThrowHandCount;
+
   /// Player names.
   String playerName(int seat) => _playerNames[seat % _playerNames.length];
 
@@ -369,6 +388,12 @@ class GameProvider extends ChangeNotifier {
   /// Human plays a card directly (seat 0 only).
   void humanPlayCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
+    final hand = playerHand;
+    if (hand.isNotEmpty) {
+      final idx = hand.indexOf(card);
+      _lastHumanThrowHandCount = hand.length;
+      _lastHumanThrowCardIndex = idx >= 0 ? idx : hand.length ~/ 2;
+    }
     _cancelTimers();
     try {
       _engine.playCard(0, card);
@@ -394,6 +419,20 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
   //  INTERNAL: schedule bot actions and timer
   // ══════════════════════════════════════════════════════════════════
+
+  /// Close the round scoreboard early (same as waiting for the auto timer).
+  void dismissRoundScoreOverlay() {
+    _botTimer?.cancel();
+    _botTimer = null;
+    if (_lastRoundResult == null) return;
+    _lastRoundResult = null;
+    if (!_engine.isGameOver && _engine.gamePhase == GamePhase.dealing) {
+      _engine.startNewRound();
+      _prevPhase = _engine.gamePhase;
+    }
+    notifyListeners();
+    _scheduleNextAction();
+  }
 
   void _afterEngineAction() {
     _syncLastTrickMini();

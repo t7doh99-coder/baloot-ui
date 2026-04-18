@@ -1,23 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/card_play_model.dart';
 import '../../../game/domain/baloot_game_controller.dart' show GamePhase;
+import '../../../game/domain/managers/turn_manager.dart' show TrickResult;
 import '../game_provider.dart';
-import 'playing_card.dart';
+import 'designer_engine_trick_zone.dart';
 
 // ══════════════════════════════════════════════════════════════════
-//  TRICK AREA — the 4-card play zone in the center of the table
-//
-//  Layout (relative to center):
-//
-//          [seat 2]        ← top/partner
-//    [seat 3]    [seat 1]  ← left / right
-//          [seat 0]        ← bottom/you
-//
-//  Each card slides in from the player's direction when played.
-//  When all 4 cards land, a brief gold flash signals trick won.
+//  TRICK AREA — Baloot-dev center motion (throw / impact / collect)
+//  wired to live [GameProvider] tricks. Engine rules unchanged.
 // ══════════════════════════════════════════════════════════════════
 
 class TrickAreaWidget extends StatefulWidget {
@@ -27,15 +23,41 @@ class TrickAreaWidget extends StatefulWidget {
   State<TrickAreaWidget> createState() => _TrickAreaWidgetState();
 }
 
+Map<DesignerTrickSeat, List<double>> _emptyPileAngles() => {
+      for (final s in DesignerTrickSeat.values) s: <double>[],
+    };
+
+/// Won-trick face-down stacks from engine history; [historyForPiles] excludes the
+/// trick still animating (overlay + collect) so the pile does not jump early.
+void _fillWonTrickPileMaps(
+  List<TrickResult> historyForPiles,
+  Map<DesignerTrickSeat, int> pilesOut,
+  Map<DesignerTrickSeat, List<double>> anglesOut,
+) {
+  for (final s in DesignerTrickSeat.values) {
+    pilesOut[s] = 0;
+    (anglesOut[s] ??= <double>[]).clear();
+  }
+  for (final r in historyForPiles) {
+    final seat = designerTrickSeatForPlayer(r.winnerIndex);
+    pilesOut[seat] = (pilesOut[seat] ?? 0) + 1;
+    final list = anglesOut[seat]!;
+    list.add(designerWonTrickPileAngle(seat, list.length));
+  }
+}
+
 class _TrickAreaWidgetState extends State<TrickAreaWidget>
     with SingleTickerProviderStateMixin {
-  // Must match [PlayingCard] with [CardSize.small]
-  static final double _cardW = CardSize.small.width;
-  static final double _cardH = CardSize.small.height;
-
   late final AnimationController _flashCtrl;
   late final Animation<double> _flashOpacity;
-  int _prevTrickSize = 0;
+
+  int _prevCompletedTricks = 0;
+  List<CardPlayModel>? _overlayPlays;
+  DesignerTrickSeat? _collectWinner;
+  int _collectAnimTick = 0;
+  bool _collectScheduled = false;
+  bool _flashedForOverlay = false;
+  bool _pendingCollectSchedule = false;
 
   @override
   void initState() {
@@ -55,34 +77,91 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
     super.dispose();
   }
 
+  void _onCollectFinished() {
+    if (!mounted) return;
+    setState(() {
+      _overlayPlays = null;
+      _collectWinner = null;
+      _collectScheduled = false;
+      _flashedForOverlay = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final trick = game.currentTrick;
     final trickNum = game.trickNumber;
     final isPlaying = game.phase == GamePhase.playing;
+    final completed = game.completedTricksCount;
 
-    // Trigger flash when trick completes (goes from 4→0 or 3→4→0)
-    if (trick.length == 4 && _prevTrickSize < 4) {
-      _flashCtrl.forward(from: 0).then((_) => _flashCtrl.reverse());
-      HapticFeedback.mediumImpact();
+    if (trick.isNotEmpty) {
+      _overlayPlays = null;
+      _collectWinner = null;
+      _collectScheduled = false;
+      _flashedForOverlay = false;
+      _prevCompletedTricks = completed;
+    } else if (completed > _prevCompletedTricks) {
+      _prevCompletedTricks = completed;
+      final r = game.lastTrickResult;
+      if (r != null && r.cards.length == 4) {
+        _overlayPlays = List<CardPlayModel>.from(r.cards);
+        _collectWinner = designerTrickSeatForPlayer(r.winnerIndex);
+        _collectScheduled = false;
+      }
     }
-    _prevTrickSize = trick.length;
+
+    final plays =
+        trick.isNotEmpty ? trick : (_overlayPlays ?? const <CardPlayModel>[]);
+
+    if (_overlayPlays != null &&
+        _overlayPlays!.length == 4 &&
+        _collectWinner != null &&
+        !_collectScheduled) {
+      _pendingCollectSchedule = true;
+    }
+
+    if (_pendingCollectSchedule && !_collectScheduled) {
+      _pendingCollectSchedule = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _collectScheduled) return;
+        _collectScheduled = true;
+        if (!_flashedForOverlay) {
+          _flashedForOverlay = true;
+          _flashCtrl.forward(from: 0).then((_) => _flashCtrl.reverse());
+          HapticFeedback.mediumImpact();
+        }
+        unawaited(Future<void>.delayed(const Duration(milliseconds: 1000), () {
+          if (!mounted) return;
+          setState(() => _collectAnimTick++);
+        }));
+      });
+    }
+
+    final entries = <EngineTrickEntry>[
+      for (final p in plays)
+        EngineTrickEntry(
+          seat: designerTrickSeatForPlayer(p.playerIndex),
+          card: p.card,
+        ),
+    ];
+
+    final fullHistory = game.trickHistoryThisRound;
+    final historyForPiles = (_overlayPlays != null && fullHistory.isNotEmpty)
+        ? fullHistory.sublist(0, fullHistory.length - 1)
+        : fullHistory;
+    final wonTrickPiles = <DesignerTrickSeat, int>{};
+    final wonTrickPileAngles = _emptyPileAngles();
+    _fillWonTrickPileMaps(historyForPiles, wonTrickPiles, wonTrickPileAngles);
 
     return LayoutBuilder(builder: (ctx, box) {
       final areaW = box.maxWidth;
       final areaH = box.maxHeight;
-
-      // Shrink spread on short trick zones so four cards stay inside bounds
-      final maxSpreadY =
-          ((areaH - _cardH) / 2 - 2).clamp(4.0, 18.0);
-      final maxSpreadX =
-          ((areaW - _cardW) / 2 - 2).clamp(4.0, 26.0);
+      final zone = (areaW < areaH ? areaW : areaH) * 0.92;
 
       return Stack(
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.none,
         children: [
-          // Trick-won flash
           FadeTransition(
             opacity: _flashOpacity,
             child: Container(
@@ -97,8 +176,6 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
               ),
             ),
           ),
-
-          // Trick counter (top) — game state, not decoration
           if (isPlaying)
             Positioned(
               top: 0,
@@ -129,8 +206,6 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
                 ),
               ),
             ),
-
-          // Mode / trump (bottom)
           if (isPlaying && game.gameModeLabel != '—')
             Positioned(
               bottom: 0,
@@ -157,64 +232,26 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
                 ),
               ),
             ),
-
-          // Played cards — each positioned by seat
-          for (final play in trick)
-            _buildTrickCard(
-              play,
-              areaW,
-              areaH,
-              maxSpreadX,
-              maxSpreadY,
+          Center(
+            child: SizedBox(
+              width: zone,
+              height: zone,
+              child: DesignerEngineTrickZone(
+                zoneSize: zone,
+                playedCardsInTrick: entries,
+                collectWinnerSeat: _collectWinner,
+                collectAnimationTick: _collectAnimTick,
+                wonTrickPiles: wonTrickPiles,
+                wonTrickPileAngles: wonTrickPileAngles,
+                bottomThrowCardIndex: game.lastHumanThrowCardIndex,
+                bottomThrowHandCount: game.lastHumanThrowHandCount,
+                onCollectAnimationFinished: _onCollectFinished,
+              ),
             ),
+          ),
         ],
       );
     });
-  }
-
-  Widget _buildTrickCard(
-    CardPlayModel play,
-    double areaW,
-    double areaH,
-    double spreadX,
-    double spreadY,
-  ) {
-    final seat = play.playerIndex;
-    final pos = _cardOffset(seat, areaW, areaH, spreadX, spreadY);
-
-    return Positioned(
-      left: pos.dx,
-      top: pos.dy,
-      child: _AnimatedTrickCard(
-        key: ValueKey('t${play.card.suit}-${play.card.rank}-s$seat'),
-        play: play,
-        seat: seat,
-      ),
-    );
-  }
-
-  Offset _cardOffset(
-    int seat,
-    double areaW,
-    double areaH,
-    double spreadX,
-    double spreadY,
-  ) {
-    final cx = (areaW - _cardW) / 2;
-    final cy = (areaH - _cardH) / 2;
-
-    switch (seat) {
-      case 0:
-        return Offset(cx, cy + spreadY);
-      case 1:
-        return Offset(cx + spreadX, cy);
-      case 2:
-        return Offset(cx, cy - spreadY);
-      case 3:
-        return Offset(cx - spreadX, cy);
-      default:
-        return Offset(cx, cy);
-    }
   }
 
   static String _suitSymbol(dynamic suit) {
@@ -231,90 +268,5 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
       default:
         return '';
     }
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  ANIMATED TRICK CARD — slides in from player's direction
-// ══════════════════════════════════════════════════════════════════
-
-class _AnimatedTrickCard extends StatefulWidget {
-  final CardPlayModel play;
-  final int seat;
-
-  const _AnimatedTrickCard({
-    super.key,
-    required this.play,
-    required this.seat,
-  });
-
-  @override
-  State<_AnimatedTrickCard> createState() => _AnimatedTrickCardState();
-}
-
-class _AnimatedTrickCardState extends State<_AnimatedTrickCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<Offset> _slide;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
-    final begin = _beginOffset(widget.seat);
-    _slide = Tween<Offset>(begin: begin, end: Offset.zero)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
-    _scale = Tween<double>(begin: 0.5, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-
-    _ctrl.forward();
-  }
-
-  Offset _beginOffset(int seat) {
-    switch (seat) {
-      case 0: return const Offset(0, 2.0);   // from bottom
-      case 1: return const Offset(2.0, 0);   // from right
-      case 2: return const Offset(0, -2.0);  // from top
-      case 3: return const Offset(-2.0, 0);  // from left
-      default: return Offset.zero;
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slide,
-      child: ScaleTransition(
-        scale: _scale,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.30),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: PlayingCard(
-            card: widget.play.card,
-            size: CardSize.small,
-            faceUp: true,
-          ),
-        ),
-      ),
-    );
   }
 }

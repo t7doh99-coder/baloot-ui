@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/card_model.dart' show Suit;
 import '../../../data/models/round_state_model.dart'
@@ -10,11 +11,15 @@ import '../domain/managers/bidding_manager.dart' show BidAction;
 import 'game_provider.dart';
 import 'widgets/deal_overlay_widget.dart';
 import 'widgets/human_hand_widget.dart';
+import 'widgets/human_player_majlis_bar.dart';
 import 'widgets/player_seat_widget.dart';
 import 'widgets/project_sheet.dart';
 import 'widgets/scoring_overlays.dart';
 import 'widgets/trick_area_widget.dart';
 import 'widgets/last_trick_mini_widget.dart';
+import 'widgets/game_table_majlis_hud.dart';
+import 'widgets/majlis_table_background.dart';
+import 'designer_table_test_screen.dart';
 
 bool _showHand(GamePhase phase) {
   return phase != GamePhase.notStarted &&
@@ -34,49 +39,84 @@ bool _showHand(GamePhase phase) {
 //  ├──────────────────────────────────┤
 //  │  [Curved human hand]            │
 //  ├──────────────────────────────────┤
-//  │  BOTTOM BAR: phase-aware btns   │
+//  │  BOTTOM BAR: Pass / Hakam / …   │
+//  ├──────────────────────────────────┤
+//  │  Player strip (name · timer)    │
 //  └──────────────────────────────────┘
 // ══════════════════════════════════════════════════════════════════
 
-class GameTableScreen extends StatelessWidget {
+class GameTableScreen extends StatefulWidget {
   const GameTableScreen({super.key});
+
+  @override
+  State<GameTableScreen> createState() => _GameTableScreenState();
+}
+
+class _GameTableScreenState extends State<GameTableScreen> {
+  int _mapIndex = 0;
+
+  static const List<String> _majlisMapPaths = [
+    AppAssets.majlisTableMap,
+    AppAssets.majlisTableMap2,
+  ];
+
+  void _cycleMajlisMap() {
+    setState(() {
+      _mapIndex = (_mapIndex + 1) % _majlisMapPaths.length;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
-      backgroundColor: const Color(0xFFB8B0A0),
+      backgroundColor: Colors.transparent,
       body: Stack(
         clipBehavior: Clip.none,
         children: [
+          Positioned.fill(
+            child: MajlisTableBackground(
+              mapAssetPath: _majlisMapPaths[_mapIndex],
+            ),
+          ),
           SafeArea(
             child: Column(
               children: [
-                _TopBar(game: game),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+                  child: GameTableMajlisHud(
+                    game: game,
+                    onBack: () => Navigator.of(context).pop(),
+                    onCycleWallpaper: _cycleMajlisMap,
+                    onTestMode: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DesignerTableTestScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
                 Expanded(child: _PlayArea(game: game)),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: SizeTransition(
-                      sizeFactor: anim,
-                      axisAlignment: 1.0,
-                      child: child,
-                    ),
-                  ),
+                  // SizeTransition clips the curved hand (card tops); fade only.
+                  transitionBuilder: (child, anim) =>
+                      FadeTransition(opacity: anim, child: child),
                   child: _showHand(game.phase)
                       ? const HumanHandWidget(key: ValueKey('hand'))
                       : const SizedBox(key: ValueKey('no-hand'), height: 8),
                 ),
                 _BottomBar(game: game),
+                if (_showHand(game.phase)) const HumanPlayerMajlisBar(),
               ],
             ),
           ),
           // Jawaker-style: last trick mini (red backs until first trick completes)
           if (game.phase != GamePhase.notStarted)
             Positioned(
-              top: topInset + 52,
+              top: topInset + 58,
               right: 10,
               child: const LastTrickMiniWidget(),
             ),
@@ -87,120 +127,6 @@ class GameTableScreen extends StatelessWidget {
           if (game.phase == GamePhase.gameOver) const GameOverOverlay(),
         ],
       ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  TOP BAR  — clean: back arrow + score + menu
-// ══════════════════════════════════════════════════════════════════
-
-class _TopBar extends StatelessWidget {
-  final GameProvider game;
-  const _TopBar({required this.game});
-
-  @override
-  Widget build(BuildContext context) {
-    final score = game.gameScore;
-
-    return Container(
-      height: 46,
-      margin: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.goldAccent.withValues(alpha: 0.25),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Back button
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_ios_new,
-                color: Colors.white.withValues(alpha: 0.7), size: 16),
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          ),
-
-          const Spacer(),
-
-          // Score: Us | BALOOT | Them
-          _ScoreBox(label: 'Us', score: score.teamA, color: const Color(0xFF28802E)),
-          const SizedBox(width: 6),
-
-          // Centre label
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.goldAccent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: AppColors.goldAccent.withValues(alpha: 0.35), width: 0.8),
-            ),
-            child: Text(
-              'BALOOT',
-              style: TextStyle(
-                color: AppColors.goldAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 6),
-          _ScoreBox(label: 'Them', score: score.teamB, color: const Color(0xFFE63946)),
-
-          const Spacer(),
-
-          // Menu
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.more_vert,
-                color: Colors.white.withValues(alpha: 0.5), size: 18),
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScoreBox extends StatelessWidget {
-  final String label;
-  final int score;
-  final Color color;
-  const _ScoreBox({required this.label, required this.score, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(label,
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                height: 1)),
-        TweenAnimationBuilder<int>(
-          tween: IntTween(begin: score, end: score),
-          duration: const Duration(milliseconds: 600),
-          builder: (ctx, val, _) => Text(
-            '$val',
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -233,7 +159,7 @@ class _PlayArea extends StatelessWidget {
       const rugTop  = topSeatH;
 
       return Stack(
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.none,
         children: [
           // Table area
           Positioned(
@@ -404,12 +330,12 @@ class _BottomBar extends StatelessWidget {
     if (buttons.isEmpty) return const SizedBox(height: 8);
 
     return Container(
-      height: 52,
+      height: 56,
       margin: const EdgeInsets.fromLTRB(10, 2, 10, 8),
       child: Row(
         children: buttons.map((b) => Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: b,
           ),
         )).toList(),
@@ -426,23 +352,38 @@ class _BottomBar extends StatelessWidget {
 
     if (bp == BiddingPhase.round1) {
       return [
-        _GameBtn(label: 'Pass',
-            onTap: () => gp.humanBid(BidAction.pass)),
-        _GameBtn(label: 'Hakam', color: const Color(0xFFD4AF37),
-            onTap: () => gp.humanBid(BidAction.hakam)),
+        _GameBtn(
+          label: 'Pass',
+          variant: _MajlisActionButtonVariant.secondary,
+          onTap: () => gp.humanBid(BidAction.pass),
+        ),
+        _GameBtn(
+          label: 'Hakam',
+          variant: _MajlisActionButtonVariant.primary,
+          onTap: () => gp.humanBid(BidAction.hakam),
+        ),
         if (game.hasActiveHakamBid)
-          _GameBtn(label: 'Sawa', color: const Color(0xFF2080D0),
-              onTap: () => gp.humanBid(BidAction.sawa)),
+          _GameBtn(
+            label: 'Sawa',
+            variant: _MajlisActionButtonVariant.accentBlue,
+            onTap: () => gp.humanBid(BidAction.sawa),
+          ),
       ];
     }
 
     // Hakam Confirmation — buyer confirms Hakam or switches to Sun
     if (bp == BiddingPhase.hakamConfirmation) {
       return [
-        _GameBtn(label: 'Confirm Hakam', color: const Color(0xFFD4AF37),
-            onTap: () => gp.humanBid(BidAction.confirmHakam)),
-        _GameBtn(label: 'Switch to Sun', color: const Color(0xFFE63946),
-            onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(
+          label: 'Confirm Hakam',
+          variant: _MajlisActionButtonVariant.primary,
+          onTap: () => gp.humanBid(BidAction.confirmHakam),
+        ),
+        _GameBtn(
+          label: 'Switch to Sun',
+          variant: _MajlisActionButtonVariant.accentCoral,
+          onTap: () => gp.humanBid(BidAction.sun),
+        ),
       ];
     }
 
@@ -452,15 +393,27 @@ class _BottomBar extends StatelessWidget {
     final canAshkal = (0 == dealer || 0 == sane);
 
     return [
-      _GameBtn(label: 'Pass',
-          onTap: () => gp.humanBid(BidAction.pass)),
-      _GameBtn(label: 'Sun', color: const Color(0xFFE63946),
-          onTap: () => gp.humanBid(BidAction.sun)),
-      _GameBtn(label: 'Hakam', color: const Color(0xFFD4AF37),
-          onTap: () => _showSuitPicker(ctx, gp)),
+      _GameBtn(
+        label: 'Pass',
+        variant: _MajlisActionButtonVariant.secondary,
+        onTap: () => gp.humanBid(BidAction.pass),
+      ),
+      _GameBtn(
+        label: 'Sun',
+        variant: _MajlisActionButtonVariant.accentCoral,
+        onTap: () => gp.humanBid(BidAction.sun),
+      ),
+      _GameBtn(
+        label: 'Hakam',
+        variant: _MajlisActionButtonVariant.primary,
+        onTap: () => _showSuitPicker(ctx, gp),
+      ),
       if (canAshkal)
-        _GameBtn(label: 'Ashkal', color: const Color(0xFF2080D0),
-            onTap: () => gp.humanBid(BidAction.ashkal)),
+        _GameBtn(
+          label: 'Ashkal',
+          variant: _MajlisActionButtonVariant.accentBlue,
+          onTap: () => gp.humanBid(BidAction.ashkal),
+        ),
     ];
   }
 
@@ -483,14 +436,30 @@ class _BottomBar extends StatelessWidget {
     levels.add(('Gahwa', DoubleStatus.gahwa, const Color(0xFF8B0000)));
 
     return [
-      _GameBtn(label: 'Pass',
-          onTap: () => gp.humanSkipDouble()),
+      _GameBtn(
+        label: 'Pass',
+        variant: _MajlisActionButtonVariant.secondary,
+        onTap: () => gp.humanSkipDouble(),
+      ),
       for (final (label, ds, col) in levels)
-        _GameBtn(label: label, color: col,
-            onTap: ds == DoubleStatus.gahwa
-                ? () => gp.humanDouble(ds) // Gahwa = instant win, no open/closed
-                : () => _showOpenClosedPicker(ctx, gp, ds)),
+        _GameBtn(
+          label: label,
+          variant: _doubleVariantFor(col),
+          onTap: ds == DoubleStatus.gahwa
+              ? () => gp.humanDouble(ds)
+              : () => _showOpenClosedPicker(ctx, gp, ds),
+        ),
     ];
+  }
+
+  static _MajlisActionButtonVariant _doubleVariantFor(Color legacyAccent) {
+    if (legacyAccent == const Color(0xFF8B0000)) {
+      return _MajlisActionButtonVariant.danger;
+    }
+    if (legacyAccent == const Color(0xFFD88030)) {
+      return _MajlisActionButtonVariant.accentAmber;
+    }
+    return _MajlisActionButtonVariant.accentCoral;
   }
 
   // ── Playing (trick 1 only) ─────────────────────────────────────
@@ -509,7 +478,7 @@ class _BottomBar extends StatelessWidget {
     return [
       _GameBtn(
         label: 'Projects (${nonBaloot.length})',
-        color: AppColors.goldAccent,
+        variant: _MajlisActionButtonVariant.primary,
         onTap: () => _showProjectPicker(ctx, gp),
       ),
     ];
@@ -745,16 +714,31 @@ class _OpenClosedSheet extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  GAME BUTTON  — clean, flat, with color accent
+//  MAJLIS ACTION BUTTONS  — pill gradients + Arabic (designer reference)
 // ══════════════════════════════════════════════════════════════════
+
+enum _MajlisActionButtonVariant {
+  /// Warm gold — Hakam, Confirm Hakam, Projects
+  primary,
+  /// Charcoal — Pass
+  secondary,
+  /// Cool blue — Sawa, Ashkal
+  accentBlue,
+  /// Coral-red — Sun, Switch to Sun, Double
+  accentCoral,
+  /// Warm orange — Four
+  accentAmber,
+  /// Deep red — Gahwa
+  danger,
+}
 
 class _GameBtn extends StatefulWidget {
   final String label;
-  final Color color;
+  final _MajlisActionButtonVariant variant;
   final VoidCallback onTap;
   const _GameBtn({
     required this.label,
-    this.color = const Color(0xFFB0B0B0),
+    this.variant = _MajlisActionButtonVariant.secondary,
     required this.onTap,
   });
 
@@ -775,7 +759,7 @@ class _GameBtnState extends State<_GameBtn>
       duration: const Duration(milliseconds: 100),
       reverseDuration: const Duration(milliseconds: 160),
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.92).animate(
+    _scale = Tween<double>(begin: 1.0, end: 0.94).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
     );
   }
@@ -794,40 +778,169 @@ class _GameBtnState extends State<_GameBtn>
     });
   }
 
+  static (LinearGradient, Color, List<BoxShadow>) _style(
+    _MajlisActionButtonVariant v,
+  ) {
+    switch (v) {
+      case _MajlisActionButtonVariant.primary:
+        return (
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFF0D078),
+              Color(0xFFD4A017),
+              Color(0xFF9A7209),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.22),
+          [
+            BoxShadow(
+              color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+              blurRadius: 12,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case _MajlisActionButtonVariant.secondary:
+        return (
+          LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF5E5E5E).withValues(alpha: 0.92),
+              const Color(0xFF2C2C2C),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.12),
+          [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case _MajlisActionButtonVariant.accentBlue:
+        return (
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF4A6FA5),
+              Color(0xFF2E4A6E),
+              Color(0xFF1A2F4A),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.14),
+          [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.32),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case _MajlisActionButtonVariant.accentCoral:
+        return (
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF9A4A4A),
+              Color(0xFF6B2D2D),
+              Color(0xFF3D1818),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.12),
+          [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.32),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case _MajlisActionButtonVariant.accentAmber:
+        return (
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFB87A30),
+              Color(0xFF8A5218),
+              Color(0xFF5C3410),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.12),
+          [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case _MajlisActionButtonVariant.danger:
+        return (
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF8B2A2A),
+              Color(0xFF521414),
+              Color(0xFF2A0A0A),
+            ],
+          ),
+          Colors.white.withValues(alpha: 0.10),
+          [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isNeutral = widget.color == const Color(0xFFB0B0B0);
+    final (gradient, borderColor, shadows) = _style(widget.variant);
+    final textStyle = TextStyle(
+      fontSize: widget.label.length > 12 ? 12 : 15,
+      fontWeight: FontWeight.w700,
+      color: Colors.white.withValues(alpha: 0.96),
+      height: 1.05,
+    );
+
     return GestureDetector(
       onTap: _handleTap,
       child: ScaleTransition(
         scale: _scale,
         child: Container(
-          height: 44,
+          height: 48,
           decoration: BoxDecoration(
-            color: isNeutral
-                ? Colors.white.withValues(alpha: 0.92)
-                : widget.color.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isNeutral
-                  ? Colors.grey.withValues(alpha: 0.3)
-                  : widget.color.withValues(alpha: 0.55),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 4, offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(26),
+            gradient: gradient,
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: shadows,
           ),
           alignment: Alignment.center,
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: isNeutral ? Colors.black87 : widget.color,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: textStyle,
             ),
           ),
         ),

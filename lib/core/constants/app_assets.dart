@@ -8,6 +8,18 @@ class AppAssets {
   static const String logoImage = 'assets/images/logo.png';
   static const String majlisTableReference = 'assets/images/majlis_table_reference.png';
   static const String majlisTableMap = 'assets/images/majlis_table_map.svg';
+  static const String majlisTableMap2 = 'assets/images/map2.svg';
+
+  /// Portrait per seat index 0–3 (same mapping as [PlayerAvatarRing]).
+  static const List<String> playerSeatAvatars = [
+    'assets/images/avatars/Screenshot 2026-04-16 194030.png',
+    'assets/images/avatars/Screenshot 2026-04-16 194232.png',
+    'assets/images/avatars/Screenshot 2026-04-16 194821.png',
+    'assets/images/avatars/bc9fd4bd-de9b-4555-976c-8360576c6708.jpg',
+  ];
+
+  static String playerAvatarPath(int seatIndex) =>
+      playerSeatAvatars[seatIndex % playerSeatAvatars.length];
 
   // SVG Icons (cards)
   static const String suitHeartsIcon = 'assets/icons/suit_hearts.svg';

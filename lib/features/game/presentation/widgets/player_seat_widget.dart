@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
+import '../../../../core/constants/app_assets.dart';
 import '../game_provider.dart';
+import 'playing_card.dart' show CardBack, PlayingCard, cardBackForSeat;
 
 // ══════════════════════════════════════════════════════════════════
 //  PLAYER SEAT WIDGET  — Jawaker-style circular avatar
@@ -104,7 +106,7 @@ class _TopSeat extends StatelessWidget {
           Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: _TopCardFan(count: cardCount, teamColor: teamColor),
+              child: _TopCardFan(count: cardCount, seat: seat),
             ),
           ),
         const SizedBox(height: 4),
@@ -185,7 +187,7 @@ class _SideSeat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (cardCount > 0)
-          _SideCardFan(count: cardCount, teamColor: teamColor),
+          _SideCardFan(count: cardCount, seat: seat),
         const SizedBox(height: 4),
         _SpeechBubble(bubble: bubble, teamColor: teamColor),
         const SizedBox(height: 2),
@@ -292,14 +294,7 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
     final totalSz   = widget.avatarDiameter + ringT * 2 + 6;
     final progress  = widget.isActive ? game.activeSeatTimerProgress : 1.0;
 
-    const nameImages = [
-      'assets/images/avatars/Screenshot 2026-04-16 194030.png',
-      'assets/images/avatars/Screenshot 2026-04-16 194232.png',
-      'assets/images/avatars/Screenshot 2026-04-16 194821.png',
-      'assets/images/avatars/bc9fd4bd-de9b-4555-976c-8360576c6708.jpg',
-    ];
-    // Map seat index directly to ensure 4 different images for 4 players
-    final avatarImagePath = nameImages[widget.seatIndex % 4];
+    final avatarImagePath = AppAssets.playerAvatarPath(widget.seatIndex);
 
     return AnimatedBuilder(
       animation: _flickerCtrl,
@@ -787,8 +782,8 @@ class _SpeechBubble extends StatelessWidget {
 
 class _TopCardFan extends StatelessWidget {
   final int count;
-  final Color teamColor;
-  const _TopCardFan({required this.count, required this.teamColor});
+  final int seat;
+  const _TopCardFan({required this.count, required this.seat});
 
   @override
   Widget build(BuildContext context) {
@@ -816,8 +811,7 @@ class _TopCardFan extends StatelessWidget {
             child: Transform.rotate(
               angle: angleRad,
               alignment: Alignment.bottomCenter,
-              child: _FaceDownCard(
-                  width: cardW, height: cardH, teamColor: teamColor),
+              child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
             ),
           );
         }),
@@ -832,8 +826,8 @@ class _TopCardFan extends StatelessWidget {
 
 class _SideCardFan extends StatelessWidget {
   final int count;
-  final Color teamColor;
-  const _SideCardFan({required this.count, required this.teamColor});
+  final int seat;
+  const _SideCardFan({required this.count, required this.seat});
 
   @override
   Widget build(BuildContext context) {
@@ -859,8 +853,7 @@ class _SideCardFan extends StatelessWidget {
             child: Transform.rotate(
               angle: angleRad,
               alignment: Alignment.bottomCenter,
-              child: _FaceDownCard(
-                  width: cardW, height: cardH, teamColor: teamColor),
+              child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
             ),
           );
         }),
@@ -869,40 +862,49 @@ class _SideCardFan extends StatelessWidget {
   }
 }
 
-// ── Single face-down card ──────────────────────────────────────────
+// ── Single face-down card (Figma red/blue backs by team) ───────────
 
 class _FaceDownCard extends StatelessWidget {
   final double width;
   final double height;
-  final Color teamColor;
-  const _FaceDownCard(
-      {required this.width, required this.height, required this.teamColor});
+  final int seat;
+  const _FaceDownCard({
+    required this.width,
+    required this.height,
+    required this.seat,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final path = PlayingCard.backAssetPath(cardBackForSeat(seat));
+    final r = BorderRadius.circular(3.0);
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E2878),
-        borderRadius: BorderRadius.circular(3),
-        border:
-            Border.all(color: Colors.white.withValues(alpha: 0.35), width: 0.7),
+        borderRadius: r,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 3,
-              offset: const Offset(1, 1)),
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 3,
+            offset: const Offset(1, 1),
+          ),
         ],
       ),
-      child: Center(
-        child: Container(
-          width: width * 0.55,
-          height: height * 0.7,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(1.5),
-            border: Border.all(
-                color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+      child: ClipRRect(
+        borderRadius: r,
+        child: Image.asset(
+          path,
+          width: width,
+          height: height,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => ColoredBox(
+            color: cardBackForSeat(seat) == CardBack.red
+                ? const Color(0xFFB71C1C)
+                : const Color(0xFF1E3A8A),
+            child: const Center(
+              child: Icon(Icons.style_outlined, size: 14, color: Colors.white54),
+            ),
           ),
         ),
       ),

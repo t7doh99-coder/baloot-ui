@@ -6,7 +6,9 @@ import '../../../../data/models/card_model.dart';
 enum CardSize {
   small(width: 36, height: 50),
   medium(width: 56, height: 80),
-  large(width: 80, height: 114);
+  large(width: 80, height: 114),
+  /// Majlis bottom hand — matches designer [`_CardFan`] `large` mode.
+  hand(width: 123.5, height: 163.4);
 
   final double width;
   final double height;
@@ -15,9 +17,13 @@ enum CardSize {
 
 /// Which card back design to use.
 ///
-/// [red]  → opponent / enemy cards (opposing team)
-/// [blue] → partner / teammate cards
+/// [red]  → opposing team (seats 1 & 3)
+/// [blue] → your team (seats 0 & 2 — human + partner)
 enum CardBack { red, blue }
+
+/// Face-down backs by seat: team A (0, 2) = blue, team B (1, 3) = red.
+CardBack cardBackForSeat(int seatIndex) =>
+    (seatIndex & 1) == 0 ? CardBack.blue : CardBack.red;
 
 /// A playing card widget that renders a Baloot card using Figma-exported PNGs.
 ///
@@ -33,6 +39,9 @@ class PlayingCard extends StatelessWidget {
   final bool selected;
   final bool dimmed;
   final VoidCallback? onTap;
+  /// When true, selection is shown (glow) but Y-offset is left to the parent
+  /// (designer hand uses its own lift / scale).
+  final bool suppressSelectionOffset;
 
   const PlayingCard({
     super.key,
@@ -43,7 +52,12 @@ class PlayingCard extends StatelessWidget {
     this.selected = false,
     this.dimmed = false,
     this.onTap,
+    this.suppressSelectionOffset = false,
   });
+
+  /// Asset path for a face-down back (team-colored).
+  static String backAssetPath(CardBack back) =>
+      back == CardBack.red ? AppAssets.cardBackRed : AppAssets.cardBackBlue;
 
   static const _gold = Color(0xFFD4AF37);
 
@@ -54,7 +68,11 @@ class PlayingCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(0, selected ? -12 : 0, 0),
+        transform: Matrix4.translationValues(
+          0,
+          (selected && !suppressSelectionOffset) ? -12 : 0,
+          0,
+        ),
         child: _buildCardShell(),
       ),
     );
@@ -94,7 +112,7 @@ class PlayingCard extends StatelessWidget {
   Widget _buildImage() {
     final path = faceUp && card != null
         ? AppAssets.cardImage(card!)
-        : (back == CardBack.red ? AppAssets.cardBackRed : AppAssets.cardBackBlue);
+        : backAssetPath(back);
 
     return Image.asset(
       path,
@@ -129,6 +147,8 @@ class PlayingCard extends StatelessWidget {
         return 6;
       case CardSize.large:
         return 8;
+      case CardSize.hand:
+        return 11;
     }
   }
 }
