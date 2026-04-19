@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -44,6 +45,8 @@ class AntigravittyBalootApp extends StatelessWidget {
     return MaterialApp(
       title: 'Royal Baloot',
       debugShowCheckedModeBanner: false,
+      // Web on iPhone: allow drag from touch + mouse for cards / scrollables
+      scrollBehavior: const _BalootScrollBehavior(),
       theme: AppTheme.darkTheme.copyWith(
         textTheme: AppTheme.localizedTextTheme(localeProvider.locale),
       ),
@@ -79,5 +82,17 @@ class AntigravittyBalootApp extends StatelessWidget {
       home: const SplashScreen(),
     );
   }
+}
+
+class _BalootScrollBehavior extends MaterialScrollBehavior {
+  const _BalootScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
 }
 

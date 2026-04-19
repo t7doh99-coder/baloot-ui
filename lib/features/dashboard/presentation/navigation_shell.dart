@@ -177,10 +177,14 @@ class _NavigationShellState extends State<NavigationShell>
             ),
           ],
         ),
-      bottomNavigationBar: _BottomNav(
-        isArabic: isArabic,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: EdgeInsets.zero,
+        child: _BottomNav(
+          isArabic: isArabic,
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+        ),
       ),
     );
   }

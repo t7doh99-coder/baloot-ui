@@ -181,8 +181,17 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
-      body: Stack(
-        children: [
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final h = constraints.maxHeight;
+            // Fractional layout so splash fits iPhone web / short viewports (Safari bars).
+            final mid = h * 0.40;
+            final topLogoTop = mid - h * 0.28;
+            final bottomLogoTop = mid + h * 0.12;
+
+            return Stack(
+              children: [
           // ── Background: Static gradient (zero repaints, fast) ──
           Container(
             decoration: const BoxDecoration(
@@ -216,7 +225,7 @@ class _SplashScreenState extends State<SplashScreen>
 
           // ── Top logo text ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 - 220,
+            top: topLogoTop.clamp(8.0, double.infinity),
             left: 0,
             right: 0,
             child: AnimatedBuilder(
@@ -241,7 +250,7 @@ class _SplashScreenState extends State<SplashScreen>
 
           // ── Bottom logo text ──
           Positioned(
-            top: MediaQuery.of(context).size.height / 2 + 100,
+            top: bottomLogoTop,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
@@ -266,7 +275,7 @@ class _SplashScreenState extends State<SplashScreen>
 
           // ── Subtitle — at the bottom ──
           Positioned(
-            bottom: 60,
+            bottom: 20,
             left: 0,
             right: 0,
             child: AnimatedBuilder(
@@ -294,7 +303,10 @@ class _SplashScreenState extends State<SplashScreen>
               },
             ),
           ),
-        ],
+              ],
+            );
+          },
+        ),
       ),
     );
   }

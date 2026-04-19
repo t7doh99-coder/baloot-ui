@@ -1,0 +1,37 @@
+{
+    "name": "Royal Baloot",
+    "short_name": "Royal Baloot",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "display_override": ["standalone", "browser"],
+    "background_color": "#000000",
+    "theme_color": "#D4AF37",
+    "description": "Royal Baloot — premium VIP card game.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

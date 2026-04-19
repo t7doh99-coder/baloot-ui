@@ -15,12 +15,18 @@ class GameTableLayout {
   static const double minScale = 0.82;
   static const double maxScale = 1.12;
 
+  /// Extra shrink on very narrow widths (iPhone SE, Safari with UI chrome).
+  static const double narrowWidthBreakpoint = 360;
+  static const double minScaleNarrow = 0.76;
+
   static double scale(BuildContext context) =>
       scaleForWidth(MediaQuery.sizeOf(context).width);
 
   static double scaleForWidth(double width) {
     final raw = width / referenceWidth;
-    return raw.clamp(minScale, maxScale);
+    final minS =
+        width < narrowWidthBreakpoint ? minScaleNarrow : minScale;
+    return raw.clamp(minS, maxScale);
   }
 
   /// Hand card footprint — matches [CardSize.hand] in `playing_card.dart`.
