@@ -24,15 +24,31 @@ class BotEngine {
     required BiddingPhase phase,
     required int seatIndex,
     required int dealerIndex,
+    bool round2PendingBid = false,
+    int? round1HakamBidderSeat,
   }) {
     if (phase == BiddingPhase.round1) {
+      if (round1HakamBidderSeat != null) {
+        return _decideRound1AfterHakam(
+          hand,
+          buyerCard,
+          seatIndex,
+          round1HakamBidderSeat,
+        );
+      }
       return _decideRound1(hand, buyerCard);
     }
     if (phase == BiddingPhase.hakamConfirmation) {
       // Bot already bid Hakam — confirm it (could add Sun-switch logic later)
       return const BotBidDecision(action: BidAction.confirmHakam);
     }
-    return _decideRound2(hand, buyerCard, seatIndex, dealerIndex);
+    return _decideRound2(
+      hand,
+      buyerCard,
+      seatIndex,
+      dealerIndex,
+      round2PendingBid: round2PendingBid,
+    );
   }
 
   BotBidDecision _decideRound1(List<CardModel> hand, CardModel buyerCard) {
@@ -46,12 +62,39 @@ class BotEngine {
     return const BotBidDecision(action: BidAction.pass);
   }
 
+  /// After an opponent bid Hakam: Pass, Sawa (accept), or Sun (override) — Jawaker/Kammelna.
+  BotBidDecision _decideRound1AfterHakam(
+    List<CardModel> hand,
+    CardModel buyerCard,
+    int seatIndex,
+    int hakamBidderSeat,
+  ) {
+    if ((seatIndex % 2) == (hakamBidderSeat % 2)) {
+      return const BotBidDecision(action: BidAction.pass);
+    }
+    final sunScore = _evaluateSunHand(hand);
+    if (sunScore >= 48) {
+      return const BotBidDecision(action: BidAction.sun);
+    }
+    final vsTheirTrump = _evaluateHakamHand(hand, buyerCard.suit);
+    if (vsTheirTrump < 28) {
+      return const BotBidDecision(action: BidAction.sawa);
+    }
+    return const BotBidDecision(action: BidAction.pass);
+  }
+
   BotBidDecision _decideRound2(
     List<CardModel> hand,
     CardModel buyerCard,
     int seatIndex,
-    int dealerIndex,
-  ) {
+    int dealerIndex, {
+    required bool round2PendingBid,
+  }) {
+    // Others must react with Pass or Sawa (no new Sun/Hakam).
+    if (round2PendingBid) {
+      return const BotBidDecision(action: BidAction.pass);
+    }
+
     // Evaluate Sun strength
     final sunScore = _evaluateSunHand(hand);
     if (sunScore >= 40) {
@@ -70,14 +113,7 @@ class BotEngine {
       }
     }
 
-    // Ashkal — only dealer or sane can do this; requires weaker hand than Sun
-    // Sane = player to dealer's LEFT = (dealer + 3) % 4 on screen
-    final saneIndex = (dealerIndex + 3) % 4;
-    if (seatIndex == dealerIndex || seatIndex == saneIndex) {
-      if (sunScore >= 30) {
-        return const BotBidDecision(action: BidAction.ashkal);
-      }
-    }
+    // Ashkal is Round 1 only (BALOOT_RULES.md §4.6) — never in Round 2.
 
     return const BotBidDecision(action: BidAction.pass);
   }

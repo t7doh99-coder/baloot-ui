@@ -3,6 +3,8 @@ import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_assets.dart';
+import '../../../../core/l10n/game_l10n.dart';
+import '../../../../core/l10n/locale_provider.dart';
 import '../game_provider.dart';
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,
@@ -47,22 +49,24 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     }
   }
 
-  static String _leftBadgeLabel(GameProvider game) {
+  static String _leftBadgeLabel(GameProvider game, GameL10n loc) {
     final mode = game.gameModeLabel;
-    if (mode != '—') return mode;
-    if (game.dealerIndex == 0) return 'Dealer';
-    if (game.buyerIndex == 0) return 'Buyer';
-    return 'Us';
+    if (mode != '—') return loc.modeLabel(mode);
+    if (game.dealerIndex == 0) return loc.dealer;
+    if (game.buyerIndex == 0) return loc.buyer;
+    return loc.us;
   }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
     _syncRingTicker(game.isHumanTurn);
 
     final name = game.playerName(0);
     final avatarPath = AppAssets.playerAvatarPath(0);
-    final badge = _leftBadgeLabel(game);
+    final badge = _leftBadgeLabel(game, loc);
     final secs = game.turnTimerSeconds;
     final rawProgress =
         game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;

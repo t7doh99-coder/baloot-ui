@@ -14,7 +14,9 @@ enum BidAction { hakam, sun, secondHakam, ashkal, pass, sawa, confirmHakam }
 ///     the buyer must [BidAction.confirmHakam] (keep Hakam) or [BidAction.sun]
 ///     (switch to Sun). This is confirmed by Jawaker/Kamelna/client.
 /// Round 2: Sun, Second Hakam (different suit), Pass.
-/// Sawa: instantly locks bid and ends phase.
+/// After Sun: others Pass or Sawa; three Passes lock Sun (no confirmation).
+/// After Second Hakam: Sawa locks immediately; three Passes →
+/// [BiddingPhase.hakamConfirmation] (Visca / Jawaker / Kammelna).
 class BiddingManager {
   final int dealerIndex;
   final CardModel buyerCard;
@@ -26,6 +28,16 @@ class BiddingManager {
   // Track the leading bid in Round 1 (someone may bid Hakam early,
   // but others can still bid Sun to override)
   int? _round1HakamBidder;
+
+  /// [hakamConfirmation] only: seat that must choose Confirm Hakam vs Sun.
+  int? _hakamConfirmBuyer;
+  /// null → Round 1 Hakam (trump = buyer card suit); non-null → R2 Second Hakam trump.
+  Suit? _hakamConfirmTrumpOverride;
+
+  /// Round 2: after Sun or Second Hakam, others Pass or Sawa (Jawaker/Kamelna §4.4).
+  int? _round2PendingBuyer;
+  GameMode? _round2PendingMode;
+  Suit? _round2PendingTrump;
 
   // Final result
   BidResult? _result;
@@ -47,6 +59,17 @@ class BiddingManager {
 
   /// Whether someone has already bid Hakam in Round 1 (Sawa becomes available).
   bool get hasActiveHakamBid => _round1HakamBidder != null;
+
+  /// Seat that opened Hakam in Round 1 (null if none yet). Exposed for UI/bots.
+  int? get activeRound1HakamSeat => _round1HakamBidder;
+
+  /// True when Round 2 is waiting for Pass/Sawa after Sun or Second Hakam.
+  bool get hasRound2PendingBid => _round2PendingBuyer != null;
+
+  /// Seat that bid Sun / Second Hakam while others react (Round 2).
+  int? get activeRound2PendingBuyerSeat => _round2PendingBuyer;
+
+  static bool _opposingTeams(int seatA, int seatB) => (seatA % 2) != (seatB % 2);
 
   /// The Sane (صانع) is the player to the dealer's LEFT.
   /// Screen: 0=bottom,1=right,2=top,3=left → left of dealer = +3 (≡ -1).
@@ -84,6 +107,13 @@ class BiddingManager {
   void _handleRound1(int seatIndex, BidAction action) {
     switch (action) {
       case BidAction.hakam:
+        if (_round1HakamBidder != null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Hakam was already bid — use Pass, Sawa (defenders), or Sun (Jawaker/Kammelna).',
+          );
+        }
         _round1HakamBidder = seatIndex;
         _passCount = 0;
         _advanceBidder();
@@ -100,7 +130,14 @@ class BiddingManager {
 
       case BidAction.sawa:
         if (_round1HakamBidder != null) {
-          // Sawa locks the current Hakam bid
+          if (!_opposingTeams(seatIndex, _round1HakamBidder!)) {
+            throw InvalidBidException(
+              playerIndex: seatIndex,
+              message:
+                  'Sawa is only for the defending team — not your partner (Jawaker/Kammelna).',
+            );
+          }
+          // Sawa: defenders accept Hakam; original Hakam bidder remains buyer.
           _result = BidResult(
             mode: GameMode.hakam,
             buyerIndex: _round1HakamBidder!,
@@ -121,7 +158,9 @@ class BiddingManager {
           // Someone bid Hakam — check if all others passed
           if (_passCount >= 3) {
             // All 3 others passed → buyer must now confirm Hakam or switch to Sun
-            // (Jawaker/Kamelna/Client rule: buyer gets a final choice.)
+            // (Jawaker/Kamelna/Visca rule: buyer gets a final choice.)
+            _hakamConfirmBuyer = _round1HakamBidder;
+            _hakamConfirmTrumpOverride = null;
             _phase = BiddingPhase.hakamConfirmation;
             _currentBidder = _round1HakamBidder!;
           } else {
@@ -170,35 +209,42 @@ class BiddingManager {
   }
 
   /// Hakam Confirmation — buyer chooses: confirm Hakam OR switch to Sun.
-  /// (Jawaker/Kamelna/Client rule: after all others pass a Round 1 Hakam bid.)
+  /// Round 1: after others pass a Hakam on buyer card suit.
+  /// Round 2: after others pass a Second Hakam (Visca / Jawaker / Kammelna).
   void _handleHakamConfirmation(int seatIndex, BidAction action) {
-    if (seatIndex != _round1HakamBidder) {
+    final buyer = _hakamConfirmBuyer;
+    if (buyer == null) {
+      throw const InvalidMoveException('Hakam confirmation state is invalid.');
+    }
+    if (seatIndex != buyer) {
       throw InvalidBidException(
         playerIndex: seatIndex,
-        message:
-            'Only the Hakam bidder (seat $_round1HakamBidder) can act during confirmation.',
+        message: 'Only the Hakam bidder (seat $buyer) can act during confirmation.',
       );
     }
 
     switch (action) {
       case BidAction.confirmHakam:
-        // Lock in Hakam with buyer card suit
+        final trump = _hakamConfirmTrumpOverride ?? buyerCard.suit;
         _result = BidResult(
           mode: GameMode.hakam,
           buyerIndex: seatIndex,
-          trumpSuit: buyerCard.suit,
+          trumpSuit: trump,
         );
         _phase = BiddingPhase.completed;
         _isFinished = true;
+        _hakamConfirmBuyer = null;
+        _hakamConfirmTrumpOverride = null;
 
       case BidAction.sun:
-        // Switch to Sun
         _result = BidResult(
           mode: GameMode.sun,
           buyerIndex: seatIndex,
         );
         _phase = BiddingPhase.completed;
         _isFinished = true;
+        _hakamConfirmBuyer = null;
+        _hakamConfirmTrumpOverride = null;
 
       default:
         throw InvalidBidException(
@@ -212,14 +258,31 @@ class BiddingManager {
   void _handleRound2(int seatIndex, BidAction action, Suit? secondHakamSuit) {
     switch (action) {
       case BidAction.sun:
-        _result = BidResult(
-          mode: GameMode.sun,
-          buyerIndex: seatIndex,
-        );
-        _phase = BiddingPhase.completed;
-        _isFinished = true;
+        if (_round2PendingBuyer != null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Round 2: pass or call Sawa on the current bid — cannot bid Sun again.',
+          );
+        }
+        _round2PendingBuyer = seatIndex;
+        _round2PendingMode = GameMode.sun;
+        _round2PendingTrump = null;
+        _passCount = 0;
+        _advanceBidder();
+        while (_currentBidder == _round2PendingBuyer) {
+          _advanceBidder();
+        }
+        break;
 
       case BidAction.secondHakam:
+        if (_round2PendingBuyer != null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Round 2: pass or call Sawa on the current bid — cannot bid Second Hakam again.',
+          );
+        }
         if (secondHakamSuit == null) {
           throw InvalidBidException(
             playerIndex: seatIndex,
@@ -233,13 +296,15 @@ class BiddingManager {
                 'Second Hakam suit must differ from buyer card suit (${buyerCard.suit}).',
           );
         }
-        _result = BidResult(
-          mode: GameMode.hakam,
-          buyerIndex: seatIndex,
-          trumpSuit: secondHakamSuit,
-        );
-        _phase = BiddingPhase.completed;
-        _isFinished = true;
+        _round2PendingBuyer = seatIndex;
+        _round2PendingMode = GameMode.hakam;
+        _round2PendingTrump = secondHakamSuit;
+        _passCount = 0;
+        _advanceBidder();
+        while (_currentBidder == _round2PendingBuyer) {
+          _advanceBidder();
+        }
+        break;
 
       case BidAction.ashkal:
         // Jawaker/Kamelna/Pagat: Ashkal is NOT available in Round 2.
@@ -250,22 +315,71 @@ class BiddingManager {
         );
 
       case BidAction.sawa:
-        // Sawa in Round 2 requires someone to have already bid
-        throw InvalidBidException(
-          playerIndex: seatIndex,
-          message: 'Cannot Sawa in Round 2 without a preceding bid.',
+        if (_round2PendingBuyer == null ||
+            _round2PendingMode == null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Cannot Sawa in Round 2 without an active Sun or Hakam bid.',
+          );
+        }
+        if (!_opposingTeams(seatIndex, _round2PendingBuyer!)) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Sawa is only for the defending team — not your partner (Jawaker/Kammelna).',
+          );
+        }
+        _result = BidResult(
+          mode: _round2PendingMode!,
+          buyerIndex: _round2PendingBuyer!,
+          trumpSuit: _round2PendingTrump,
         );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+        break;
 
       case BidAction.pass:
-        _passCount++;
-        if (_passCount >= 4) {
-          // All 4 passed both rounds → round cancelled
-          _phase = BiddingPhase.cancelled;
-          _isFinished = true;
-          _result = null;
+        if (_round2PendingBuyer != null) {
+          _passCount++;
+          if (_passCount >= 3) {
+            // Second Hakam: same confirm-or-Sun step as Round 1 (Visca ME).
+            if (_round2PendingMode == GameMode.hakam) {
+              _hakamConfirmBuyer = _round2PendingBuyer;
+              _hakamConfirmTrumpOverride = _round2PendingTrump;
+              _round2PendingBuyer = null;
+              _round2PendingMode = null;
+              _round2PendingTrump = null;
+              _passCount = 0;
+              _phase = BiddingPhase.hakamConfirmation;
+              _currentBidder = _hakamConfirmBuyer!;
+            } else {
+              // Sun: no confirmation — lock Sun.
+              _result = BidResult(
+                mode: GameMode.sun,
+                buyerIndex: _round2PendingBuyer!,
+                trumpSuit: null,
+              );
+              _phase = BiddingPhase.completed;
+              _isFinished = true;
+            }
+          } else {
+            _advanceBidder();
+            while (_currentBidder == _round2PendingBuyer) {
+              _advanceBidder();
+            }
+          }
         } else {
-          _advanceBidder();
+          _passCount++;
+          if (_passCount >= 4) {
+            // All 4 passed Round 2 with no bid → round cancelled
+            _phase = BiddingPhase.cancelled;
+            _isFinished = true;
+            _result = null;
+          } else {
+            _advanceBidder();
+          }
         }
+        break;
 
       default:
         throw InvalidBidException(

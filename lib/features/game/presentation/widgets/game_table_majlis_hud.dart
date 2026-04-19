@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/l10n/game_l10n.dart';
+import '../../../../core/l10n/locale_provider.dart';
 import '../game_provider.dart';
 
 /// Designer-style top HUD: square buttons + dual score pill (Them | Us).
@@ -21,6 +24,8 @@ class GameTableMajlisHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     final score = game.gameScore;
     final base = Theme.of(context).textTheme;
     final textTheme = GoogleFonts.tajawalTextTheme(base);
@@ -72,7 +77,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.meeting_room_rounded, color: iconColor, size: 18),
                     const SizedBox(width: 12),
-                    const Text('Leave', style: textStyle),
+                    Text(loc.leave, style: textStyle),
                   ]),
                 ),
                 divider,
@@ -82,7 +87,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.wallpaper_rounded, color: iconColor, size: 18),
                     const SizedBox(width: 12),
-                    const Text('Wallpaper', style: textStyle),
+                    Text(loc.wallpaper, style: textStyle),
                   ]),
                 ),
                 if (onTestMode != null) ...[
@@ -93,7 +98,7 @@ class GameTableMajlisHud extends StatelessWidget {
                     child: Row(children: [
                       const Icon(Icons.science_rounded, color: iconColor, size: 18),
                       const SizedBox(width: 12),
-                      const Text('Test Mode', style: textStyle),
+                      Text(loc.testMode, style: textStyle),
                     ]),
                   ),
                 ],
@@ -104,7 +109,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.auto_awesome_motion_rounded, color: iconColor, size: 18),
                     const SizedBox(width: 12),
-                    const Text('Test Project UI', style: textStyle),
+                    Text(loc.testProjectUi, style: textStyle),
                   ]),
                 ),
                 divider,
@@ -114,7 +119,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.volume_up_rounded, color: iconColor, size: 18),
                     const SizedBox(width: 12),
-                    const Text('Sound', style: textStyle),
+                    Text(loc.sound, style: textStyle),
                   ]),
                 ),
                 divider,
@@ -124,7 +129,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   child: Row(children: [
                     const Icon(Icons.emoji_emotions_outlined, color: iconColor, size: 18),
                     const SizedBox(width: 12),
-                    const Text('Emotes', style: textStyle),
+                    Text(loc.emotes, style: textStyle),
                   ]),
                 ),
               ];
@@ -137,9 +142,9 @@ class GameTableMajlisHud extends StatelessWidget {
           SizedBox(
             width: 150,
             child: _MajlisScoreHud(
-              leftLabel: 'Them',
+              leftLabel: loc.them,
               leftScore: score.teamB,
-              rightLabel: 'Us',
+              rightLabel: loc.us,
               rightScore: score.teamA,
             ),
           ),

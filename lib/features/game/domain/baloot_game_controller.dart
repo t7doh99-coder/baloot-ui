@@ -48,6 +48,9 @@ class BalootGameController implements IBalootController {
   // Track if Baloot has been declared (auto, on 2nd card of K-Q pair)
   final Set<int> _balootDeclaredBy = {};
 
+  /// Seat that last called Double or Four (defender); buyer Triple / Gahwa return here.
+  int? _escalationDefenderSeat;
+
   /// Result of the most recently scored round (for UI overlay).
   RoundScoreResult? _lastRoundScoreResult;
 
@@ -130,6 +133,7 @@ class BalootGameController implements IBalootController {
     _detectedProjects.clear();
     _activeDeclaredProjects.clear();
     _balootDeclaredBy.clear();
+    _escalationDefenderSeat = null;
 
     _gamePhase = GamePhase.bidding;
   }
@@ -178,6 +182,7 @@ class BalootGameController implements IBalootController {
         );
       }
 
+      _escalationDefenderSeat = null;
       _roundState = _roundState.copyWith(
         biddingPhase: BiddingPhase.completed,
         activeMode: bidResult.mode,
@@ -222,6 +227,17 @@ class BalootGameController implements IBalootController {
       );
     }
 
+    // Sun (BALOOT_RULES.md §7.1): only a single Double — no Triple/Four/Gahwa.
+    if (_roundState.activeMode == GameMode.sun &&
+        (level == DoubleStatus.tripled ||
+            level == DoubleStatus.four ||
+            level == DoubleStatus.gahwa)) {
+      throw InvalidBidException(
+        playerIndex: seatIndex,
+        message: 'Sun mode allows at most a Double — no Triple, Four, or Gahwa.',
+      );
+    }
+
     // Sun Double Exception (BALOOT_RULES.md Section 7.1):
     // In Sun mode, Double is ONLY allowed if the buyer has >100 pts
     // AND the opposing team has <100 pts.
@@ -237,14 +253,13 @@ class BalootGameController implements IBalootController {
       }
     }
 
-    _roundState = _roundState.copyWith(
-      doubleStatus: level,
-      isOpenPlay: isOpenPlay,
-    );
-
     if (level == DoubleStatus.gahwa) {
       // Gahwa = instant game win for the buyer team (who calls Gahwa)
-      _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
+      _roundState = _roundState.copyWith(
+        doubleStatus: level,
+        isOpenPlay: isOpenPlay,
+        isDoubleWindowOpen: false,
+      );
       final winnerTeam = callerIsTeamA ? 'A' : 'B';
       if (winnerTeam == 'A') {
         _teamAScore = 152;
@@ -255,8 +270,25 @@ class BalootGameController implements IBalootController {
       return;
     }
 
-    // Double window stays open for the other team to escalate or skip.
-    // Phase remains GamePhase.doubleWindow until skipDoubleWindow() is called.
+    if (callerShouldBeDefender &&
+        (level == DoubleStatus.doubled || level == DoubleStatus.four)) {
+      _escalationDefenderSeat = seatIndex;
+    }
+
+    int nextSeat = _roundState.currentPlayerIndex;
+    if (level == DoubleStatus.doubled) {
+      nextSeat = buyerIndex;
+    } else if (level == DoubleStatus.tripled) {
+      nextSeat = _escalationDefenderSeat ?? ((buyerIndex + 1) % 4);
+    } else if (level == DoubleStatus.four) {
+      nextSeat = buyerIndex;
+    }
+
+    _roundState = _roundState.copyWith(
+      doubleStatus: level,
+      isOpenPlay: isOpenPlay,
+      currentPlayerIndex: nextSeat,
+    );
   }
 
   /// Skip the double window and proceed to play.
@@ -264,6 +296,7 @@ class BalootGameController implements IBalootController {
     if (_gamePhase != GamePhase.doubleWindow) {
       throw const InvalidMoveException('Double window is not open.');
     }
+    _escalationDefenderSeat = null;
     _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
     _gamePhase = GamePhase.playing;
     _startPlayPhase();
@@ -519,12 +552,18 @@ class BalootGameController implements IBalootController {
   void botPlay(int seatIndex) {
     switch (_gamePhase) {
       case GamePhase.bidding:
+        final bm = _biddingManager!;
         final decision = _botEngine.decideBid(
           hand: _hands[seatIndex],
           buyerCard: _deckManager.buyerCard!,
-          phase: _biddingManager!.phase,
+          phase: bm.phase,
           seatIndex: seatIndex,
           dealerIndex: _dealerIndex,
+          round2PendingBid: bm.hasRound2PendingBid,
+          round1HakamBidderSeat:
+              bm.phase == BiddingPhase.round1 && bm.hasActiveHakamBid
+                  ? bm.activeRound1HakamSeat
+                  : null,
         );
         placeBid(seatIndex, decision.action,
             secondHakamSuit: decision.secondHakamSuit);
@@ -610,6 +649,16 @@ class BalootGameController implements IBalootController {
   /// Whether there's an active Hakam bid in Round 1 (Sawa is available).
   bool get hasActiveHakamBid =>
       _biddingManager?.hasActiveHakamBid ?? false;
+
+  /// Round 2: Sun / Second Hakam bid placed; others must Pass or Sawa.
+  bool get hasRound2PendingBid =>
+      _biddingManager?.hasRound2PendingBid ?? false;
+
+  int? get activeRound1HakamSeat =>
+      _biddingManager?.activeRound1HakamSeat;
+
+  int? get activeRound2PendingBuyerSeat =>
+      _biddingManager?.activeRound2PendingBuyerSeat;
 
   /// Returns the list of legally playable cards for [seatIndex].
   List<CardModel> getValidCards(int seatIndex) {

@@ -103,6 +103,25 @@ void main() {
       );
       expect(decision.action, BidAction.pass);
     });
+
+    test('Round 2 reaction: passes when another bid is pending', () {
+      final hand = [
+        const CardModel(suit: Suit.hearts, rank: Rank.ace),
+        const CardModel(suit: Suit.spades, rank: Rank.ace),
+        const CardModel(suit: Suit.diamonds, rank: Rank.ace),
+        const CardModel(suit: Suit.clubs, rank: Rank.ten),
+        const CardModel(suit: Suit.spades, rank: Rank.ten),
+      ];
+      final decision = bot.decideBid(
+        hand: hand,
+        buyerCard: buyerCard,
+        phase: BiddingPhase.round2,
+        seatIndex: 2,
+        dealerIndex: 0,
+        round2PendingBid: true,
+      );
+      expect(decision.action, BidAction.pass);
+    });
   });
 
   group('Card Play — Leading', () {

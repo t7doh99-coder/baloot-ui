@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_assets.dart';
-import '../../../../data/models/card_model.dart' show CardModel, Suit, Rank;
+import '../../../../core/l10n/game_l10n.dart';
+import '../../../../core/l10n/locale_provider.dart';
+import '../../../../core/layout/game_table_layout.dart';
+import '../../../../data/models/card_model.dart'
+    show CardModel, Suit, Rank, GameMode;
 import '../../../../data/models/round_state_model.dart' show BiddingPhase;
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
@@ -114,6 +118,8 @@ class _TopSeat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = GameTableLayout.scale(context);
+    final narrow = GameTableLayout.sideSeatColumnWidth(scale);
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -136,7 +142,7 @@ class _TopSeat extends StatelessWidget {
             children: [
               if (projectCards.isNotEmpty)
                 Positioned(
-                  top: 32, // Adjusted for 40% hidden look
+                  top: 32 * scale, // Adjusted for 40% hidden look
                   child: ProjectCardFanRadial(
                     cards: projectCards,
                     orientation: SeatOrientation.top,
@@ -150,7 +156,7 @@ class _TopSeat extends StatelessWidget {
                 isBuyer: isBuyer,
                 teamColor: teamColor,
                 orientation: SeatOrientation.top,
-                designerNarrowWidth: 92, // Match side seats (Jim/Dwight) for consistency
+                designerNarrowWidth: narrow,
               ),
             ],
           ),
@@ -209,6 +215,8 @@ class _SideSeat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = GameTableLayout.scale(context);
+    final narrow = GameTableLayout.sideSeatColumnWidth(scale);
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -226,7 +234,7 @@ class _SideSeat extends StatelessWidget {
             children: [
               if (projectCards.isNotEmpty)
                 Positioned(
-                  top: 32, // Adjusted for 40% hidden look
+                  top: 32 * scale, // Adjusted for 40% hidden look
                   child: ProjectCardFanRadial(
                     cards: projectCards,
                     orientation: orientation,
@@ -240,7 +248,7 @@ class _SideSeat extends StatelessWidget {
                 isBuyer: isBuyer,
                 teamColor: teamColor,
                 orientation: orientation,
-                designerNarrowWidth: 92, // Fixed overflow 
+                designerNarrowWidth: narrow,
               ),
             ],
           ),
@@ -308,40 +316,42 @@ class _SeatPlayerInfoBox extends StatelessWidget {
     }
   }
 
-  static String _gameModeLine(GameProvider game) {
+  String _gameModeLine(GameProvider game, GameL10n loc) {
     switch (game.phase) {
       case GamePhase.notStarted:
         return '';
       case GamePhase.dealing:
-        return 'Dealing';
+        return loc.dealingShort;
       case GamePhase.bidding:
         final bp = game.biddingPhase;
-        if (bp == BiddingPhase.hakamConfirmation) return 'Hakam?';
-        if (bp == BiddingPhase.round2) return 'Bid · R2';
-        return 'Bid · R1';
+        if (bp == BiddingPhase.hakamConfirmation) return loc.confirmShort;
+        if (bp == BiddingPhase.round2) return loc.bidRound2Short;
+        return loc.bidRound1Short;
       case GamePhase.doubleWindow:
-        return 'Double';
+        return loc.doubleShort;
       case GamePhase.playing:
       case GamePhase.scoring:
-        final label = game.gameModeLabel;
-        if (label == '—') return '—';
+        final mode = game.roundState.activeMode;
+        if (mode == null) return '—';
         final trump = game.trumpSuit;
-        if (trump != null && label == 'Hakam') {
-          return '$label ${_suitSymbol(trump)}';
+        if (mode == GameMode.hakam && trump != null) {
+          return '${loc.hakam} ${_suitSymbol(trump)}';
         }
-        if (trump != null && label == 'Sun') {
-          return '$label ${_suitSymbol(trump)}';
+        if (mode == GameMode.sun) {
+          return loc.sun;
         }
-        return label;
+        return loc.modeLabel(game.gameModeLabel);
       case GamePhase.gameOver:
-        return 'Game over';
+        return loc.gameOverShort;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
-    final modeText = _gameModeLine(game);
+    final modeText = _gameModeLine(game, loc);
     final highlighted = isActive;
 
     // Designer [`_PlayerInfoChip`] `compact: true` — exact colors & radii.
@@ -1282,6 +1292,8 @@ class _SpeechBubbleOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final line = GameL10n.of(context).localizeBubble(bubble.text);
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
       transitionBuilder: (child, anim) => ScaleTransition(
@@ -1300,7 +1312,7 @@ class _SpeechBubbleOverlay extends StatelessWidget {
             bottom: 10,
           ),
           child: Text(
-            bubble.text,
+            line,
             style: const TextStyle(
               color: Color(0xFFE4C267),
               fontSize: 13,
@@ -1371,6 +1383,7 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
   Widget build(BuildContext context) {
     if (widget.cards.isEmpty) return const SizedBox();
 
+    final scale = GameTableLayout.scale(context);
     final int n = widget.cards.length;
     final bool isRight = widget.orientation == SeatOrientation.right;
     final bool isLeft = widget.orientation == SeatOrientation.left;
@@ -1379,7 +1392,10 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
     // Wide fan angle depending on how many cards are revealed
     final totalSweep = (n - 1) * 20.0;
     final startAngle = -totalSweep / 2;
-    const sweepRadius = 65.0; // Distance from avatar center
+    final sweepRadius = 65.0 * scale; // Distance from avatar center
+    final pcSize = widget.orientation == SeatOrientation.bottom
+        ? CardSize.medium
+        : CardSize.small;
 
     return SizedBox(
       width: 1, // acts as a center anchor point for Stack
@@ -1436,8 +1452,8 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
               final val = cardAnim.value;
               final sc = val.clamp(0.01, 1.0);
               return Positioned(
-                left: destX * val - (36 / 2), // small card width is 36
-                top: destY * val - (52 / 2), // small card height is 52
+                left: destX * val - pcSize.width / 2,
+                top: destY * val - pcSize.height / 2,
                 child: Transform.scale(
                   scale: sc,
                   child: Transform.rotate(

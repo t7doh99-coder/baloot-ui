@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../core/layout/game_table_layout.dart';
 import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../data/models/card_model.dart' show CardModel, Suit, Rank;
+import '../../../core/l10n/game_l10n.dart';
+import '../../../core/l10n/locale_provider.dart';
+import '../../../data/models/card_model.dart' show CardModel, Suit, GameMode;
 import '../../../data/models/round_state_model.dart'
     show BiddingPhase, DoubleStatus, ProjectType;
 import '../domain/baloot_game_controller.dart' show GamePhase;
@@ -68,8 +71,10 @@ class _GameTableScreenState extends State<GameTableScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
     final game = context.watch<GameProvider>();
     final topInset = MediaQuery.paddingOf(context).top;
+    final layoutScale = GameTableLayout.scale(context);
 
     final humanProjectCards = game.allDeclaredProjects
         .where((p) => p.playerIndex == 0)
@@ -115,7 +120,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
                         Positioned(
                           left: 0,
                           right: 0,
-                          bottom: 215, // Nudged further down as requested
+                          bottom: GameTableLayout.projectFanBottom(layoutScale),
                           child: Center(
                             child: ProjectCardFanRadial(
                               cards: humanProjectCards,
@@ -129,7 +134,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
                       Positioned(
                         left: 0,
                         right: 0,
-                        bottom: 90, // Keeps cards static exactly under the regular dashboard profile
+                        bottom: GameTableLayout.handStackBottom(layoutScale),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
                           transitionBuilder: (child, anim) =>
@@ -181,16 +186,18 @@ class _PlayArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
     return LayoutBuilder(builder: (ctx, constraints) {
       final w = constraints.maxWidth;
       final h = constraints.maxHeight;
+      final scale = GameTableLayout.scale(ctx);
 
       // Side column — wide enough for card fan + info box, with edge breathing room.
-      const seatColW   = 92.0;
+      final seatColW   = GameTableLayout.sideSeatColumnWidth(scale);
       const seatColPad = 4.0;
       // Partner band height — compact [_SeatPlayerInfoBox] + fan + bubble; [_TopSeat] scales via FittedBox.
-      const topSeatH   = 128.0;
-      const bottomPad  = 4.0;
+      final topSeatH   = GameTableLayout.topPartnerBandHeight(scale);
+      final bottomPad  = 4.0 * scale;
 
       // Designer [`_TableSeatOverlay`]: rug begins below partner (`top: height * 0.055` + band).
       final rugTop   = h * 0.055 + topSeatH;
@@ -198,7 +205,7 @@ class _PlayArea extends StatelessWidget {
       final availH   = h - rugTop - bottomPad;
       final rugH     = (rugW / 0.727).clamp(0.0, availH);
 
-      const rugLeft = seatColW + seatColPad;
+      final rugLeft = seatColW + seatColPad;
 
       return Stack(
         clipBehavior: Clip.none,
@@ -275,7 +282,9 @@ class _PlayArea extends StatelessWidget {
               left: rugLeft, top: rugTop, width: rugW, height: rugH,
               child: Center(
                 child: _StartBtn(
-                    onTap: () => context.read<GameProvider>().startGame()),
+                  label: GameL10n.of(context).startGame,
+                  onTap: () => context.read<GameProvider>().startGame(),
+                ),
               ),
             ),
         ],
@@ -347,8 +356,9 @@ class _TableArea extends StatelessWidget {
 
 
 class _StartBtn extends StatelessWidget {
+  final String label;
   final VoidCallback onTap;
-  const _StartBtn({required this.onTap});
+  const _StartBtn({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -370,8 +380,8 @@ class _StartBtn extends StatelessWidget {
                 blurRadius: 16, spreadRadius: 2),
           ],
         ),
-        child: const Text('Start Game',
-            style: TextStyle(
+        child: Text(label,
+            style: const TextStyle(
                 color: Color(0xFF3D2518),
                 fontSize: 17,
                 fontWeight: FontWeight.w900)),
@@ -387,8 +397,9 @@ class _StartBtn extends StatelessWidget {
 //  ─────────────────┼────────────────────────────────────────────
 //  notStarted       │ (none)
 //  dealing          │ (none)
-//  bidding R1       │ Pass · Hakam · Sawa (if someone bid Hakam)
-//  bidding R2       │ Pass · Sun · Hakam · Ashkal (dealer/sane)
+//  bidding R1       │ Sun · Hakam · Ashkal? · Pass · Sawa? (Sawa = defenders after Hakam)
+//  bidding R2       │ Sun · Second Hakam (suit) · ولا · then Pass/Sawa when bid pending
+//  hakamConfirmation│ Confirm Hakam · Switch to Sun (R1 Hakam or R2 Second Hakam — Visca/Kammelna)
 //  doubleWindow     │ Pass · Double · Four · Gahwa
 //                   │ (only defending team; Hakam mode; or Sun >100 rule)
 //  playing trick 1  │ Projects (declare up to 2)
@@ -432,6 +443,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
     final game = widget.game;
 
     return Column(
@@ -439,7 +451,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       // The hierarchy: Top (Projects expanded), Middle (Profile), Bottom (Actions)
       children: [
         if (_activePicker == _DashboardPicker.projects)
-          _buildProjectPickerExpanded(context),
+          _buildProjectPickerExpanded(context, GameL10n.of(context)),
         if (_showHand(game.phase))
           const HumanPlayerMajlisBar(),
         _buildBottomActions(context),
@@ -448,6 +460,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   }
 
   Widget _buildBottomActions(BuildContext context) {
+    final loc = GameL10n.of(context);
     final game = widget.game;
     final phase = game.phase;
     final isHumanTurn = game.isHumanTurn;
@@ -455,21 +468,26 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     List<Widget> buttons = [];
 
     if (_activePicker == _DashboardPicker.suit) {
-      buttons = _buildSuitPickerButtons(context);
+      buttons = _buildSuitPickerButtons(context, loc);
     } else if (_activePicker == _DashboardPicker.doublePlay) {
-      buttons = _buildDoublePlayButtons(context);
-    } else if (phase == GamePhase.bidding && isHumanTurn) {
-      buttons = _biddingButtons(context);
-    } else if (phase == GamePhase.doubleWindow && game.isHumanDefender) {
-      buttons = _doubleButtons(context);
+      buttons = _buildDoublePlayButtons(context, loc);
+    } else if (phase == GamePhase.bidding) {
+      if (isHumanTurn) {
+        buttons = _biddingButtons(context, loc);
+      }
+    } else if (phase == GamePhase.doubleWindow) {
+      if (isHumanTurn &&
+          (game.isHumanDefender || game.isHumanBuyer)) {
+        buttons = _doubleButtons(context, loc);
+      }
     } else if (phase == GamePhase.playing) {
-      buttons = _playingButtons(context);
+      buttons = _playingButtons(context, loc);
     } else {
       // DEV Mock standard fallback so bottom bar doesn't vanish
       buttons = [
-        _GameBtn(label: 'Pass', onTap: () {}),
-        _GameBtn(label: 'Hakam', onTap: () {}),
-        _GameBtn(label: 'Projects', isActive: _activePicker == _DashboardPicker.projects, onTap: () {
+        _GameBtn(label: loc.pass, onTap: () {}),
+        _GameBtn(label: loc.hakam, onTap: () {}),
+        _GameBtn(label: loc.projects, isActive: _activePicker == _DashboardPicker.projects, onTap: () {
           setState(() => _activePicker = _DashboardPicker.projects);
         }),
       ];
@@ -477,9 +495,12 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
     if (buttons.isEmpty) return const SizedBox(height: 8);
 
+    final scale = GameTableLayout.scale(context);
+    final barH = (56 * scale).clamp(48.0, 62.0);
+
     return Container(
-      height: 56,
-      margin: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+      height: barH,
+      margin: EdgeInsets.fromLTRB(10, 2, 10, 8 * scale),
       child: Row(
         children: buttons.map((b) => Expanded(
           child: Padding(
@@ -491,7 +512,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     );
   }
 
-  List<Widget> _biddingButtons(BuildContext ctx) {
+  List<Widget> _biddingButtons(BuildContext ctx, GameL10n loc) {
     final bp = widget.game.biddingPhase;
     final gp = ctx.read<GameProvider>();
 
@@ -500,115 +521,170 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final sane   = (dealer + 3) % 4; // player to dealer's left (CCW)
       final canAshkal = (0 == dealer || 0 == sane);
 
+      // Kammelna-style row: صن · حكم · أشكال · بس (+ سوى when defending after a Hakam)
       return [
-        _GameBtn(label: 'Pass', onTap: () => gp.humanBid(BidAction.pass)),
-        _GameBtn(label: 'Hakam', onTap: () => gp.humanBid(BidAction.hakam)),
+        _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (canAshkal)
-          _GameBtn(label: 'Ashkal', onTap: () => gp.humanBid(BidAction.ashkal)),
-        if (widget.game.hasActiveHakamBid)
-          _GameBtn(label: 'Sawa', onTap: () => gp.humanBid(BidAction.sawa)),
+          _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
+        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
+        if (_humanCanSawaRound1(gp))
+          _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
       ];
     }
 
     if (bp == BiddingPhase.hakamConfirmation) {
       return [
-        _GameBtn(label: 'Confirm Hakam', onTap: () => gp.humanBid(BidAction.confirmHakam)),
-        _GameBtn(label: 'Switch to Sun', onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(label: loc.confirmHakam, onTap: () => gp.humanBid(BidAction.confirmHakam)),
+        _GameBtn(label: loc.switchToSun, onTap: () => gp.humanBid(BidAction.sun)),
       ];
     }
 
-    // Round 2
+    // Round 2 — after Sun / Second Hakam, apps show Pass + Sawa only (Kammelna/Jawaker).
+    if (widget.game.hasRound2PendingBid) {
+      return [
+        _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
+        if (_humanCanSawaRound2(gp))
+          _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
+      ];
+    }
+
+    // Round 2 opening bids — BALOOT_RULES §4.3 (order matches Kammelna: صن · حكم ثاني · ولا)
     return [
-      _GameBtn(label: 'Pass', onTap: () => gp.humanBid(BidAction.pass)),
-      _GameBtn(label: 'Sun', onTap: () => gp.humanBid(BidAction.sun)),
-      _GameBtn(label: 'Hakam', onTap: () => setState(() => _activePicker = _DashboardPicker.suit)),
+      _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
+      _GameBtn(
+        label: loc.secondHakam,
+        onTap: () => setState(() => _activePicker = _DashboardPicker.suit),
+      ),
+      _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
     ];
   }
 
-  List<Widget> _doubleButtons(BuildContext ctx) {
+  static const int _humanSeat = 0;
+
+  bool _humanCanSawaRound1(GameProvider gp) {
+    if (!gp.hasActiveHakamBid) return false;
+    final h = gp.activeRound1HakamSeat;
+    if (h == null) return false;
+    return (_humanSeat % 2) != (h % 2);
+  }
+
+  bool _humanCanSawaRound2(GameProvider gp) {
+    if (!gp.hasRound2PendingBid) return false;
+    final p = gp.activeRound2PendingBuyerSeat;
+    if (p == null) return false;
+    return (_humanSeat % 2) != (p % 2);
+  }
+
+  List<Widget> _doubleButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
     final status = widget.game.doubleStatus;
-    final levels = <(String, DoubleStatus)>[];
+    final mode = widget.game.roundState.activeMode ?? GameMode.hakam;
 
+    void openDoublePicker(DoubleStatus d) {
+      setState(() {
+        _pendingDouble = d;
+        _activePicker = _DashboardPicker.doublePlay;
+      });
+    }
+
+    // Buyer responses (Hakam chain only — Sun stops at one Double per rules).
+    if (gp.isHumanBuyer) {
+      if (status == DoubleStatus.doubled && mode == GameMode.hakam) {
+        return [
+          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+          _GameBtn(label: loc.triple, onTap: () => openDoublePicker(DoubleStatus.tripled)),
+        ];
+      }
+      if (status == DoubleStatus.four && mode == GameMode.hakam) {
+        return [
+          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+          _GameBtn(label: loc.gahwa, onTap: () => gp.humanDouble(DoubleStatus.gahwa)),
+        ];
+      }
+      return [];
+    }
+
+    if (!gp.isHumanDefender) return [];
+
+    if (mode == GameMode.sun) {
+      if (!gp.canDefenderDoubleInSun) {
+        return [
+          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        ];
+      }
+      if (status != DoubleStatus.none) return [];
+      return [
+        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+      ];
+    }
+
+    // Hakam — show only the next legal defender action (not Four/Gahwa up front).
     if (status == DoubleStatus.none) {
-      levels.add(('Double', DoubleStatus.doubled));
+      return [
+        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+      ];
     }
-    if (status == DoubleStatus.none || status == DoubleStatus.doubled) {
-      levels.add(('Four', DoubleStatus.four));
+    if (status == DoubleStatus.tripled) {
+      return [
+        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        _GameBtn(label: loc.four, onTap: () => openDoublePicker(DoubleStatus.four)),
+      ];
     }
-    levels.add(('Gahwa', DoubleStatus.gahwa));
-
-    return [
-      _GameBtn(label: 'Pass', onTap: () => gp.humanSkipDouble()),
-      for (final (label, ds) in levels)
-        _GameBtn(
-          label: label,
-          onTap: () {
-            if (ds == DoubleStatus.gahwa) {
-               gp.humanDouble(ds);
-            } else {
-               setState(() {
-                 _pendingDouble = ds;
-                 _activePicker = _DashboardPicker.doublePlay;
-               });
-            }
-          },
-        ),
-    ];
+    return [];
   }
 
-  List<Widget> _playingButtons(BuildContext ctx) {
+  List<Widget> _playingButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
     final detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
-    // In Kamelna/Jawaker, usually 4 buttons exist, but user requested just Projects and Sawa for now.
     return [
-      // Projects Button (With little notification hint if detected > 0)
       Badge(
-        isLabelVisible: detected.isNotEmpty && gp.trickNumber == 1,
+        isLabelVisible: detected.isNotEmpty,
         label: Text('${detected.length}'),
         offset: const Offset(-4, -4),
         child: _GameBtn(
-          label: 'Projects', 
+          label: loc.projects,
           isActive: _activePicker == _DashboardPicker.projects,
           onTap: () {
             setState(() {
-              _activePicker = _activePicker == _DashboardPicker.projects 
-                  ? _DashboardPicker.none 
+              _activePicker = _activePicker == _DashboardPicker.projects
+                  ? _DashboardPicker.none
                   : _DashboardPicker.projects;
             });
           },
         ),
       ),
-      
-      _GameBtn(label: 'Sawa', onTap: () {}),
     ];
   }
 
-  List<Widget> _buildSuitPickerButtons(BuildContext ctx) {
+  List<Widget> _buildSuitPickerButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
     final buyerSuit = gp.buyerCard?.suit;
     final suits = Suit.values.where((s) => s != buyerSuit).toList();
     const suitNames = {Suit.hearts: '♥', Suit.diamonds: '♦', Suit.spades: '♠', Suit.clubs: '♣'};
     
     return [
-       _GameBtn(label: 'Cancel', onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
+       _GameBtn(label: loc.cancel, onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
        for (final s in suits)
          _GameBtn(label: suitNames[s]!, onTap: () => gp.humanBid(BidAction.secondHakam, secondHakamSuit: s)),
     ];
   }
 
-  List<Widget> _buildDoublePlayButtons(BuildContext ctx) {
+  List<Widget> _buildDoublePlayButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
     return [
-       _GameBtn(label: 'Cancel', onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
-       _GameBtn(label: 'Closed', onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: false)),
-       _GameBtn(label: 'Open', onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: true)),
+       _GameBtn(label: loc.cancel, onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
+       _GameBtn(label: loc.closed, onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: false)),
+       _GameBtn(label: loc.open, onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: true)),
     ];
   }
 
-  Widget _buildProjectPickerExpanded(BuildContext context) {
+  Widget _buildProjectPickerExpanded(BuildContext context, GameL10n loc) {
     final gp = context.read<GameProvider>();
+    final canEditProjects = gp.trickNumber == 1;
     var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
     final declared = gp.humanDeclaredProjects;
@@ -621,9 +697,11 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       ProjectType.sera,
     ];
 
+    final scale = GameTableLayout.scale(context);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-      height: 48,
+      height: (48 * scale).clamp(44.0, 56.0),
       child: Row(
         children: List.generate(orderedTypes.length, (idx) {
           final t = orderedTypes[idx];
@@ -656,9 +734,10 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
                     )
                   ),
                 ),
-                label: _projectName(t),
+                label: loc.projectType(t),
                 isActive: isActive,
                 onTap: () {
+                  if (!canEditProjects) return;
                   if (origIndex < 0) return; // Completely unavailable
                   
                   if (isActive) {
@@ -681,16 +760,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
         }),
       )
     );
-  }
-
-  String _projectName(ProjectType type) {
-    switch (type) {
-      case ProjectType.sera: return 'Sera';
-      case ProjectType.fifty: return '50';
-      case ProjectType.hundred: return '100';
-      case ProjectType.fourHundred: return '400';
-      case ProjectType.baloot: return 'Baloot';
-    }
   }
 }
 
@@ -789,12 +858,15 @@ class _GameBtnState extends State<_GameBtn>
   @override
   Widget build(BuildContext context) {
     final (gradient, borderColor, txtCol) = _style(_isPressed || widget.isActive);
+    final scale = GameTableLayout.scale(context);
+    final baseFs = widget.label.length > 12 ? 12.0 : 14.0;
     final textStyle = TextStyle(
-      fontSize: widget.label.length > 12 ? 12 : 14,
+      fontSize: (baseFs * scale).clamp(11.0, 16.0),
       fontWeight: FontWeight.w800,
       color: txtCol,
       height: 1.05,
     );
+    final btnH = (44 * scale).clamp(40.0, 52.0);
 
     return GestureDetector(
       onTapDown: _handleTapDown,
@@ -804,7 +876,7 @@ class _GameBtnState extends State<_GameBtn>
       child: ScaleTransition(
         scale: _scale,
         child: Container(
-          height: 44,
+          height: btnH,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: gradient,

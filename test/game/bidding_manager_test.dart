@@ -144,6 +144,27 @@ void main() {
       expect(bm.result!.trumpSuit, Suit.hearts);
     });
 
+    test('Sawa from Hakam bidder’s partner throws (Jawaker/Kammelna)', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+
+      bm.placeBid(1, BidAction.hakam);
+      bm.placeBid(2, BidAction.pass); // advance to seat 3 (partner of seat 1)
+      expect(
+        () => bm.placeBid(3, BidAction.sawa),
+        throwsA(isA<InvalidBidException>()),
+      );
+    });
+
+    test('second Hakam in Round 1 after a Hakam bid throws', () {
+      final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
+
+      bm.placeBid(1, BidAction.hakam);
+      expect(
+        () => bm.placeBid(2, BidAction.hakam),
+        throwsA(isA<InvalidBidException>()),
+      );
+    });
+
     test('Sawa without active bid throws', () {
       final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
 
@@ -164,10 +185,16 @@ void main() {
       return bm;
     }
 
-    test('player bids Sun in Round 2', () {
+    test('Round 2 Sun — 3 passes from others locks Sun for bidder', () {
       final bm = toRound2();
 
       bm.placeBid(1, BidAction.sun);
+      expect(bm.isFinished, false);
+      expect(bm.hasRound2PendingBid, true);
+
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
 
       expect(bm.isFinished, true);
       expect(bm.result!.mode, GameMode.sun);
@@ -175,15 +202,65 @@ void main() {
       expect(bm.result!.trumpSuit, isNull);
     });
 
-    test('Second Hakam with different suit', () {
+    test('Round 2 Sun — Sawa locks immediately (original buyer)', () {
+      final bm = toRound2();
+
+      bm.placeBid(1, BidAction.sun);
+      expect(bm.currentBidder, 2);
+      bm.placeBid(2, BidAction.sawa);
+
+      expect(bm.isFinished, true);
+      expect(bm.result!.mode, GameMode.sun);
+      expect(bm.result!.buyerIndex, 1);
+    });
+
+    test('Round 2 Sun — Sawa from bidder’s partner throws', () {
+      final bm = toRound2();
+
+      bm.placeBid(1, BidAction.sun);
+      bm.placeBid(2, BidAction.pass); // advance to seat 3 (partner of 1)
+      expect(
+        () => bm.placeBid(3, BidAction.sawa),
+        throwsA(isA<InvalidBidException>()),
+      );
+    });
+
+    test('Round 2 Second Hakam — 3 passes → hakamConfirmation (Visca / apps)', () {
       final bm = toRound2();
 
       bm.placeBid(1, BidAction.secondHakam, secondHakamSuit: Suit.spades);
+      expect(bm.isFinished, false);
 
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
+
+      expect(bm.isFinished, false);
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+      expect(bm.currentBidder, 1);
+
+      bm.placeBid(1, BidAction.confirmHakam);
       expect(bm.isFinished, true);
       expect(bm.result!.mode, GameMode.hakam);
       expect(bm.result!.trumpSuit, Suit.spades);
       expect(bm.result!.buyerIndex, 1);
+    });
+
+    test('Round 2 Second Hakam — 3 passes → buyer switches to Sun', () {
+      final bm = toRound2();
+
+      bm.placeBid(1, BidAction.secondHakam, secondHakamSuit: Suit.spades);
+      bm.placeBid(2, BidAction.pass);
+      bm.placeBid(3, BidAction.pass);
+      bm.placeBid(0, BidAction.pass);
+
+      expect(bm.phase, BiddingPhase.hakamConfirmation);
+
+      bm.placeBid(1, BidAction.sun);
+      expect(bm.isFinished, true);
+      expect(bm.result!.mode, GameMode.sun);
+      expect(bm.result!.buyerIndex, 1);
+      expect(bm.result!.trumpSuit, isNull);
     });
 
     test('Second Hakam with same suit as buyer card throws', () {

@@ -121,6 +121,10 @@ class GameProvider extends ChangeNotifier {
   // ── Phase tracking for transition detection ──
   GamePhase _prevPhase = GamePhase.notStarted;
 
+  /// When true, after each scored round the UI shows the scoreboard and waits
+  /// for the player (no auto-advance to the next round). Home / preview flow.
+  bool _singleRoundMode = true;
+
   // ── Currently selected card in hand (seat 0) ──
   CardModel? _selectedCard;
 
@@ -222,6 +226,15 @@ class GameProvider extends ChangeNotifier {
   bool get hasActiveHakamBid =>
       phase == GamePhase.notStarted ? false : _engine.hasActiveHakamBid;
 
+  bool get hasRound2PendingBid =>
+      phase == GamePhase.notStarted ? false : _engine.hasRound2PendingBid;
+
+  int? get activeRound1HakamSeat =>
+      phase == GamePhase.notStarted ? null : _engine.activeRound1HakamSeat;
+
+  int? get activeRound2PendingBuyerSeat =>
+      phase == GamePhase.notStarted ? null : _engine.activeRound2PendingBuyerSeat;
+
   /// Which seat is the dealer.
   int get dealerIndex => roundState.dealerIndex;
 
@@ -233,6 +246,25 @@ class GameProvider extends ChangeNotifier {
     final buyer = roundState.buyerIndex;
     if (buyer == null) return false;
     return (buyer % 2) != 0; // seat 0 is team A, buyer on team B = human defends
+  }
+
+  /// Human (seat 0) won the purchase this round.
+  bool get isHumanBuyer {
+    final buyer = roundState.buyerIndex;
+    if (buyer == null) return false;
+    return buyer == 0;
+  }
+
+  /// BALOOT_RULES §7.1 — in Sun, defender may Double only if buyer > 100 and defender < 100.
+  bool get canDefenderDoubleInSun {
+    if (phase != GamePhase.doubleWindow) return false;
+    if (roundState.activeMode != GameMode.sun) return true;
+    final buyer = roundState.buyerIndex;
+    if (buyer == null) return false;
+    final buyerIsA = buyer % 2 == 0;
+    final buyerPts = buyerIsA ? gameScore.teamA : gameScore.teamB;
+    final defPts = buyerIsA ? gameScore.teamB : gameScore.teamA;
+    return buyerPts > 100 && defPts < 100;
   }
 
   /// Speech bubbles keyed by seat index.
@@ -346,6 +378,31 @@ class GameProvider extends ChangeNotifier {
     _cancelTimers();
     _bubbles.clear();
     startGame();
+  }
+
+  /// Leave the table (e.g. Exit from round scoreboard). Cancels timers; engine
+  /// state is left as-is until the next [startGame].
+  void leaveTable() {
+    _cancelTimers();
+    _lastRoundResult = null;
+    _humanTurnStartedAt = null;
+    _botTurnStartedAt = null;
+    for (final t in _bubbleTimers.values) {
+      t.cancel();
+    }
+    _bubbleTimers.clear();
+    _bubbles.clear();
+    notifyListeners();
+  }
+
+  /// From round scoreboard: play another full match (fresh scores). When
+  /// [_singleRoundMode] is false, continues the current rubber instead.
+  void playAgainFromRoundScoreboard() {
+    if (_singleRoundMode) {
+      restartGame();
+    } else {
+      dismissRoundScoreOverlay();
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -505,9 +562,13 @@ class GameProvider extends ChangeNotifier {
     // If _lastRoundResult is null, this is the very first deal → advance
     // quickly after a short animation pause.
     if (p == GamePhase.dealing) {
+      // After a full round, show scoreboard until the player chooses (preview flow).
+      if (_lastRoundResult != null && _singleRoundMode) {
+        return;
+      }
       final delay = _lastRoundResult != null
           ? const Duration(milliseconds: 3500) // score overlay display time
-          : const Duration(milliseconds: 900);  // initial deal animation
+          : const Duration(milliseconds: 900); // initial deal animation
       _botTimer = Timer(delay, () {
         _lastRoundResult = null;
         _engine.startNewRound();

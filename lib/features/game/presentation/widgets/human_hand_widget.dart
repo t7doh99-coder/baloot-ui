@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/layout/game_table_layout.dart';
 import '../../../../data/models/card_model.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
@@ -13,10 +14,8 @@ Offset _handCardCenterDragAnchor(
   BuildContext context,
   Offset position,
 ) {
-  return Offset(
-    CardSize.hand.width / 2,
-    CardSize.hand.height / 2,
-  );
+  final s = GameTableLayout.handCardSize(GameTableLayout.scale(context));
+  return Offset(s.width / 2, s.height / 2);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -34,13 +33,9 @@ Offset _handCardCenterDragAnchor(
 class HumanHandWidget extends StatelessWidget {
   const HumanHandWidget({super.key});
 
-  /// Same as designer [`_BottomSeat.largeCardHeight`].
-  /// Room for hand arc, selection lift (−46), and drag feedback without
-  /// painting outside the band (avoids rare sub-pixel Column overflows).
-  static const double _largeBandHeight = 186.0;
-
   @override
   Widget build(BuildContext context) {
+    final scale = GameTableLayout.scale(context);
     final game = context.watch<GameProvider>();
     final hand = game.playerHand;
     final phase = game.phase;
@@ -55,6 +50,7 @@ class HumanHandWidget extends StatelessWidget {
     final validCards = isPlayPhase && isHumanTurn ? game.validCards : hand;
 
     final screenW = MediaQuery.sizeOf(context).width;
+    final bandH = GameTableLayout.handFanBandHeight(scale);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -64,18 +60,19 @@ class HumanHandWidget extends StatelessWidget {
         else
           SizedBox(
             width: screenW,
-            height: _largeBandHeight,
+            height: bandH,
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Transform.translate(
-                offset: const Offset(0, -4),
+                offset: Offset(0, -4 * scale),
                 child: _DesignerHandFan(
+                  scale: scale,
                   cards: hand,
                   selectedCard: selectedCard,
                   validCards: validCards,
                   interactive: isPlayPhase && isHumanTurn,
                   // Reduce available width so rotated cards don't overhang screen edges
-                  availableWidth: screenW - 40,
+                  availableWidth: screenW - 40 * scale,
                   onCardTap: (card) {
                     if (!isPlayPhase || !isHumanTurn) return;
                     if (validCards.contains(card)) {
@@ -102,6 +99,7 @@ class HumanHandWidget extends StatelessWidget {
 /// Port of designer [`_CardFan`] for `large` + horizontal + face-up.
 class _DesignerHandFan extends StatelessWidget {
   const _DesignerHandFan({
+    required this.scale,
     required this.cards,
     required this.selectedCard,
     required this.validCards,
@@ -111,6 +109,7 @@ class _DesignerHandFan extends StatelessWidget {
     required this.onSwipePlay,
   });
 
+  final double scale;
   final List<CardModel> cards;
   final CardModel? selectedCard;
   final List<CardModel> validCards;
@@ -119,10 +118,11 @@ class _DesignerHandFan extends StatelessWidget {
   final ValueChanged<CardModel> onCardTap;
   final ValueChanged<CardModel> onSwipePlay;
 
-  static double get _cardWidth => CardSize.hand.width;
-  static double get _cardHeight => CardSize.hand.height;
+  double get _cardWidth => GameTableLayout.handCardSize(scale).width;
+  double get _cardHeight => GameTableLayout.handCardSize(scale).height;
   static const double _largeRotation = 0.05;
-  static const double _arcLift = 14.0;
+  double get _arcLift => 14.0 * scale;
+  double get _selLift => 46.0 * scale;
 
   int? get _selectedIndex {
     if (selectedCard == null) return null;
@@ -132,11 +132,11 @@ class _DesignerHandFan extends StatelessWidget {
   }
 
   double _fitLargeOverlap(int cardCount) {
-    if (cardCount <= 1) return 64.0;
+    if (cardCount <= 1) return 64.0 * scale;
     final usableWidth =
         availableWidth.clamp(_cardWidth, double.infinity);
     final fittedOverlap = (usableWidth - _cardWidth) / (cardCount - 1);
-    return fittedOverlap.clamp(28.0, 56.0);
+    return fittedOverlap.clamp(28.0 * scale, 56.0 * scale);
   }
 
   @override
@@ -185,6 +185,8 @@ class _DesignerHandFan extends StatelessWidget {
               child: PlayingCard(
                 card: cardModel,
                 size: CardSize.hand,
+                width: _cardWidth,
+                height: _cardHeight,
                 faceUp: true,
                 selected: isSelected,
                 suppressSelectionOffset: true,
@@ -219,6 +221,8 @@ class _DesignerHandFan extends StatelessWidget {
                         child: PlayingCard(
                           card: cardModel,
                           size: CardSize.hand,
+                          width: _cardWidth,
+                          height: _cardHeight,
                           faceUp: true,
                           selected: isSelected,
                           suppressSelectionOffset: true,
@@ -235,7 +239,7 @@ class _DesignerHandFan extends StatelessWidget {
                   onDragEnd: (details) {
                     if (details.wasAccepted) return;
                     final v = details.velocity;
-                    if (v.pixelsPerSecond.dy < -90 &&
+                    if (v.pixelsPerSecond.dy < -90 * scale &&
                         v.pixelsPerSecond.dy.abs() >=
                             v.pixelsPerSecond.dx.abs()) {
                       onSwipePlay(cardModel);
@@ -250,7 +254,7 @@ class _DesignerHandFan extends StatelessWidget {
             curve: Curves.easeOutCubic,
             offset: Offset(
               0,
-              ((isSelected ? -46.0 : 0.0) + largeArcLift) / _cardHeight,
+              ((isSelected ? -_selLift : 0.0) + largeArcLift) / _cardHeight,
             ),
             child: draggableChild,
           );

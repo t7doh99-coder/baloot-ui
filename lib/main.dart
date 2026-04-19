@@ -61,9 +61,19 @@ class AntigravittyBalootApp extends StatelessWidget {
       // Force LTR layout for game UI — Arabic text still renders correctly,
       // but the layout stays fixed (like Clash Royale / mobile games).
       builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: child!,
+        final mq = MediaQuery.of(context);
+        final bounded = mq.copyWith(
+          textScaler: mq.textScaler.clamp(
+            minScaleFactor: 0.88,
+            maxScaleFactor: 1.12,
+          ),
+        );
+        return MediaQuery(
+          data: bounded,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: child!,
+          ),
         );
       },
       home: const SplashScreen(),

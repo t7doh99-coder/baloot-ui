@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/l10n/game_l10n.dart';
+import '../../../../core/l10n/locale_provider.dart';
 import '../../../../data/models/round_state_model.dart' show BiddingPhase;
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
@@ -70,6 +72,8 @@ class _DealingSpinnerState extends State<_DealingSpinner>
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -95,7 +99,7 @@ class _DealingSpinnerState extends State<_DealingSpinner>
           ),
           const SizedBox(height: 8),
           Text(
-            'Dealing...',
+            loc.dealing,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 12,
@@ -148,6 +152,8 @@ class _BuyerCardDisplayState extends State<_BuyerCardDisplay>
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     final game      = widget.game;
     final buyerCard = game.buyerCard!;
     final buyerIdx  = game.buyerIndex;
@@ -176,7 +182,7 @@ class _BuyerCardDisplayState extends State<_BuyerCardDisplay>
                   ),
                 ),
                 child: Text(
-                  buyerIdx != null ? 'Buyer: $buyerName' : 'Bidding',
+                  buyerIdx != null ? loc.buyerLine(buyerName) : loc.bidding,
                   style: TextStyle(
                     color: AppColors.goldAccent,
                     fontSize: 11,
@@ -216,6 +222,8 @@ class _PhasePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocaleProvider>();
+    final loc = GameL10n.of(context);
     String label;
     Color color;
 
@@ -223,14 +231,14 @@ class _PhasePill extends StatelessWidget {
       case GamePhase.bidding:
         final bp = game.biddingPhase;
         if (bp == BiddingPhase.hakamConfirmation) {
-          label = 'Confirm or Switch?';
+          label = loc.confirmOrSwitch;
         } else {
-          label = bp == BiddingPhase.round2 ? 'Bid Round 2' : 'Bid Round 1';
+          label = bp == BiddingPhase.round2 ? loc.bidRound2 : loc.bidRound1;
         }
         color = AppColors.goldAccent;
         break;
       case GamePhase.doubleWindow:
-        label = 'Double Window';
+        label = loc.doubleWindow;
         color = const Color(0xFFE63946);
         break;
       default:

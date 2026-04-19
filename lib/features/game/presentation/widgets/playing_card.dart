@@ -47,6 +47,10 @@ CardBack cardBackForSeat(int seatIndex) =>
 class PlayingCard extends StatelessWidget {
   final CardModel? card;
   final CardSize size;
+  /// When set, overrides [size] width (responsive hand fan, etc.).
+  final double? width;
+  /// When set, overrides [size] height.
+  final double? height;
   final bool faceUp;
   final CardBack back;
   final bool selected;
@@ -60,6 +64,8 @@ class PlayingCard extends StatelessWidget {
     super.key,
     this.card,
     this.size = CardSize.medium,
+    this.width,
+    this.height,
     this.faceUp = true,
     this.back = CardBack.red,
     this.selected = false,
@@ -67,6 +73,9 @@ class PlayingCard extends StatelessWidget {
     this.onTap,
     this.suppressSelectionOffset = false,
   });
+
+  double get _w => width ?? size.width;
+  double get _h => height ?? size.height;
 
   /// Asset path for a face-down back (team-colored).
   static String backAssetPath(CardBack back) =>
@@ -94,8 +103,8 @@ class PlayingCard extends StatelessWidget {
   Widget _buildCardShell(BuildContext context) {
     final radius = _radius;
     return Container(
-      width: size.width,
-      height: size.height,
+      width: _w,
+      height: _h,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         boxShadow: [
@@ -132,13 +141,13 @@ class PlayingCard extends StatelessWidget {
     final int? cacheH;
     if (!showFace) {
       // Slight oversample for small backs so rotation + lattice pattern stay cleaner.
-      final oversample = size.width < 56
+      final oversample = _w < 56
           ? 1.2
-          : size.width < 96
+          : _w < 96
               ? 1.1
               : 1.0;
-      cacheW = (size.width * dpr * oversample).round().clamp(1, 8192);
-      cacheH = (size.height * dpr * oversample).round().clamp(1, 8192);
+      cacheW = (_w * dpr * oversample).round().clamp(1, 8192);
+      cacheH = (_h * dpr * oversample).round().clamp(1, 8192);
     } else {
       cacheW = null;
       cacheH = null;
@@ -146,11 +155,11 @@ class PlayingCard extends StatelessWidget {
 
     return Image.asset(
       path,
-      width: size.width,
-      height: size.height,
+      width: _w,
+      height: _h,
       fit: showFace ? BoxFit.fill : BoxFit.cover,
       filterQuality:
-          !showFace && size.width < 96 ? FilterQuality.high : FilterQuality.medium,
+          !showFace && _w < 96 ? FilterQuality.high : FilterQuality.medium,
       cacheWidth: cacheW,
       cacheHeight: cacheH,
       // Show a placeholder card outline if image fails to load
@@ -165,7 +174,7 @@ class PlayingCard extends StatelessWidget {
         child: Text(
           card != null ? '?' : '🂠',
           style: TextStyle(
-            fontSize: size.width * 0.3,
+            fontSize: _w * 0.3,
             color: Colors.grey,
           ),
         ),
@@ -174,6 +183,9 @@ class PlayingCard extends StatelessWidget {
   }
 
   double get _radius {
+    if (width != null || height != null) {
+      return (_w * 0.105).clamp(5.0, 14.0);
+    }
     switch (size) {
       case CardSize.small:
         return 5;
