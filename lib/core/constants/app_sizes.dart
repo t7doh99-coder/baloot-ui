@@ -25,9 +25,9 @@ class AppSizes {
   // Nav bar
   static const double navBarHeight = 70.0;
 
-  // Card sizes
-  static const double cardWidth = 80.0;
-  static const double cardHeight = 120.0;
+  // Card sizes (matches [CardSize.large] aspect 438:608)
+  static const double cardWidth = 84.0;
+  static const double cardHeight = 117.0;
 
   // Splash logo size
   static const double splashLogoSize = 180.0;

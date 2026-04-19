@@ -1,10 +1,15 @@
 import 'dart:math';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_assets.dart';
+import '../../../../data/models/card_model.dart' show CardModel, Suit, Rank;
+import '../../../../data/models/round_state_model.dart' show BiddingPhase;
+import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
-import 'playing_card.dart' show CardBack, PlayingCard, cardBackForSeat;
+import 'playing_card.dart'
+    show CardBack, CardSize, PlayingCard, cardBackForSeat, playingCardHeightForWidth;
 
 // ══════════════════════════════════════════════════════════════════
 //  PLAYER SEAT WIDGET  — Jawaker-style circular avatar
@@ -44,6 +49,12 @@ class PlayerSeatWidget extends StatelessWidget {
         ? const Color(0xFF28802E)
         : const Color(0xFFE63946);
 
+    // Project cards for this seat to show face-up behind the card fan
+    final projectCards = game.allDeclaredProjects
+        .where((p) => p.playerIndex == seat)
+        .expand((p) => p.cards)
+        .toList();
+
     if (orientation == SeatOrientation.left ||
         orientation == SeatOrientation.right) {
       return _SideSeat(
@@ -55,6 +66,8 @@ class PlayerSeatWidget extends StatelessWidget {
         isBuyer: isBuyer,
         teamColor: teamColor,
         bubble: bubble,
+        orientation: orientation,
+        projectCards: projectCards,
       );
     }
 
@@ -67,6 +80,7 @@ class PlayerSeatWidget extends StatelessWidget {
       isBuyer: isBuyer,
       teamColor: teamColor,
       bubble: bubble,
+      projectCards: projectCards,
     );
   }
 }
@@ -84,6 +98,7 @@ class _TopSeat extends StatelessWidget {
   final bool isBuyer;
   final Color teamColor;
   final PlayerBubble? bubble;
+  final List<CardModel> projectCards;
 
   const _TopSeat({
     required this.seat,
@@ -94,6 +109,7 @@ class _TopSeat extends StatelessWidget {
     required this.isBuyer,
     required this.teamColor,
     required this.bubble,
+    this.projectCards = const [],
   });
 
   @override
@@ -106,47 +122,53 @@ class _TopSeat extends StatelessWidget {
           Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: _TopCardFan(count: cardCount, seat: seat),
+              child: _TopCardFan(
+                count: cardCount,
+                seat: seat,
+              ),
             ),
           ),
-        const SizedBox(height: 4),
+
         Center(
-          child: _SpeechBubble(
-            bubble: bubble,
-            teamColor: teamColor,
-            maxLines: 1,
-            fontSize: 11,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Center(
-          child: PlayerAvatarRing(
-            seatIndex: seat,
-            name: name,
-            isActive: isActive,
-            isDealer: isDealer,
-            isBuyer: isBuyer,
-            teamColor: teamColor,
-            avatarDiameter: 40.0,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              if (projectCards.isNotEmpty)
+                Positioned(
+                  top: 32, // Adjusted for 40% hidden look
+                  child: ProjectCardFanRadial(
+                    cards: projectCards,
+                    orientation: SeatOrientation.top,
+                  ),
+                ),
+              _SeatPlayerInfoBox(
+                seatIndex: seat,
+                name: name,
+                isActive: isActive,
+                isDealer: isDealer,
+                isBuyer: isBuyer,
+                teamColor: teamColor,
+                orientation: SeatOrientation.top,
+                designerNarrowWidth: 92, // Match side seats (Jim/Dwight) for consistency
+              ),
+            ],
           ),
         ),
       ],
     );
 
-    // Top seat sits in a fixed-height band on [GameTableScreen]; speech + fan
-    // + avatar can exceed it when text scales or bubble wraps — scale down
-    // instead of overflowing.
     return LayoutBuilder(
       builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final maxH = constraints.maxHeight;
+        if (!maxW.isFinite || !maxH.isFinite) return column;
         return FittedBox(
+          clipBehavior: Clip.none,
           fit: BoxFit.scaleDown,
           alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: constraints.maxWidth.isFinite
-                  ? constraints.maxWidth
-                  : double.infinity,
-            ),
+          child: SizedBox(
+            width: maxW,
             child: column,
           ),
         );
@@ -168,6 +190,7 @@ class _SideSeat extends StatelessWidget {
   final bool isBuyer;
   final Color teamColor;
   final PlayerBubble? bubble;
+  final List<CardModel> projectCards;
 
   const _SideSeat({
     required this.seat,
@@ -178,30 +201,355 @@ class _SideSeat extends StatelessWidget {
     required this.isBuyer,
     required this.teamColor,
     required this.bubble,
+    required this.orientation,
+    this.projectCards = const [],
   });
+
+  final SeatOrientation orientation;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final column = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (cardCount > 0)
-          _SideCardFan(count: cardCount, seat: seat),
-        const SizedBox(height: 4),
-        _SpeechBubble(bubble: bubble, teamColor: teamColor),
-        const SizedBox(height: 2),
-        PlayerAvatarRing(
-          seatIndex: seat,
-          name: name,
-          isActive: isActive,
-          isDealer: isDealer,
-          isBuyer: isBuyer,
-          teamColor: teamColor,
-          avatarDiameter: 34.0,
+          _SideCardFan(
+            count: cardCount,
+            seat: seat,
+          ),
+
+        Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              if (projectCards.isNotEmpty)
+                Positioned(
+                  top: 32, // Adjusted for 40% hidden look
+                  child: ProjectCardFanRadial(
+                    cards: projectCards,
+                    orientation: orientation,
+                  ),
+                ),
+              _SeatPlayerInfoBox(
+                seatIndex: seat,
+                name: name,
+                isActive: isActive,
+                isDealer: isDealer,
+                isBuyer: isBuyer,
+                teamColor: teamColor,
+                orientation: orientation,
+                designerNarrowWidth: 92, // Fixed overflow 
+              ),
+            ],
+          ),
         ),
       ],
     );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final maxH = constraints.maxHeight;
+        if (!maxW.isFinite || !maxH.isFinite) return column;
+        return FittedBox(
+          clipBehavior: Clip.none,
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: maxW,
+            child: column,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SEAT INFO CARD  — rounded glass box: avatar + name + round mode (Sun/Hakam…)
+// ══════════════════════════════════════════════════════════════════
+
+class _SeatPlayerInfoBox extends StatelessWidget {
+  const _SeatPlayerInfoBox({
+    required this.seatIndex,
+    required this.name,
+    required this.isActive,
+    required this.isDealer,
+    required this.isBuyer,
+    required this.teamColor,
+    required this.orientation,
+    this.designerNarrowWidth,
+  });
+
+  final int seatIndex;
+  final String name;
+  final bool isActive;
+  final bool isDealer;
+  final bool isBuyer;
+  final Color teamColor;
+  final SeatOrientation orientation;
+  final double? designerNarrowWidth;
+
+  /// Matches designer [`_PlayerInfoChip`] `avatarSize: 36`.
+  static const double _kAvatarDiameter = 36.0;
+
+  static String _suitSymbol(Suit s) {
+    switch (s) {
+      case Suit.hearts:
+        return '♥';
+      case Suit.diamonds:
+        return '♦';
+      case Suit.spades:
+        return '♠';
+      case Suit.clubs:
+        return '♣';
+    }
+  }
+
+  static String _gameModeLine(GameProvider game) {
+    switch (game.phase) {
+      case GamePhase.notStarted:
+        return '';
+      case GamePhase.dealing:
+        return 'Dealing';
+      case GamePhase.bidding:
+        final bp = game.biddingPhase;
+        if (bp == BiddingPhase.hakamConfirmation) return 'Hakam?';
+        if (bp == BiddingPhase.round2) return 'Bid · R2';
+        return 'Bid · R1';
+      case GamePhase.doubleWindow:
+        return 'Double';
+      case GamePhase.playing:
+      case GamePhase.scoring:
+        final label = game.gameModeLabel;
+        if (label == '—') return '—';
+        final trump = game.trumpSuit;
+        if (trump != null && label == 'Hakam') {
+          return '$label ${_suitSymbol(trump)}';
+        }
+        if (trump != null && label == 'Sun') {
+          return '$label ${_suitSymbol(trump)}';
+        }
+        return label;
+      case GamePhase.gameOver:
+        return 'Game over';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final game = context.watch<GameProvider>();
+    final modeText = _gameModeLine(game);
+    final highlighted = isActive;
+
+    // Designer [`_PlayerInfoChip`] `compact: true` — exact colors & radii.
+    final chip = Container(
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? const Color(0xB070120E)
+            : const Color(0x991F120F),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: highlighted
+              ? const Color(0xE0E4C267)
+              : const Color(0x66FFFFFF),
+          width: highlighted ? 1.4 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: PlayerAvatarRing(
+              seatIndex: seatIndex,
+              name: name,
+              isActive: isActive,
+              isDealer: isDealer,
+              isBuyer: isBuyer,
+              teamColor: teamColor,
+              avatarDiameter: _kAvatarDiameter,
+              showOverlayNameTag: false,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Tajawal',
+                  ),
+                ),
+              ),
+              if (isDealer) ...[
+                const SizedBox(width: 3),
+                const _MiniDealerChip(compact: true),
+              ],
+              if (isBuyer) ...[
+                const SizedBox(width: 2),
+                const Icon(Icons.star,
+                    color: Color(0xFFFFD700), size: 9),
+              ],
+            ],
+          ),
+          // The old dark badge is removed from here
+        ],
+      ),
+    );
+
+    final chipFrame = designerNarrowWidth != null
+        ? SizedBox(width: designerNarrowWidth, child: chip)
+        : chip;
+
+    // ── Kamelna-style "Drawer" Bid Badge ─────────────
+    Widget? bidBadge;
+    if (seatIndex == game.buyerIndex && modeText.isNotEmpty) {
+      final label = game.gameModeLabel == '—' ? modeText : game.gameModeLabel;
+      final suit = game.trumpSuit; 
+      
+      // Determine theme colors based on parent box
+      final bgColor = highlighted ? const Color(0xFF70120E) : const Color(0xFF2F1A15);
+      final borderColor = highlighted ? const Color(0xE0E4C267) : const Color(0x66FFFFFF);
+      
+      bidBadge = _KamelnaBidBadge(
+        label: label,
+        suit: suit,
+        backgroundColor: bgColor,
+        borderColor: borderColor,
+        isHighlighted: highlighted,
+      );
+    }
+
+    final bubble = game.bubbles[seatIndex];
+
+    final bool isLeft = orientation == SeatOrientation.left;
+    final bool isRight = orientation == SeatOrientation.right;
+    final bool isTop = orientation == SeatOrientation.top;
+
+    final bool tailOnLeft = isLeft || isTop;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        chipFrame,
+        if (bidBadge != null)
+          Positioned(
+            bottom: -15, // Tucked under the box
+            child: bidBadge,
+          ),
+        if (bubble != null)
+          Positioned(
+            top: 10, // Align with avatar center
+            left: (isLeft || isTop) ? 65.0 : null,
+            right: isRight ? 65.0 : null,
+            child: _SpeechBubbleOverlay(
+              bubble: bubble,
+              tailOnLeft: tailOnLeft,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _KamelnaBidBadge extends StatelessWidget {
+  final String label;
+  final Suit? suit;
+  final Color backgroundColor;
+  final Color borderColor;
+  final bool isHighlighted;
+
+  const _KamelnaBidBadge({
+    required this.label,
+    this.suit,
+    required this.backgroundColor,
+    required this.borderColor,
+    this.isHighlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 78, // Slightly narrower than the 92px name box
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border.all(
+          color: borderColor,
+          width: isHighlighted ? 1.2 : 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (suit != null) ...[
+            Text(
+              _suitSymbol(suit!),
+              style: TextStyle(
+                color: (suit == Suit.hearts || suit == Suit.diamonds)
+                    ? const Color(0xFFE53935)
+                    : Colors.white,
+                fontSize: 10,
+                height: 1,
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.8),
+              fontSize: 7.5,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Tajawal',
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _suitSymbol(Suit s) {
+    switch (s) {
+      case Suit.hearts: return '♥';
+      case Suit.diamonds: return '♦';
+      case Suit.spades: return '♠';
+      case Suit.clubs: return '♣';
+    }
   }
 }
 
@@ -227,6 +575,10 @@ class PlayerAvatarRing extends StatefulWidget {
   final int? timerSecs;
   final int maxTimerSecs;
 
+  /// When false, the Jawaker-style name pill on the avatar is omitted (e.g. when
+  /// [_SeatPlayerInfoBox] shows name + mode below).
+  final bool showOverlayNameTag;
+
   const PlayerAvatarRing({
     super.key,
     required this.seatIndex,
@@ -238,6 +590,7 @@ class PlayerAvatarRing extends StatefulWidget {
     this.timerSecs,
     this.maxTimerSecs = 10,
     this.avatarDiameter = 46.0,
+    this.showOverlayNameTag = true,
   });
 
   @override
@@ -300,11 +653,11 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
       animation: _flickerCtrl,
       builder: (context, _) {
         final flicker = _flickerAnim.value;
-        // Stack: ring canvas + dark sphere + name tag overlapping bottom
+        final tagH = widget.showOverlayNameTag ? 16.0 : 0.0;
+        // Stack: ring canvas + dark sphere + optional name tag overlapping bottom
         return SizedBox(
           width: totalSz,
-          // Extra height for the name tag that overlaps bottom
-          height: totalSz + 16,
+          height: totalSz + tagH,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
@@ -333,22 +686,21 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
                 ),
               ),
 
-              // ── Name tag overlapping bottom of ring ─────────────
-              // Positioned so it sits at the bottom edge of the circle
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: _NameTag(
-                    name: widget.name,
-                    teamColor: widget.teamColor,
-                    isDealer: widget.isDealer,
-                    isBuyer: widget.isBuyer,
-                    compact: widget.avatarDiameter < 40,
+              if (widget.showOverlayNameTag)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _NameTag(
+                      name: widget.name,
+                      teamColor: widget.teamColor,
+                      isDealer: widget.isDealer,
+                      isBuyer: widget.isBuyer,
+                      compact: widget.avatarDiameter < 40,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         );
@@ -718,63 +1070,7 @@ class _MiniDealerChip extends StatelessWidget {
 
 // ══════════════════════════════════════════════════════════════════
 //  SPEECH BUBBLE
-// ══════════════════════════════════════════════════════════════════
 
-class _SpeechBubble extends StatelessWidget {
-  final PlayerBubble? bubble;
-  final Color teamColor;
-  final int maxLines;
-  final double fontSize;
-
-  const _SpeechBubble({
-    required this.bubble,
-    required this.teamColor,
-    this.maxLines = 2,
-    this.fontSize = 12,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      transitionBuilder: (child, anim) => ScaleTransition(
-          scale: anim, child: FadeTransition(opacity: anim, child: child)),
-      child: bubble == null
-          ? const SizedBox(key: ValueKey('empty'))
-          : LayoutBuilder(
-              key: ValueKey(bubble!.shownAt),
-              builder: (context, c) {
-                final maxW = c.maxWidth.isFinite ? c.maxWidth : 200.0;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 3),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  constraints: BoxConstraints(maxWidth: maxW),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.78),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: teamColor.withValues(alpha: 0.6), width: 1),
-                  ),
-                  child: Text(
-                    bubble!.text,
-                    maxLines: maxLines,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: teamColor,
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Tajawal',
-                      height: 1.2,
-                    ),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════
 //  TOP CARD FAN  (horizontal fan, seat 2)
@@ -787,9 +1083,9 @@ class _TopCardFan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const cardW       = 26.0;
-    const cardH       = 37.0;
-    const maxFanWidth = 130.0;
+    const cardW = 36.0;
+    final cardH = playingCardHeightForWidth(cardW);
+    const maxFanWidth = 162.0;
     final overlap = count > 1
         ? ((maxFanWidth - cardW) / (count - 1)).clamp(6.0, 14.0)
         : 0.0;
@@ -802,19 +1098,23 @@ class _TopCardFan extends StatelessWidget {
       child: Stack(
         alignment: Alignment.bottomLeft,
         clipBehavior: Clip.none,
-        children: List.generate(count, (i) {
-          final t = count > 1 ? i / (count - 1) : 0.5;
-          final angleRad = (t - 0.5) * maxAngle * pi / 180;
-          return Positioned(
-            left: i * overlap,
-            bottom: 0,
-            child: Transform.rotate(
-              angle: angleRad,
-              alignment: Alignment.bottomCenter,
-              child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
-            ),
-          );
-        }),
+        children: [
+          // ── Layer 1: Face-down card fan (on top) ──
+          ...List.generate(count, (i) {
+            final t = count > 1 ? i / (count - 1) : 0.5;
+            final angleRad = (t - 0.5) * maxAngle * pi / 180;
+            return Positioned(
+              left: i * overlap,
+              bottom: 0,
+              child: Transform.rotate(
+                angle: angleRad,
+                alignment: Alignment.bottomCenter,
+                filterQuality: FilterQuality.medium,
+                child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -831,10 +1131,9 @@ class _SideCardFan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const cardW  = 24.0;
-    const cardH  = 34.0;
-    final overlap =
-        count > 1 ? ((64.0 - cardW) / (count - 1)).clamp(4.0, 10.0) : 0.0;
+    const cardW = 32.0;
+    final cardH = playingCardHeightForWidth(cardW);
+    final overlap = count > 1 ? ((82.0 - cardW) / (count - 1)).clamp(4.0, 10.0) : 0.0;
     final fanWidth = cardW + (count - 1) * overlap;
     const maxAngle = 18.0;
 
@@ -844,19 +1143,23 @@ class _SideCardFan extends StatelessWidget {
       child: Stack(
         alignment: Alignment.bottomLeft,
         clipBehavior: Clip.none,
-        children: List.generate(count, (i) {
-          final t = count > 1 ? i / (count - 1) : 0.5;
-          final angleRad = (t - 0.5) * maxAngle * pi / 180;
-          return Positioned(
-            left: i * overlap,
-            bottom: 0,
-            child: Transform.rotate(
-              angle: angleRad,
-              alignment: Alignment.bottomCenter,
-              child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
-            ),
-          );
-        }),
+        children: [
+          // ── Layer 1: Face-down card fan (on top) ──
+          ...List.generate(count, (i) {
+            final t = count > 1 ? i / (count - 1) : 0.5;
+            final angleRad = (t - 0.5) * maxAngle * pi / 180;
+            return Positioned(
+              left: i * overlap,
+              bottom: 0,
+              child: Transform.rotate(
+                angle: angleRad,
+                alignment: Alignment.bottomCenter,
+                filterQuality: FilterQuality.medium,
+                child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -878,6 +1181,10 @@ class _FaceDownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = PlayingCard.backAssetPath(cardBackForSeat(seat));
     final r = BorderRadius.circular(3.0);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final oversample = width < 56 ? 1.2 : width < 72 ? 1.12 : 1.0;
+    final cacheW = (width * dpr * oversample).round().clamp(1, 8192);
+    final cacheH = (height * dpr * oversample).round().clamp(1, 8192);
     return Container(
       width: width,
       height: height,
@@ -898,6 +1205,9 @@ class _FaceDownCard extends StatelessWidget {
           width: width,
           height: height,
           fit: BoxFit.cover,
+          filterQuality: width < 72 ? FilterQuality.high : FilterQuality.medium,
+          cacheWidth: cacheW,
+          cacheHeight: cacheH,
           errorBuilder: (_, __, ___) => ColoredBox(
             color: cardBackForSeat(seat) == CardBack.red
                 ? const Color(0xFFB71C1C)
@@ -911,3 +1221,243 @@ class _FaceDownCard extends StatelessWidget {
     );
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// CHAT BUBBLE OVERLAY
+// ══════════════════════════════════════════════════════════════════
+
+class _ChatBubblePainter extends CustomPainter {
+  final bool tailOnLeft;
+  _ChatBubblePainter({required this.tailOnLeft});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const tailW = 14.0;
+    
+    final ovalPath = Path();
+    if (tailOnLeft) {
+      ovalPath.addOval(Rect.fromLTWH(tailW, 0, size.width - tailW, size.height));
+    } else {
+      ovalPath.addOval(Rect.fromLTWH(0, 0, size.width - tailW, size.height));
+    }
+
+    final tailPath = Path();
+    if (tailOnLeft) {
+      // Tail pointing to bottom-left 
+      tailPath.moveTo(size.width * 0.4, size.height * 0.5); // Upper base inside oval
+      tailPath.lineTo(0, size.height * 0.9); // Point
+      tailPath.lineTo(size.width * 0.4, size.height * 0.85); // Lower base inside oval
+      tailPath.close();
+    } else {
+      // Tail pointing to bottom-right
+      tailPath.moveTo(size.width * 0.6, size.height * 0.5);
+      tailPath.lineTo(size.width, size.height * 0.9);
+      tailPath.lineTo(size.width * 0.6, size.height * 0.85);
+      tailPath.close();
+    }
+
+    final combinedPath = Path.combine(PathOperation.union, ovalPath, tailPath);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFF1F1A17)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(combinedPath, fillPaint);
+
+    final borderPaint = Paint()
+      ..color = const Color(0xFFE4C267).withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    canvas.drawPath(combinedPath, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _SpeechBubbleOverlay extends StatelessWidget {
+  final PlayerBubble bubble;
+  final bool tailOnLeft;
+
+  const _SpeechBubbleOverlay({required this.bubble, required this.tailOnLeft});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (child, anim) => ScaleTransition(
+        scale: anim,
+        alignment: tailOnLeft ? Alignment.centerLeft : Alignment.centerRight,
+        child: FadeTransition(opacity: anim, child: child),
+      ),
+      child: CustomPaint(
+        key: ValueKey(bubble.shownAt),
+        painter: _ChatBubblePainter(tailOnLeft: tailOnLeft),
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: tailOnLeft ? 22 : 12,
+            right: tailOnLeft ? 12 : 22,
+            top: 10,
+            bottom: 10,
+          ),
+          child: Text(
+            bubble.text,
+            style: const TextStyle(
+              color: Color(0xFFE4C267),
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Tajawal',
+              height: 1.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PROJECT CARDS RADIAL FAN
+// ══════════════════════════════════════════════════════════════════
+
+class ProjectCardFanRadial extends StatefulWidget {
+  final List<CardModel> cards;
+  final SeatOrientation orientation;
+
+  const ProjectCardFanRadial({required this.cards, required this.orientation});
+
+  @override
+  State<ProjectCardFanRadial> createState() => _ProjectCardFanRadialState();
+}
+
+class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _controller.forward();
+    _startHideTimer();
+  }
+
+  void _startHideTimer() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) _controller.reverse();
+    });
+  }
+
+  @override
+  void didUpdateWidget(ProjectCardFanRadial oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cards.length != widget.cards.length && widget.cards.isNotEmpty) {
+      _controller.forward(from: 0.0);
+      _startHideTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cards.isEmpty) return const SizedBox();
+
+    final int n = widget.cards.length;
+    final bool isRight = widget.orientation == SeatOrientation.right;
+    final bool isLeft = widget.orientation == SeatOrientation.left;
+    final bool isTop = widget.orientation == SeatOrientation.top;
+
+    // Wide fan angle depending on how many cards are revealed
+    final totalSweep = (n - 1) * 20.0;
+    final startAngle = -totalSweep / 2;
+    const sweepRadius = 65.0; // Distance from avatar center
+
+    return SizedBox(
+      width: 1, // acts as a center anchor point for Stack
+      height: 1,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center, // This ensures non-positioned wrappers anchor to center
+        children: List.generate(n, (i) {
+          // Calculate destination angle and offset
+          final currentAngleDegrees = startAngle + (i * 20.0);
+          double angleRad = currentAngleDegrees * pi / 180;
+          double destX = 0;
+          double destY = 0;
+
+          if (isRight) {
+             final finalAngle = pi + angleRad;
+             destX = cos(finalAngle) * sweepRadius;
+             destY = sin(finalAngle) * sweepRadius;
+             angleRad = finalAngle - pi/2;
+          } else if (isLeft) {
+             final finalAngle = 0.0 + angleRad;
+             destX = cos(finalAngle) * sweepRadius;
+             destY = sin(finalAngle) * sweepRadius;
+             angleRad = finalAngle - pi/2;
+          } else if (isTop) {
+             // Sweep DOWNWARDS (towards table center)
+             final finalAngle = pi/2 + angleRad; 
+             destX = cos(finalAngle) * sweepRadius;
+             destY = sin(finalAngle) * sweepRadius;
+             angleRad = finalAngle - pi/2;
+          } else {
+             // Sweep UPWARDS (towards table center) for Bottom Seat
+             final finalAngle = -pi/2 + angleRad; 
+             destX = cos(finalAngle) * sweepRadius;
+             destY = sin(finalAngle) * sweepRadius;
+             angleRad = finalAngle - pi/2;
+          }
+
+          // Create a staggered animation curve for this specific card
+          final double delay = (i * 0.1).clamp(0.0, 0.5);
+          final Animation<double> cardAnim = CurvedAnimation(
+            parent: _controller,
+            curve: Interval(
+              delay,
+              (delay + 0.5).clamp(0.0, 1.0),
+              curve: Curves.easeOutBack,
+            ),
+          );
+
+          // We use AnimatedBuilder but bind explicit offset values without Transform
+          return AnimatedBuilder(
+            animation: cardAnim,
+            builder: (context, child) {
+              final val = cardAnim.value;
+              final sc = val.clamp(0.01, 1.0);
+              return Positioned(
+                left: destX * val - (36 / 2), // small card width is 36
+                top: destY * val - (52 / 2), // small card height is 52
+                child: Transform.scale(
+                  scale: sc,
+                  child: Transform.rotate(
+                    angle: angleRad,
+                    child: child,
+                  ),
+                ),
+              );
+            },
+            child: PlayingCard(
+              card: widget.cards[i],
+              size: (widget.orientation == SeatOrientation.bottom) 
+                  ? CardSize.medium 
+                  : CardSize.small,
+              faceUp: true,
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+

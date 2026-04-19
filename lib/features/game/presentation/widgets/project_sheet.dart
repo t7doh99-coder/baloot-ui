@@ -307,10 +307,9 @@ class _ProjectTile extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  PROJECT REVEAL BANNER — shown briefly at trick 2 start
-// ══════════════════════════════════════════════════════════════════
 
+// ── Keep old name as alias so existing import in game_table_screen.dart compiles ──
+// ignore: unused_element
 class ProjectRevealBanner extends StatelessWidget {
   final List<DeclaredProject> projects;
   final String Function(int seat) playerName;
@@ -322,94 +321,5 @@ class ProjectRevealBanner extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (projects.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A0F08).withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: const Color(0xFFD4AF37).withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Projects Revealed',
-              style: TextStyle(
-                color: Color(0xFFD4AF37),
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              )),
-          const SizedBox(height: 8),
-          ...projects.map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            playerName(p.playerIndex),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: p.playerIndex % 2 == 0
-                                  ? const Color(0xFF28802E)
-                                  : const Color(0xFFE63946),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _typeLabel(p.type),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    // Horizontal scroll avoids Row overflow on narrow widths.
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: p.cards
-                            .take(5)
-                            .map(
-                              (c) => Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: PlayingCard(
-                                  card: c,
-                                  size: CardSize.small,
-                                  faceUp: true,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-
-  static String _typeLabel(ProjectType type) {
-    switch (type) {
-      case ProjectType.sera:        return 'Sera';
-      case ProjectType.fifty:       return 'Fifty';
-      case ProjectType.hundred:     return 'Hundred';
-      case ProjectType.fourHundred: return '400';
-      case ProjectType.baloot:      return 'Baloot';
-    }
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

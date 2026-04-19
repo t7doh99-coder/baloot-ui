@@ -159,7 +159,9 @@ class _BuyerCardDisplayState extends State<_BuyerCardDisplay>
         opacity: _fade,
         child: ScaleTransition(
           scale: _scale,
-          child: Column(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Buyer label
@@ -198,6 +200,7 @@ class _BuyerCardDisplayState extends State<_BuyerCardDisplay>
               _PhasePill(phase: phase, game: game),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../game_provider.dart';
 
 /// Designer-style top HUD: square buttons + dual score pill (Them | Us).
@@ -28,43 +27,115 @@ class GameTableMajlisHud extends StatelessWidget {
 
     return Theme(
       data: Theme.of(context).copyWith(textTheme: textTheme),
-      child: Row(
-        children: [
-          _HudButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            onTap: onBack,
-          ),
-          const SizedBox(width: 6),
-          PopupMenuButton<int>(
+      child: SizedBox(
+        height: 50,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PopupMenuButton<int>(
             tooltip: '',
             padding: EdgeInsets.zero,
             offset: const Offset(0, 56),
-            color: Colors.transparent,
-            elevation: 0,
+            color: const Color(0xFF2D2D2D), // Exact game button charcoal
+            elevation: 10,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),   // sharp — attaches to button on left
+                topRight: Radius.circular(14),
+                bottomLeft: Radius.circular(14),
+                bottomRight: Radius.circular(14),
+              ),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 1,
+              ),
             ),
             onSelected: (value) {
+              if (value == 0) onBack();
               if (value == 1) onCycleWallpaper();
+              if (value == 2 && onTestMode != null) onTestMode!();
+              if (value == 77) game.triggerTestProjectReveal();
+              // value == 4 is Emote
             },
-            itemBuilder: (context) => [
-              PopupMenuItem<int>(
-                value: 1,
-                padding: EdgeInsets.zero,
-                child: _HudButton(
-                  icon: Icons.wallpaper_rounded,
-                  lightStyle: true,
-                  iconColor: const Color(0xFF747474),
+            itemBuilder: (context) {
+              const iconColor = Color(0xFFF2D08D); // game gold
+              const textStyle = TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800);
+              const divider = PopupMenuDivider(height: 1);
+
+              return [
+                PopupMenuItem<int>(
+                  value: 0,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.meeting_room_rounded, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    const Text('Leave', style: textStyle),
+                  ]),
                 ),
-              ),
-            ],
+                divider,
+                PopupMenuItem<int>(
+                  value: 1,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.wallpaper_rounded, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    const Text('Wallpaper', style: textStyle),
+                  ]),
+                ),
+                if (onTestMode != null) ...[
+                  divider,
+                  PopupMenuItem<int>(
+                    value: 2,
+                    height: 48,
+                    child: Row(children: [
+                      const Icon(Icons.science_rounded, color: iconColor, size: 18),
+                      const SizedBox(width: 12),
+                      const Text('Test Mode', style: textStyle),
+                    ]),
+                  ),
+                ],
+                divider,
+                PopupMenuItem<int>(
+                  value: 77,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.auto_awesome_motion_rounded, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    const Text('Test Project UI', style: textStyle),
+                  ]),
+                ),
+                divider,
+                PopupMenuItem<int>(
+                  value: 3,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.volume_up_rounded, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    const Text('Sound', style: textStyle),
+                  ]),
+                ),
+                divider,
+                PopupMenuItem<int>(
+                  value: 4,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.emoji_emotions_outlined, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    const Text('Emotes', style: textStyle),
+                  ]),
+                ),
+              ];
+            },
             child: const _HudButton(
-              icon: Icons.more_horiz_rounded,
-              label: 'More',
+              icon: Icons.menu_rounded,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
+          ),
+          SizedBox(
+            width: 150,
             child: _MajlisScoreHud(
               leftLabel: 'Them',
               leftScore: score.teamB,
@@ -72,30 +143,8 @@ class GameTableMajlisHud extends StatelessWidget {
               rightScore: score.teamA,
             ),
           ),
-          if (onTestMode != null) ...[
-            const SizedBox(width: 4),
-            TextButton(
-              onPressed: onTestMode,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: AppColors.goldAccent,
-              ),
-              child: const Text(
-                'Test',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 4),
-          const _HudButton(icon: Icons.volume_up_rounded, label: 'Sound'),
-          const SizedBox(width: 6),
-          const _HudButton(icon: Icons.emoji_emotions_outlined, label: 'Emote'),
         ],
+      ),
       ),
     );
   }
@@ -104,80 +153,42 @@ class GameTableMajlisHud extends StatelessWidget {
 class _HudButton extends StatelessWidget {
   const _HudButton({
     required this.icon,
-    this.label,
-    this.onTap,
-    this.lightStyle = false,
-    this.iconColor,
   });
 
   final IconData icon;
-  final String? label;
-  final VoidCallback? onTap;
-  final bool lightStyle;
-  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
-    final child = Container(
+    return Container(
       width: 50,
       height: 50,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        gradient: lightStyle
-            ? const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFF9F9F9), Color(0xFFECECEC)],
-              )
-            : const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF585858), Color(0xFF2D2D2D)],
-              ),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF585858), Color(0xFF2D2D2D)],
+        ),
         border: Border.all(
-          color: lightStyle
-              ? const Color(0xFFD3D3D3)
-              : Colors.white.withValues(alpha: 0.14),
+          color: Colors.white.withValues(alpha: 0.14),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: lightStyle ? 0.10 : 0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: iconColor ??
-                (lightStyle
-                    ? const Color(0xFF6F6F6F)
-                    : Colors.white.withValues(alpha: 0.95)),
-          ),
-          if (label != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              label!,
-              style: TextStyle(
-                color: lightStyle
-                    ? const Color(0xFF6F6F6F)
-                    : Colors.white.withValues(alpha: 0.86),
-                fontSize: 8,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
+      child: Icon(
+        icon,
+        size: 20,
+        color: Colors.white.withValues(alpha: 0.95),
       ),
     );
-
-    return onTap == null ? child : GestureDetector(onTap: onTap, child: child);
   }
 }
+
 
 class _MajlisScoreHud extends StatelessWidget {
   const _MajlisScoreHud({

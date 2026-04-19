@@ -2,13 +2,26 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../data/models/card_model.dart';
 
+/// PNG card art is **438×608**; use this ratio for logical sizes so faces/backs
+/// are not stretched and downscaling stays as sharp as possible.
+const double kPlayingCardAssetAspect = 438 / 608;
+
+/// Height for a given card [width] matching [kPlayingCardAssetAspect].
+double playingCardHeightForWidth(double width) => width / kPlayingCardAssetAspect;
+
 /// Card display sizes used throughout the game UI.
+///
+/// **small** / **medium** / **large** follow the asset aspect ratio (438:608).
+/// **hand** keeps the designer Majlis footprint (slightly taller than strict ratio).
 enum CardSize {
-  small(width: 36, height: 50),
-  medium(width: 56, height: 80),
-  large(width: 80, height: 114),
-  /// Majlis bottom hand — matches designer [`_CardFan`] `large` mode.
-  hand(width: 123.5, height: 163.4);
+  /// Mini panels, last-trick placeholder backs.
+  small(width: 42, height: 58),
+  /// Center trick / table play.
+  medium(width: 58, height: 81),
+  /// Deal animation and other hero card moments.
+  large(width: 84, height: 117),
+  /// Majlis bottom hand — matches designer [`_CardFan`] `large` mode (scaled down to fit 8 cards safely).
+  hand(width: 105.0, height: 139.0);
 
   final double width;
   final double height;
@@ -73,12 +86,12 @@ class PlayingCard extends StatelessWidget {
           (selected && !suppressSelectionOffset) ? -12 : 0,
           0,
         ),
-        child: _buildCardShell(),
+        child: _buildCardShell(context),
       ),
     );
   }
 
-  Widget _buildCardShell() {
+  Widget _buildCardShell(BuildContext context) {
     final radius = _radius;
     return Container(
       width: size.width,
@@ -103,22 +116,43 @@ class PlayingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: Opacity(
           opacity: dimmed ? 0.4 : 1.0,
-          child: _buildImage(),
+          child: _buildImage(context),
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
-    final path = faceUp && card != null
-        ? AppAssets.cardImage(card!)
-        : backAssetPath(back);
+  Widget _buildImage(BuildContext context) {
+    final showFace = faceUp && card != null;
+    final path =
+        showFace ? AppAssets.cardImage(card!) : backAssetPath(back);
+
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final int? cacheW;
+    final int? cacheH;
+    if (!showFace) {
+      // Slight oversample for small backs so rotation + lattice pattern stay cleaner.
+      final oversample = size.width < 56
+          ? 1.2
+          : size.width < 96
+              ? 1.1
+              : 1.0;
+      cacheW = (size.width * dpr * oversample).round().clamp(1, 8192);
+      cacheH = (size.height * dpr * oversample).round().clamp(1, 8192);
+    } else {
+      cacheW = null;
+      cacheH = null;
+    }
 
     return Image.asset(
       path,
       width: size.width,
       height: size.height,
-      fit: BoxFit.fill,
+      fit: showFace ? BoxFit.fill : BoxFit.cover,
+      filterQuality:
+          !showFace && size.width < 96 ? FilterQuality.high : FilterQuality.medium,
+      cacheWidth: cacheW,
+      cacheHeight: cacheH,
       // Show a placeholder card outline if image fails to load
       errorBuilder: (_, __, ___) => _errorPlaceholder(),
     );
@@ -142,11 +176,11 @@ class PlayingCard extends StatelessWidget {
   double get _radius {
     switch (size) {
       case CardSize.small:
-        return 4;
+        return 5;
       case CardSize.medium:
-        return 6;
+        return 7;
       case CardSize.large:
-        return 8;
+        return 9;
       case CardSize.hand:
         return 11;
     }

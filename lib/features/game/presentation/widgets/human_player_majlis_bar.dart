@@ -13,7 +13,6 @@ import '../game_provider.dart';
 const Color _kBarCharcoal = Color(0xFF2C2C2C);
 const Color _kNamePillBg = Color(0xFF232323);
 const Color _kGoldRing = Color(0xFFD4AF37);
-const Color _kIconTileBg = Color(0xFFE6E6E6);
 class HumanPlayerMajlisBar extends StatefulWidget {
   const HumanPlayerMajlisBar({super.key});
 
@@ -133,16 +132,6 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
               isActive: game.isHumanTurn,
               progress: progress,
               secondsText: game.isHumanTurn ? '${secs ?? 0}' : '—',
-            ),
-            const SizedBox(width: 8),
-            _BarIconButton(
-              icon: Icons.card_giftcard_rounded,
-              onTap: () {},
-            ),
-            const SizedBox(width: 6),
-            _BarIconButton(
-              icon: Icons.water_drop_outlined,
-              onTap: () {},
             ),
           ],
         ),
@@ -297,44 +286,3 @@ class _CountdownRing extends StatelessWidget {
   }
 }
 
-class _BarIconButton extends StatelessWidget {
-  const _BarIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
-        child: Ink(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: _kIconTileBg,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.65),
-              width: 0.6,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            size: 19,
-            color: const Color(0xFF5C5C5C),
-          ),
-        ),
-      ),
-    );
-  }
-}

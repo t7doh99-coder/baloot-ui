@@ -69,46 +69,56 @@ class EngineTrickEntry {
   final CardModel card;
 }
 
-/// Settled trick layout: horizontal arc + tilt matching designer [`_CardFan`]
-/// large horizontal curve (center lifted, outer cards lower; center on top in z-order).
-class _TrickTableFan {
-  _TrickTableFan._();
+/// Settled trick layout — matches designer [`_CenterTrickZone`]: each seat has a
+/// base offset + strong tilt; repeated plays from the same seat nudge (+1.6, −1.2)
+/// and angle +0.004. Z-order is **throw order** (first card bottom, last on top).
+class _CenterTrickLayout {
+  _CenterTrickLayout._();
 
-  static double _center(int n) => (n - 1) / 2.0;
+  static const Map<DesignerTrickSeat, Offset> _offsets = {
+    DesignerTrickSeat.top: Offset(0, -70),
+    DesignerTrickSeat.left: Offset(-34, -30),
+    DesignerTrickSeat.right: Offset(36, -29),
+    DesignerTrickSeat.bottom: Offset(0, 0),
+  };
 
-  static const double _horizontalStep = 50.0;
+  static const Map<DesignerTrickSeat, double> _angles = {
+    DesignerTrickSeat.right: 1.22173, // ~70°
+    DesignerTrickSeat.left: 1.91986, // ~110°
+    DesignerTrickSeat.bottom: 0.10472, // ~6°
+    DesignerTrickSeat.top: -0.10472, // ~−6°
+  };
 
-  /// Same vertical curve as `_CardFan` large: `-(1 - norm²) * 14`.
-  static Offset baseOffset(int globalIndex, int n) {
-    if (n <= 0) return Offset.zero;
-    final c = _center(n);
-    final dx = (globalIndex - c) * _horizontalStep;
-    final maxD = c <= 0 ? 1.0 : c;
-    final d = (globalIndex - c).abs();
-    final norm = (d / maxD).clamp(0.0, 1.0);
-    final dy = -(1.0 - norm * norm) * 14.0;
-    return Offset(dx, dy);
+  static int _seatPlayIndex(List<EngineTrickEntry> plays, int globalIndex) {
+    final seat = plays[globalIndex].seat;
+    var count = 0;
+    for (var i = 0; i <= globalIndex; i++) {
+      if (plays[i].seat == seat) {
+        if (i == globalIndex) return count;
+        count++;
+      }
+    }
+    return count;
   }
 
-  /// Rotation about vertical center (~15° at outer index for a 5-card trick).
-  static double baseAngle(int globalIndex, int n) {
-    if (n <= 0) return 0.0;
-    final c = _center(n);
-    return (globalIndex - c) * 0.13;
+  static Offset offsetFor(List<EngineTrickEntry> plays, int globalIndex) {
+    if (plays.isEmpty || globalIndex < 0 || globalIndex >= plays.length) {
+      return Offset.zero;
+    }
+    final seat = plays[globalIndex].seat;
+    final idx = _seatPlayIndex(plays, globalIndex);
+    final base = _offsets[seat] ?? Offset.zero;
+    return Offset(base.dx + idx * 1.6, base.dy - idx * 1.2);
   }
 
-  /// Paint order: farthest from center first, center last (center card on top).
-  static List<int> stackOrder(int n) {
-    final c = _center(n);
-    final indices = List.generate(n, (i) => i);
-    indices.sort((a, b) {
-      final da = (a - c).abs();
-      final db = (b - c).abs();
-      final cmp = db.compareTo(da);
-      if (cmp != 0) return cmp;
-      return a.compareTo(b);
-    });
-    return indices;
+  static double angleFor(List<EngineTrickEntry> plays, int globalIndex) {
+    if (plays.isEmpty || globalIndex < 0 || globalIndex >= plays.length) {
+      return 0.0;
+    }
+    final seat = plays[globalIndex].seat;
+    final idx = _seatPlayIndex(plays, globalIndex);
+    final base = _angles[seat] ?? 0.0;
+    return base + idx * 0.004;
   }
 }
 
@@ -222,13 +232,10 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
     DesignerTrickSeat.bottom: 0.0,
   };
   static const Map<DesignerTrickSeat, Offset> _winnerPileOffsets = {
-    DesignerTrickSeat.top: Offset(0, -180),
-    DesignerTrickSeat.left: Offset(-105, -10),
-    // BUGFIX: Right winner must target screen-right pile (positive dx). Was
-    // mistakenly same as left, so collect flew toward left opponent.
-    DesignerTrickSeat.right: Offset(105, -10),
-    // User winner pile sits under the bottom hand cards.
-    DesignerTrickSeat.bottom: Offset(0, 180),
+    DesignerTrickSeat.top: Offset(0, -100),    // Blue circle for Michael
+    DesignerTrickSeat.left: Offset(-65, 30),   // Blue circle for Dwight
+    DesignerTrickSeat.right: Offset(65, 30),   // Blue circle for Jim
+    DesignerTrickSeat.bottom: Offset(0, 150),  // Moved further down for You
   };
   Map<DesignerTrickSeat, AnimationController> _throwControllers = {};
   late final AnimationController _collectController;
@@ -345,7 +352,7 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
 
     // Top static card before incoming one is always previous global throw.
     final staticGlobalIndex = totalCount - 2;
-    final fan = _TrickTableFan.baseOffset(staticGlobalIndex, totalCount);
+    final fan = _CenterTrickLayout.offsetFor(widget.playedCardsInTrick, staticGlobalIndex);
     final impact =
         _tableImpactPoses[staticGlobalIndex] ?? const _StaticImpactPose();
     final staticDx = fan.dx + impact.dx;
@@ -376,11 +383,11 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
     };
     final settleT = Curves.easeOutCubic.transform(rawT);
 
-    final n = widget.playedCardsInTrick.length;
-    final fanTarget = _TrickTableFan.baseOffset(globalTargetIndex, n);
+    final plays = widget.playedCardsInTrick;
+    final fanTarget = _CenterTrickLayout.offsetFor(plays, globalTargetIndex);
     final targetDx = fanTarget.dx;
     final targetDy = fanTarget.dy;
-    final targetAngle = _TrickTableFan.baseAngle(globalTargetIndex, n);
+    final targetAngle = _CenterTrickLayout.angleFor(plays, globalTargetIndex);
 
     final start = _throwStartOffsets[seat] ?? Offset.zero;
     final startAngle = _throwStartAngles[seat] ?? 0.0;
@@ -516,12 +523,12 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
         widget.playedCardsInTrick.asMap().entries.map((entry) {
           final i = entry.key;
           final played = entry.value;
-          final n = widget.playedCardsInTrick.length;
-          final fan = _TrickTableFan.baseOffset(i, n);
+          final plays = widget.playedCardsInTrick;
+          final fan = _CenterTrickLayout.offsetFor(plays, i);
           final impact = _tableImpactPoses[i] ?? const _StaticImpactPose();
           final startDx = fan.dx + impact.dx;
           final startDy = fan.dy + impact.dy;
-          final startAngle = _TrickTableFan.baseAngle(i, n) + impact.angle;
+          final startAngle = _CenterTrickLayout.angleFor(plays, i) + impact.angle;
           return _CollectAnimEntry(
             card: played.card,
             index: i,
@@ -697,11 +704,11 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
               final settleT = Curves.easeOutCubic.transform(t);
 
               final gTarget = _globalIndexOfLastPlayForSeat(seat);
-              final n = widget.playedCardsInTrick.length;
-              final fanT = _TrickTableFan.baseOffset(gTarget, n);
+              final plays = widget.playedCardsInTrick;
+              final fanT = _CenterTrickLayout.offsetFor(plays, gTarget);
               final targetDx = fanT.dx;
               final targetDy = fanT.dy;
-              final targetAngle = _TrickTableFan.baseAngle(gTarget, n);
+              final targetAngle = _CenterTrickLayout.angleFor(plays, gTarget);
 
               final start = seat == DesignerTrickSeat.bottom
                   ? Offset(_bottomThrowStartDx, _throwStartOffsets[seat]?.dy ?? 270)
@@ -795,69 +802,7 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       }
     }
 
-    // Static trick: designer `_CardFan`-style arc; z-order so center sits on top.
-    if (!_isCollecting) {
-      final throwTick = Listenable.merge(_throwControllers.values.toList());
-      children.add(
-        AnimatedBuilder(
-          animation: throwTick,
-          builder: (context, _) {
-            final n = widget.playedCardsInTrick.length;
-            final seatSeenCounts = <DesignerTrickSeat, int>{
-              DesignerTrickSeat.left: 0,
-              DesignerTrickSeat.top: 0,
-              DesignerTrickSeat.right: 0,
-              DesignerTrickSeat.bottom: 0,
-            };
-            final byThrow = <int, Widget>{};
-            for (int throwIndex = 0; throwIndex < n; throwIndex++) {
-              final entry = widget.playedCardsInTrick[throwIndex];
-              final seat = entry.seat;
-              final seatCount = (seatSeenCounts[seat] ?? 0);
-              seatSeenCounts[seat] = seatCount + 1;
-              final seatTotal = seatEntriesMap[seat]?.length ?? 0;
-              final shouldHideLatest = hideLatestForSeat[seat] ?? false;
-              if (shouldHideLatest && seatCount == seatTotal - 1) {
-                continue;
-              }
-              final fan = _TrickTableFan.baseOffset(throwIndex, n);
-              final baseAngle = _TrickTableFan.baseAngle(throwIndex, n);
-              final impactPose =
-                  _tableImpactPoses[throwIndex] ?? const _StaticImpactPose();
-
-              byThrow[throwIndex] = TweenAnimationBuilder<double>(
-                key: ValueKey('table_pose_$throwIndex'),
-                tween: Tween<double>(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                builder: (context, t, _) {
-                  return _EngineTrickCardAt(
-                    card: entry.card,
-                    dx: fan.dx + (impactPose.dx * t),
-                    dy: fan.dy + (impactPose.dy * t),
-                    angle: baseAngle + (impactPose.angle * t),
-                  );
-                },
-              );
-            }
-            final order = _TrickTableFan.stackOrder(n);
-            final staticCards = <Widget>[
-              for (final i in order)
-                if (byThrow.containsKey(i)) byThrow[i]!,
-            ];
-            return Stack(
-              alignment: Alignment.center,
-              clipBehavior: Clip.none,
-              children: staticCards,
-            );
-          },
-        ),
-      );
-    }
-    // Keep in-flight thrown cards above static stack immediately.
-    children.addAll(animatedChildren);
-
-    // Won-trick piles (Majlis reference: fanned portrait stack + landscape cap).
+    // 1. Won-trick piles (Rendered first, so they stay UNDER the thrown cards)
     for (final seat in _allSeats) {
       final pileCount = widget.wonTrickPiles[seat] ?? 0;
       if (pileCount <= 0) continue;
@@ -870,6 +815,67 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
         angleHistory: angleHistory,
       ));
     }
+
+    // 2. Static trick on the table
+    if (!_isCollecting) {
+      final throwTick = Listenable.merge(_throwControllers.values.toList());
+      children.add(
+        AnimatedBuilder(
+          animation: throwTick,
+          builder: (context, _) {
+            final plays = widget.playedCardsInTrick;
+            final n = plays.length;
+            final seatSeenCounts = <DesignerTrickSeat, int>{
+              DesignerTrickSeat.left: 0,
+              DesignerTrickSeat.top: 0,
+              DesignerTrickSeat.right: 0,
+              DesignerTrickSeat.bottom: 0,
+            };
+            final staticCards = <Widget>[];
+            for (int throwIndex = 0; throwIndex < n; throwIndex++) {
+              final entry = plays[throwIndex];
+              final seat = entry.seat;
+              final seatCount = (seatSeenCounts[seat] ?? 0);
+              seatSeenCounts[seat] = seatCount + 1;
+              final seatTotal = seatEntriesMap[seat]?.length ?? 0;
+              final shouldHideLatest = hideLatestForSeat[seat] ?? false;
+              if (shouldHideLatest && seatCount == seatTotal - 1) {
+                continue;
+              }
+              final fan = _CenterTrickLayout.offsetFor(plays, throwIndex);
+              final baseAngle = _CenterTrickLayout.angleFor(plays, throwIndex);
+              final impactPose =
+                  _tableImpactPoses[throwIndex] ?? const _StaticImpactPose();
+
+              staticCards.add(
+                TweenAnimationBuilder<double>(
+                  key: ValueKey('table_pose_$throwIndex'),
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, t, _) {
+                    return _EngineTrickCardAt(
+                      card: entry.card,
+                      dx: fan.dx + (impactPose.dx * t),
+                      dy: fan.dy + (impactPose.dy * t),
+                      angle: baseAngle + (impactPose.angle * t),
+                    );
+                  },
+                ),
+              );
+            }
+            return Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: staticCards,
+            );
+          },
+        ),
+      );
+    }
+    
+    // 3. Keep in-flight thrown cards above static stack and won piles immediately.
+    children.addAll(animatedChildren);
 
     if (_isCollecting && _collectAnimEntries.isNotEmpty) {
       children.add(
@@ -900,8 +906,8 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
                 final angle = entry.startAngle * (1 - t) + collectSpin;
                 final scale = 1.0 - (0.74 * t);
                 final faceUp = t < 0.72;
-                final bw = 90.0 + (80.0 - 90.0) * t;
-                final bh = 160.0 + (120.0 - 160.0) * t;
+                final bw = 72.0 + (80.0 - 72.0) * t;
+                final bh = 100.0 + (120.0 - 100.0) * t;
                 return _EngineTrickCardAt(
                   card: entry.card,
                   dx: dx,
@@ -941,8 +947,8 @@ class _EngineTrickCardAt extends StatelessWidget {
     this.faceUp = true,
     this.faceDownBack = pc.CardBack.red,
     this.scale = 1.0,
-    this.baseWidth = 90.0,
-    this.baseHeight = 160.0,
+    this.baseWidth = 72.0,
+    this.baseHeight = 100.0,
   });
 
   final CardModel card;
@@ -969,8 +975,8 @@ class _EngineTrickCardAt extends StatelessWidget {
           child: FittedBox(
             fit: BoxFit.contain,
             child: SizedBox(
-              width: 56,
-              height: 80,
+              width: pc.CardSize.medium.width,
+              height: pc.CardSize.medium.height,
               child: pc.PlayingCard(
                 card: card,
                 size: pc.CardSize.medium,

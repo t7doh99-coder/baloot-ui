@@ -5,22 +5,39 @@ import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart';
 
+/// [pointerDragAnchorStrategy] pins the feedback’s **top-left** to the touch, so the
+/// card sits awkwardly beside the finger. This pins the **center** of the hand-sized
+/// feedback card to the fingertip instead.
+Offset _handCardCenterDragAnchor(
+  Draggable<Object> draggable,
+  BuildContext context,
+  Offset position,
+) {
+  return Offset(
+    CardSize.hand.width / 2,
+    CardSize.hand.height / 2,
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  HUMAN HAND WIDGET  (Seat 0 — bottom player)
 //
 //  Layout matches designer [`_BottomSeat`] + [`_CardFan`] `large`:
-//  • Card size 123.5 × 163.4, overlap from `_fitLargeOverlap`
+//  • Card size from [CardSize.hand], overlap from `_fitLargeOverlap`
 //  • Parabolic arc (center lifted), rotation 0.05 rad per step from center
 //  • Z-order: left → right (rightmost on top)
 //  • Selected: scale 1.18, extra lift (designer values)
-//  • Tap / swipe-up to play when interactive
+//  • Tap to play (valid) or select (invalid); drag valid card onto table to play;
+//    quick flick upward still plays if the drag is not accepted by a target
 // ══════════════════════════════════════════════════════════════════
 
 class HumanHandWidget extends StatelessWidget {
   const HumanHandWidget({super.key});
 
   /// Same as designer [`_BottomSeat.largeCardHeight`].
-  static const double _largeBandHeight = 172.0;
+  /// Room for hand arc, selection lift (−46), and drag feedback without
+  /// painting outside the band (avoids rare sub-pixel Column overflows).
+  static const double _largeBandHeight = 186.0;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +74,8 @@ class HumanHandWidget extends StatelessWidget {
                   selectedCard: selectedCard,
                   validCards: validCards,
                   interactive: isPlayPhase && isHumanTurn,
-                  availableWidth: screenW,
+                  // Reduce available width so rotated cards don't overhang screen edges
+                  availableWidth: screenW - 40,
                   onCardTap: (card) {
                     if (!isPlayPhase || !isHumanTurn) return;
                     if (validCards.contains(card)) {
@@ -101,8 +119,8 @@ class _DesignerHandFan extends StatelessWidget {
   final ValueChanged<CardModel> onCardTap;
   final ValueChanged<CardModel> onSwipePlay;
 
-  static const double _cardWidth = 123.5;
-  static const double _cardHeight = 163.4;
+  static double get _cardWidth => CardSize.hand.width;
+  static double get _cardHeight => CardSize.hand.height;
   static const double _largeRotation = 0.05;
   static const double _arcLift = 14.0;
 
@@ -118,7 +136,7 @@ class _DesignerHandFan extends StatelessWidget {
     final usableWidth =
         availableWidth.clamp(_cardWidth, double.infinity);
     final fittedOverlap = (usableWidth - _cardWidth) / (cardCount - 1);
-    return fittedOverlap.clamp(36.0, 64.0);
+    return fittedOverlap.clamp(28.0, 56.0);
   }
 
   @override
@@ -138,7 +156,6 @@ class _DesignerHandFan extends StatelessWidget {
         clipBehavior: Clip.none,
         children: List.generate(n, (index) {
           final offset = index * overlap;
-          var dragUpDistance = 0.0;
 
           final center = (n - 1) / 2;
           final distanceFromCenter = (index - center).abs();
@@ -152,57 +169,90 @@ class _DesignerHandFan extends StatelessWidget {
           // only use the parabolic arc.
           final isSelected = sel == index;
 
-          final isValid = !interactive || validCards.contains(cards[index]);
+          final cardModel = cards[index];
+          final isValid = !interactive || validCards.contains(cardModel);
 
-          final cardNode = Transform.translate(
-            offset: Offset(
-              0,
-              (isSelected ? -46.0 : 0.0) + largeArcLift,
-            ),
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: interactive
-                  ? () => onCardTap(cards[index])
-                  : null,
-              onPanStart: interactive
-                  ? (_) {
-                      dragUpDistance = 0;
-                    }
-                  : null,
-              onPanUpdate: interactive
-                  ? (details) {
-                      dragUpDistance += -details.delta.dy;
-                    }
-                  : null,
-              onPanEnd: interactive
-                  ? (details) {
-                      final isPlayableSwipe = details
-                                  .velocity.pixelsPerSecond.dy <
-                              -90 ||
-                          dragUpDistance > 26;
-                      if (isPlayableSwipe) {
-                        onSwipePlay(cards[index]);
-                      }
-                    }
-                  : null,
-              child: Transform.scale(
-                scale: isSelected ? 1.18 : 1.0,
-                alignment: Alignment.bottomCenter,
-                child: Transform.rotate(
-                  alignment: Alignment.bottomCenter,
-                  angle: (index - (n - 1) / 2) * _largeRotation,
-                  child: PlayingCard(
-                    card: cards[index],
-                    size: CardSize.hand,
-                    faceUp: true,
-                    selected: isSelected,
-                    suppressSelectionOffset: true,
-                    dimmed: !isValid,
-                    onTap: null,
-                  ),
-                ),
+          final cardFace = AnimatedScale(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            scale: isSelected ? 1.18 : 1.0,
+            alignment: Alignment.bottomCenter,
+            child: AnimatedRotation(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.bottomCenter,
+              turns: ((index - (n - 1) / 2) * _largeRotation) / (2 * 3.14159),
+              child: PlayingCard(
+                card: cardModel,
+                size: CardSize.hand,
+                faceUp: true,
+                selected: isSelected,
+                suppressSelectionOffset: true,
+                dimmed: !isValid,
+                onTap: null,
               ),
             ),
+          );
+
+          final tappable = GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: interactive ? () => onCardTap(cardModel) : null,
+            child: cardFace,
+          );
+
+          final draggableChild = (interactive && isValid)
+              ? Draggable<CardModel>(
+                  data: cardModel,
+                  maxSimultaneousDrags: 1,
+                  dragAnchorStrategy: _handCardCenterDragAnchor,
+                  // Upright feedback matches anchor math (center = half of hand size).
+                  feedback: Material(
+                    elevation: 10,
+                    shadowColor: Colors.black54,
+                    borderRadius: BorderRadius.circular(11),
+                    color: Colors.transparent,
+                    child: Opacity(
+                      opacity: 0.96,
+                      child: SizedBox(
+                        width: _cardWidth,
+                        height: _cardHeight,
+                        child: PlayingCard(
+                          card: cardModel,
+                          size: CardSize.hand,
+                          faceUp: true,
+                          selected: isSelected,
+                          suppressSelectionOffset: true,
+                          dimmed: false,
+                          onTap: null,
+                        ),
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.38,
+                    child: cardFace,
+                  ),
+                  onDragEnd: (details) {
+                    if (details.wasAccepted) return;
+                    final v = details.velocity;
+                    if (v.pixelsPerSecond.dy < -90 &&
+                        v.pixelsPerSecond.dy.abs() >=
+                            v.pixelsPerSecond.dx.abs()) {
+                      onSwipePlay(cardModel);
+                    }
+                  },
+                  child: tappable,
+                )
+              : tappable;
+
+          final cardNode = AnimatedSlide(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            offset: Offset(
+              0,
+              ((isSelected ? -46.0 : 0.0) + largeArcLift) / _cardHeight,
+            ),
+            child: draggableChild,
           );
 
           return AnimatedPositioned(

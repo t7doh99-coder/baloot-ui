@@ -398,6 +398,20 @@ class BalootGameController implements IBalootController {
     );
   }
 
+  void undeclareProject(int seatIndex, ProjectType type) {
+    if (_gamePhase != GamePhase.playing || _turnManager!.trickNumber > 1) {
+      return; // Silently ignore invalid un-declares
+    }
+
+    final toRemove = _activeDeclaredProjects.where((p) => p.playerIndex == seatIndex && p.type == type).toList();
+    if (toRemove.isNotEmpty) {
+      _activeDeclaredProjects.remove(toRemove.first);
+      _roundState = _roundState.copyWith(
+        declaredProjects: List.from(_activeDeclaredProjects),
+      );
+    }
+  }
+
   void _scoreRound() {
     _gamePhase = GamePhase.scoring;
 

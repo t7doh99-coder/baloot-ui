@@ -93,7 +93,7 @@ class GameProvider extends ChangeNotifier {
   final Random _rng;
 
   // ── Player names (seat 0 = human) — always initialised, safe before startGame() ──
-  static const List<String> _playerNames = ['You', 'Player 2', 'Partner', 'Player 4'];
+  static const List<String> _playerNames = ['You', 'Jim', 'Michael', 'Dwight'];
 
   // ── Turn timer ──
   Timer? _turnTimer;
@@ -279,7 +279,32 @@ class GameProvider extends ChangeNotifier {
           .toList();
 
   /// All declared projects in the current round (for reveal on trick 2).
-  List<DeclaredProject> get allDeclaredProjects => roundState.declaredProjects;
+  List<DeclaredProject> _testDeclaredProjects = [];
+  List<DeclaredProject> get allDeclaredProjects => _testDeclaredProjects.isNotEmpty 
+      ? _testDeclaredProjects 
+      : roundState.declaredProjects;
+
+  /// Trigger a fake project reveal for testing the UI animation.
+  void triggerTestProjectReveal() {
+    _testDeclaredProjects = [
+      DeclaredProject(
+        playerIndex: 2, // Partner's seat, to clearly see the avatar animation
+        type: ProjectType.sera,
+        cards: [
+          const CardModel(suit: Suit.spades, rank: Rank.seven),
+          const CardModel(suit: Suit.spades, rank: Rank.eight),
+          const CardModel(suit: Suit.spades, rank: Rank.nine),
+        ],
+      )
+    ];
+    notifyListeners();
+    
+    // Auto-clear after 4 seconds (approx time projects stay on screen)
+    Timer(const Duration(seconds: 4), () {
+      _testDeclaredProjects = [];
+      notifyListeners();
+    });
+  }
 
   /// Legally playable cards for the human player (seat 0).
   List<CardModel> get validCards => _engine.getValidCards(0);
@@ -413,6 +438,16 @@ class GameProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('[GameProvider] humanDeclareProject error: $e');
+    }
+  }
+
+  void humanUndeclareProject(ProjectType type) {
+    if (phase != GamePhase.playing || trickNumber > 1) return;
+    try {
+      _engine.undeclareProject(0, type);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[GameProvider] humanUndeclareProject error: $e');
     }
   }
 
@@ -551,7 +586,7 @@ class GameProvider extends ChangeNotifier {
       } else if (mode == GameMode.sun) {
         _showBubble(seat, 'Sun');
       } else {
-        _showBubble(seat, 'Hakam ✓');
+        _showBubble(seat, 'Hakam');
       }
     } else if (bp == BiddingPhase.hakamConfirmation) {
       // Third pass just entered confirmation; this seat was the passer
@@ -676,7 +711,7 @@ class GameProvider extends ChangeNotifier {
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.pass:         return 'Pass';
       case BidAction.sawa:         return 'Sawa';
-      case BidAction.confirmHakam: return 'Hakam ✓';
+      case BidAction.confirmHakam: return 'Hakam';
     }
   }
 
@@ -698,6 +733,46 @@ class GameProvider extends ChangeNotifier {
       case Suit.clubs:    return '♣';
       case null:          return '';
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  DEBUG / TEST
+  // ══════════════════════════════════════════════════════════════════
+
+  void testRevealProjects() {
+    _testDeclaredProjects = [
+      const DeclaredProject(
+        playerIndex: 1,
+        type: ProjectType.hundred,
+        cards: [
+          CardModel(suit: Suit.spades, rank: Rank.ten),
+          CardModel(suit: Suit.spades, rank: Rank.jack),
+          CardModel(suit: Suit.spades, rank: Rank.queen),
+          CardModel(suit: Suit.spades, rank: Rank.king),
+          CardModel(suit: Suit.spades, rank: Rank.ace),
+        ],
+      ),
+      const DeclaredProject(
+        playerIndex: 2,
+        type: ProjectType.sera,
+        cards: [
+          CardModel(suit: Suit.hearts, rank: Rank.ten),
+          CardModel(suit: Suit.hearts, rank: Rank.jack),
+          CardModel(suit: Suit.hearts, rank: Rank.queen),
+        ],
+      ),
+      const DeclaredProject(
+        playerIndex: 3,
+        type: ProjectType.fifty,
+        cards: [
+          CardModel(suit: Suit.diamonds, rank: Rank.seven),
+          CardModel(suit: Suit.diamonds, rank: Rank.eight),
+          CardModel(suit: Suit.diamonds, rank: Rank.nine),
+          CardModel(suit: Suit.diamonds, rank: Rank.ten),
+        ],
+      ),
+    ];
+    notifyListeners();
   }
 
   // ══════════════════════════════════════════════════════════════════

@@ -5,21 +5,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/locale_provider.dart';
+import '../../../data/models/card_model.dart';
 import '../../dashboard/presentation/navigation_shell.dart';
+import '../../game/presentation/widgets/playing_card.dart';
 
 // ─── Data ──────────────────────────────────────────────────────────
-class _CardData {
-  final String suit;
-  final String value;
-  final Color suitColor;
-  const _CardData(this.suit, this.value, this.suitColor);
-}
-
 const _cards = [
-  _CardData('♠', 'A', Colors.white),
-  _CardData('♥', 'K', Color(0xFFE53935)),
-  _CardData('♣', 'Q', Colors.white),
-  _CardData('♦', 'J', Color(0xFFE53935)),
+  CardModel(suit: Suit.spades, rank: Rank.ace),
+  CardModel(suit: Suit.hearts, rank: Rank.king),
+  CardModel(suit: Suit.clubs, rank: Rank.queen),
+  CardModel(suit: Suit.diamonds, rank: Rank.jack),
 ];
 
 // Vertical arc offsets for cards
@@ -322,76 +317,13 @@ class _SplashScreenState extends State<SplashScreen>
                 ..translate(xOffset, _cardY[index].value + yOffset)
                 ..rotateZ(rotation)
                 ..scale(_cardScale[index].value),
-              child: Container(
+              child: SizedBox(
                 width: 90,
                 height: 130,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.royalGold.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 20,
-                      offset: const Offset(0, 15),
-                    ),
-                    BoxShadow(
-                      color: AppColors.royalGold.withValues(alpha: 0.15),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(card.value, style: GoogleFonts.cairo(
-                            fontSize: 18, height: 1, color: card.suitColor,
-                            fontWeight: FontWeight.w700,
-                          )),
-                          Text(card.suit, style: TextStyle(
-                            fontSize: 14, height: 1, color: card.suitColor,
-                          )),
-                        ],
-                      ),
-                    ),
-                    Text(card.suit, style: TextStyle(
-                      fontSize: 32, height: 1,
-                      color: card.suitColor.withValues(alpha: 0.3),
-                    )),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Transform.rotate(
-                        angle: pi,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(card.value, style: GoogleFonts.cairo(
-                              fontSize: 18, height: 1, color: card.suitColor,
-                              fontWeight: FontWeight.w700,
-                            )),
-                            Text(card.suit, style: TextStyle(
-                              fontSize: 14, height: 1, color: card.suitColor,
-                            )),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                child: PlayingCard(
+                  card: card,
+                  size: CardSize.large,
+                  faceUp: true,
                 ),
               ),
             ),

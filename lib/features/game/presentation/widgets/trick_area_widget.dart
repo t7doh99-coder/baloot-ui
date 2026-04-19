@@ -157,7 +157,9 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
     return LayoutBuilder(builder: (ctx, box) {
       final areaW = box.maxWidth;
       final areaH = box.maxHeight;
-      final zone = (areaW < areaH ? areaW : areaH) * 0.92;
+      // Shave a couple px so labels + card stack never fractionally exceed parent.
+      final zone = (((areaW < areaH ? areaW : areaH) * 0.92) - 2.0)
+          .clamp(1.0, double.infinity);
 
       return Stack(
         clipBehavior: Clip.none,

@@ -131,6 +131,7 @@ class _NavigationShellState extends State<NavigationShell>
                   // ── Thin Top Bar: Avatar (left) + Currency (right) ──
                   _TopBar(
                     username: user.username,
+                    avatarUrl: user.avatarUrl,
                     coins: user.coinsFormatted,
                     gems: user.gemsFormatted,
                   ),
@@ -189,15 +190,17 @@ class _NavigationShellState extends State<NavigationShell>
 // ══════════════════════════════════════════════════════════════════
 
 class _TopBar extends StatelessWidget {
+  final String username;
+  final String? avatarUrl;
+  final String coins;
+  final String gems;
+
   const _TopBar({
     required this.username,
+    this.avatarUrl,
     required this.coins,
     required this.gems,
   });
-
-  final String username;
-  final String coins;
-  final String gems;
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +285,23 @@ class _TopBar extends StatelessWidget {
               border: Border.all(color: AppColors.royalGold, width: 1.5),
               color: const Color(0xFF2B3140),
             ),
-            child: const Icon(Icons.person, size: 26, color: Color(0xFFD6B146)),
+            child: ClipOval(
+              child: avatarUrl != null
+                  ? Image.asset(
+                      avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.person,
+                        size: 26,
+                        color: Color(0xFFD6B146),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.person,
+                      size: 26,
+                      color: Color(0xFFD6B146),
+                    ),
+            ),
           ),
           const SizedBox(width: 8),
           // ── Name + Rank ──

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../data/models/card_model.dart';
 import '../game_provider.dart';
-import 'playing_card.dart' show CardSize, PlayingCard, cardBackForSeat;
+import 'playing_card.dart'
+    show CardSize, PlayingCard, cardBackForSeat, playingCardHeightForWidth;
 
 /// Top-right mini panel: last completed trick in a + layout on the table
 /// background (no dark container). Generous insets so the four glyphs are not
@@ -18,10 +19,10 @@ class LastTrickMiniWidget extends StatelessWidget {
 
   /// Cross layout size (no outer “behind” box — cards sit on table background).
   /// Sized to fit [_cardH] × 2 + insets + gap without Stack overflow.
-  static const _crossSize = 128.0;
-  static const _cardW = 30.0;
-  /// Room for padding + rank/suit + font ascent/descent (avoids 1–2px RenderFlex overflow).
-  static const _cardH = 48.0;
+  static const _crossSize = 132.0;
+  static const _cardW = 34.0;
+  /// Matches [CardSize.small] aspect (438:608) for face-down backs in the cross.
+  static double get _cardH => playingCardHeightForWidth(_cardW);
   /// Inset from edges — more space between the four mini cards.
   static const _armInset = 12.0;
 
@@ -143,53 +144,58 @@ class _MiniGlyphCard extends StatelessWidget {
     final rank = _rankLabel(card.rank);
     final suit = _suitSymbol(card.suit);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF1A1A1A).withValues(alpha: 0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              rank,
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: const TextStyle(
-                color: Color(0xFF0D0D0D),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                height: 1.0,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              suit,
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: const TextStyle(
-                color: Color(0xFF0D0D0D),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                height: 1.0,
-              ),
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.center,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F8F8),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: const Color(0xFF1A1A1A).withValues(alpha: 0.12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 3,
+              offset: const Offset(0, 1),
             ),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                rank,
+                textHeightBehavior: const TextHeightBehavior(
+                  applyHeightToFirstAscent: false,
+                  applyHeightToLastDescent: false,
+                ),
+                style: const TextStyle(
+                  color: Color(0xFF0D0D0D),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                suit,
+                textHeightBehavior: const TextHeightBehavior(
+                  applyHeightToFirstAscent: false,
+                  applyHeightToLastDescent: false,
+                ),
+                style: const TextStyle(
+                  color: Color(0xFF0D0D0D),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
