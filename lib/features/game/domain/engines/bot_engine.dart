@@ -131,10 +131,11 @@ class BotEngine {
     Suit? trumpSuit,
     required DoubleStatus doubleStatus,
     required bool isOpenPlay,
-    required int seatIndex,
     required int trickNumber,
     required int teamAAbnat,
     required int teamBAbnat,
+    required int buyerIndex,
+    required int seatIndex,
   }) {
     final validCards = _validator.getValidCards(
       hand: hand,
@@ -157,6 +158,7 @@ class BotEngine {
         trumpSuit: trumpSuit,
         seatIndex: seatIndex,
         trickNumber: trickNumber,
+        buyerIndex: buyerIndex,
       );
     }
 
@@ -167,10 +169,10 @@ class BotEngine {
       mode: mode,
       trumpSuit: trumpSuit,
       seatIndex: seatIndex,
+      buyerIndex: buyerIndex,
     );
   }
 
-  /// Pick a card to lead the trick with.
   CardModel _decideLead({
     required List<CardModel> validCards,
     required List<CardModel> hand,
@@ -178,8 +180,26 @@ class BotEngine {
     Suit? trumpSuit,
     required int seatIndex,
     required int trickNumber,
+    required int buyerIndex,
   }) {
     if (mode == GameMode.hakam && trumpSuit != null) {
+      final isBuyerTeam = (seatIndex % 2) == (buyerIndex % 2);
+      final trumpCards = validCards.where((c) => c.suit == trumpSuit).toList();
+
+      // NEW STRATEGY (Visca ME): If we bought, lead high trumps early to draw them out.
+      if (isBuyerTeam && trumpCards.isNotEmpty && trickNumber <= 3) {
+        // Sort by strength descending (Jack, 9, Ace, ...)
+        trumpCards.sort((a, b) =>
+            b.getStrength(mode: mode, trumpSuit: trumpSuit)
+                .compareTo(a.getStrength(mode: mode, trumpSuit: trumpSuit)));
+        
+        final topTrump = trumpCards.first;
+        // If we have Jack or 9, lead it.
+        if (topTrump.rank == Rank.jack || topTrump.rank == Rank.nine) {
+          return topTrump;
+        }
+      }
+
       // In Hakam, lead with a strong non-trump Ace to collect points
       final nonTrumpAces = validCards
           .where((c) => c.suit != trumpSuit && c.rank == Rank.ace)
@@ -195,7 +215,6 @@ class BotEngine {
 
       // Late game: lead trump to draw out remaining trumps
       if (trickNumber >= 5) {
-        final trumpCards = validCards.where((c) => c.suit == trumpSuit).toList();
         if (trumpCards.isNotEmpty) {
           trumpCards.sort((a, b) =>
               b.getStrength(mode: mode, trumpSuit: trumpSuit)
@@ -239,7 +258,6 @@ class BotEngine {
     return _lowestValueCard(validCards, mode, trumpSuit);
   }
 
-  /// Pick a card when following (not leading).
   CardModel _decideFollow({
     required List<CardModel> validCards,
     required List<CardModel> hand,
@@ -247,6 +265,7 @@ class BotEngine {
     required GameMode mode,
     Suit? trumpSuit,
     required int seatIndex,
+    required int buyerIndex,
   }) {
     final leadSuit = currentTrick.first.card.suit;
     final partnerSeat = (seatIndex + 2) % 4;

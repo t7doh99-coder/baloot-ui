@@ -142,6 +142,7 @@ void main() {
         trickNumber: 1,
         teamAAbnat: 0,
         teamBAbnat: 0,
+        buyerIndex: 0,
       );
       expect(card.rank, Rank.ace);
       expect(card.suit, Suit.spades);
@@ -163,6 +164,7 @@ void main() {
         trickNumber: 1,
         teamAAbnat: 0,
         teamBAbnat: 0,
+        buyerIndex: 0,
       );
       expect(card.rank, Rank.ace);
     });
@@ -194,6 +196,7 @@ void main() {
         trickNumber: 2,
         teamAAbnat: 0,
         teamBAbnat: 0,
+        buyerIndex: 0,
       );
       expect(card.rank, Rank.seven);
     });
@@ -221,6 +224,7 @@ void main() {
         trickNumber: 2,
         teamAAbnat: 0,
         teamBAbnat: 0,
+        buyerIndex: 0,
       );
       expect(card.suit, Suit.hearts);
       expect(card.rank, Rank.seven);

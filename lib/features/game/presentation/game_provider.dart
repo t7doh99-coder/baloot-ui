@@ -10,6 +10,7 @@ import '../domain/engines/project_detector.dart';
 import '../domain/managers/turn_manager.dart' show TrickResult;
 import '../domain/engines/scoring_engine.dart' show RoundScoreResult;
 import '../domain/managers/bidding_manager.dart';
+import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
 
 // ══════════════════════════════════════════════════════════════════
 //  GAME PROVIDER — Presentation-layer ViewModel
@@ -121,9 +122,14 @@ class GameProvider extends ChangeNotifier {
   // ── Phase tracking for transition detection ──
   GamePhase _prevPhase = GamePhase.notStarted;
 
-  /// When true, after each scored round the UI shows the scoreboard and waits
-  /// for the player (no auto-advance to the next round). Home / preview flow.
-  bool _singleRoundMode = true;
+  bool _singleRoundMode = false;
+
+  // ── Qaid Violation notification (Kammelna-style banner) ──
+  String? _qaidViolationMessage;
+  int? _qaidViolationSeat;
+
+  // ── Project Reveal at Trick 2 ──
+  bool _showProjectReveal = false;
 
   // ── Currently selected card in hand (seat 0) ──
   CardModel? _selectedCard;
@@ -351,6 +357,25 @@ class GameProvider extends ChangeNotifier {
   /// Full trick history for won-pile counts / angles in the designer trick zone.
   List<TrickResult> get trickHistoryThisRound => _engine.trickHistoryThisRound;
 
+  /// Qaid (Violation) notification — null when clear.
+  String? get qaidViolationMessage => _qaidViolationMessage;
+  int? get qaidViolationSeat => _qaidViolationSeat;
+
+  /// Clear the Qaid notification (called after UI shows it).
+  void clearQaidViolation() {
+    _qaidViolationMessage = null;
+    _qaidViolationSeat = null;
+    notifyListeners();
+  }
+
+  /// Whether to show the Trick 2 project reveal overlay.
+  bool get showProjectReveal => _showProjectReveal;
+
+  void dismissProjectReveal() {
+    _showProjectReveal = false;
+    notifyListeners();
+  }
+
   /// Fan index / hand size for designer bottom throw (seat 0).
   int get lastHumanThrowCardIndex => _lastHumanThrowCardIndex;
   int get lastHumanThrowHandCount => _lastHumanThrowHandCount;
@@ -478,10 +503,25 @@ class GameProvider extends ChangeNotifier {
     }
     _cancelTimers();
     try {
+      final trickBefore = trickNumber;
       _engine.playCard(0, card);
       _selectedCard = null;
       HapticFeedback.mediumImpact();
+      // Trigger project reveal when the FIRST card of Trick 2 is played
+      if (trickBefore == 1 && trickNumber == 2 && allDeclaredProjects.isNotEmpty) {
+        _showProjectReveal = true;
+        Timer(const Duration(milliseconds: 4500), () {
+          _showProjectReveal = false;
+          notifyListeners();
+        });
+      }
       _afterEngineAction();
+    } on PlayViolationException catch (e) {
+      // Qaid (Violation) — show Kammelna-style banner
+      _qaidViolationMessage = e.message;
+      _qaidViolationSeat = 0;
+      HapticFeedback.heavyImpact();
+      notifyListeners();
     } catch (e) {
       debugPrint('[GameProvider] humanPlayCard error: $e');
     }
@@ -512,6 +552,8 @@ class GameProvider extends ChangeNotifier {
   //  INTERNAL: schedule bot actions and timer
   // ══════════════════════════════════════════════════════════════════
 
+  bool _isWaitingForScoreboard = false;
+
   /// Close the round scoreboard early (same as waiting for the auto timer).
   void dismissRoundScoreOverlay() {
     _botTimer?.cancel();
@@ -538,7 +580,12 @@ class GameProvider extends ChangeNotifier {
         (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
 
     if (roundJustScored) {
-      _captureLastRoundResult();
+      _isWaitingForScoreboard = true;
+      _botTimer = Timer(const Duration(milliseconds: 4000), () {
+        _isWaitingForScoreboard = false;
+        _captureLastRoundResult();
+        notifyListeners();
+      });
       HapticFeedback.heavyImpact();
     } else {
       _lastRoundResult = null; // clear stale result from previous round
@@ -552,7 +599,10 @@ class GameProvider extends ChangeNotifier {
   void _scheduleNextAction() {
     _cancelTimers();
 
-    if (_engine.isGameOver) return;
+    if (_engine.isGameOver) {
+      if (_isWaitingForScoreboard) return;
+      return;
+    }
 
     final p = _engine.gamePhase;
 
@@ -562,13 +612,14 @@ class GameProvider extends ChangeNotifier {
     // If _lastRoundResult is null, this is the very first deal → advance
     // quickly after a short animation pause.
     if (p == GamePhase.dealing) {
+      if (_isWaitingForScoreboard) return;
+      
       // After a full round, show scoreboard until the player chooses (preview flow).
-      if (_lastRoundResult != null && _singleRoundMode) {
-        return;
+      if (_lastRoundResult != null) {
+        return; // Now waiting for player to manually press 'Continue'
       }
-      final delay = _lastRoundResult != null
-          ? const Duration(milliseconds: 3500) // score overlay display time
-          : const Duration(milliseconds: 900); // initial deal animation
+      
+      final delay = const Duration(milliseconds: 900); // initial deal animation
       _botTimer = Timer(delay, () {
         _lastRoundResult = null;
         _engine.startNewRound();
@@ -582,6 +633,7 @@ class GameProvider extends ChangeNotifier {
     // The engine no longer stays in 'scoring' — handled above.
     // Keep this guard for safety:
     if (p == GamePhase.scoring) {
+      if (_isWaitingForScoreboard) return;
       _botTimer = Timer(const Duration(milliseconds: 3500), () {
         _lastRoundResult = null;
         _engine.startNewRound();
@@ -591,8 +643,6 @@ class GameProvider extends ChangeNotifier {
       });
       return;
     }
-
-    if (p == GamePhase.gameOver) return;
 
     final currentSeat = roundState.currentPlayerIndex;
 
@@ -616,6 +666,7 @@ class GameProvider extends ChangeNotifier {
     if (current != seat) return;
 
     final phaseBefore = _engine.gamePhase;
+    final trickBefore = trickNumber;
 
     try {
       _engine.botPlay(seat);
@@ -625,6 +676,18 @@ class GameProvider extends ChangeNotifier {
         _inferBotBidBubble(seat);
       } else if (phaseBefore == GamePhase.doubleWindow) {
         _inferBotDoubleBubble(seat);
+      }
+
+      // Trigger project reveal when first card of Trick 2 is played (by bot or human)
+      if (phaseBefore == GamePhase.playing &&
+          trickBefore == 1 &&
+          trickNumber == 2 &&
+          allDeclaredProjects.isNotEmpty) {
+        _showProjectReveal = true;
+        Timer(const Duration(milliseconds: 4500), () {
+          _showProjectReveal = false;
+          notifyListeners();
+        });
       }
 
       _afterEngineAction();

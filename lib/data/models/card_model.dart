@@ -46,6 +46,25 @@ class CardModel {
   @override
   int get hashCode => Object.hash(suit, rank);
 
+  /// Sorts cards by Suit (Spades, Hearts, Clubs, Diamonds) and then by Rank descending.
+  int compareTo(CardModel other) {
+    // Suit sorting order (alternating colors for Kamelna clarity): Spades, Hearts, Clubs, Diamonds
+    const suitOrder = {
+      Suit.spades: 0,
+      Suit.hearts: 1,
+      Suit.clubs: 2,
+      Suit.diamonds: 3,
+    };
+    
+    int suitCmp = suitOrder[suit]!.compareTo(suitOrder[other.suit]!);
+    if (suitCmp != 0) return suitCmp;
+
+    // Rank order for projects: Ace (highest) to 7 (lowest)
+    // Rank enum is ordered 7, 8, 9, 10, J, Q, K, A.
+    // So descending index gives A, K, Q, J, 10, 9, 8, 7.
+    return other.rank.index.compareTo(rank.index);
+  }
+
   // ── Lookup tables (from BALOOT_RULES.md Section 3) ──
 
   static const _standardPoints = {

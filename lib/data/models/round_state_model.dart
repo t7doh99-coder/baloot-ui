@@ -40,33 +40,39 @@ class DeclaredProject {
     required this.cards,
   });
 
-  /// Abnat value of this project given the current game mode.
+  /// Abnat value of this project (same in both modes per Jawaker/Kammelna).
+  /// The Abnat→Scoreboard conversion formula (Sun: ×2/10, Hakam: /10)
+  /// automatically produces the correct mode-specific scoreboard points.
   int getAbnat(GameMode mode) {
     switch (type) {
       case ProjectType.sera:
-        return mode == GameMode.hakam ? 20 : 4;
+        return 20; // Both modes: 20 Abnat
       case ProjectType.fifty:
-        return mode == GameMode.hakam ? 50 : 10;
+        return 50; // Both modes: 50 Abnat
       case ProjectType.hundred:
-        return 100; // Hakam only
+        return 100; // Both modes: 100 Abnat
       case ProjectType.fourHundred:
-        return 40; // Sun only
+        return 200; // Sun only: 200 Abnat → round(200/10)*2 = 40 scoreboard pts
       case ProjectType.baloot:
         return 0; // Baloot is scoreboard pts, not Abnat
     }
   }
 
-  /// Scoreboard points (before any double multiplier).
+  /// Scoreboard points (used directly in doubled rounds, bypassing Abnat conversion).
+  /// Per BALOOT_RULES.md & Jawaker/Kammelna:
+  ///   Sera:  Sun=4, Hakam=2  |  Fifty: Sun=10, Hakam=5
+  ///   100:   Sun=20, Hakam=10 |  400:   Sun=40 (Sun only)
+  ///   Baloot: always 2 (immune to doubling)
   int getScoreboardPoints(GameMode mode) {
     switch (type) {
       case ProjectType.sera:
-        return mode == GameMode.hakam ? 2 : 1;
+        return mode == GameMode.sun ? 4 : 2;
       case ProjectType.fifty:
-        return mode == GameMode.hakam ? 5 : 2;
+        return mode == GameMode.sun ? 10 : 5;
       case ProjectType.hundred:
-        return 10;
+        return mode == GameMode.sun ? 20 : 10;
       case ProjectType.fourHundred:
-        return 8;
+        return 40; // Sun only
       case ProjectType.baloot:
         return 2; // Always 2, immune to doubling
     }
@@ -92,7 +98,7 @@ class DeclaredProject {
   int get highestCardStrength {
     if (cards.isEmpty) return 0;
     return cards
-        .map((c) => c.getStrength(mode: GameMode.sun))
+        .map((c) => c.rank.index)
         .reduce((a, b) => a > b ? a : b);
   }
 }

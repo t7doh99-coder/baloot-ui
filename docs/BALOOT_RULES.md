@@ -36,7 +36,7 @@
 | Dealing Order  | Counter-Clockwise at table (= clockwise on screen; to each player's RIGHT) |
 | Hand Size      | 8 cards per player (after full distribution)|
 | Teams          | Team A: Seats 0 & 2 / Team B: Seats 1 & 3  |
-| Game End       | First team to reach **152 points** OR Gahwa win |
+| Game End       | First team to reach **152 points** OR Gahwa win. *(Note: Custom non-standard lobbies may target 300 or 330 points)* |
 
 ---
 
@@ -166,8 +166,9 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 
 ## 5. Rules of Play
 
-### 5.0 First Trick Leader (Jawaker/Kamelna — VERIFIED)
-The **buyer** (player who won the bidding) leads the first trick.
+### 5.0 First Trick Leader (Kammelna Standard)
+The player sitting to the **RIGHT of the dealer** leads the first trick in the round, regardless of who bought the bid. 
+*(Note: If your previous developer said the "Buyer" leads, that is mathematically incorrect for Kammelna/Saudi rules).*
 
 ### 5.1 Mandatory Rules (Both Modes)
 1. **Follow Suit:** Player MUST play the leading suit if they hold it.
@@ -182,6 +183,7 @@ The **buyer** (player who won the bidding) leads the first trick.
 - **Sun / Non-trump play:** Highest card of the **leading suit** wins.
 - **Hakam (trump in play):** Highest Trump card wins.
 - **Last Trick:** +10 Abnat bonus to the winning team.
+- **Next Turn (Important Terminology):** The player who wins the current **Trick** immediately plays the first card of the *next* Trick. (Note: Only at the start of a completely new 8-trick **Round** does the turn reset to the person to the right of the Dealer).
 
 ---
 
@@ -199,15 +201,15 @@ The **buyer** (player who won the bidding) leads the first trick.
 
 > [!IMPORTANT] **Project Abnat values DIFFER between Sun and Hakam modes!**
 
-| Project        | Arabic     | Sun Abnat | Hakam Abnat | Sun Scoreboard Pts | Hakam Scoreboard Pts | Availability   | Requirement |
-|----------------|------------|-----------|-------------|------|------|---------------|-------------|
-| Sera           | سرا        | **4**     | **20**      | ~1   | 2    | Both modes    | 3 consecutive cards, same suit |
-| Fifty (50)     | خمسين      | **10**    | **50**      | ~2   | 5    | Both modes    | 4 consecutive cards, same suit |
-| Hundred (100)  | مية        | **20**    | **100**     | ~4   | 10   | ⚠️ Hakam ONLY | 5 consecutive; OR 4×(10/J/Q/K same suit); OR 4 Aces |
-| Four Hundred   | أربعمئة   | **40**    | N/A         | ~8   | —    | ⚠️ Sun ONLY  | 4 Aces |
-| Baloot         | بلوت       | N/A       | N/A         | —    | **Always 2** 🔒 | Hakam ONLY | K + Q of Trump (auto, immune to doubling) |
+| Project        | Arabic     | Sun Scoreboard Pts | Hakam Scoreboard Pts | Availability   | Requirement |
+|----------------|------------|------|------|---------------|-------------|
+| Sera           | سرا        | **4** | **2** | Both modes    | 3 consecutive cards, same suit |
+| Fifty (50)     | خمسين      | **10** | **5** | Both modes    | 4 consecutive cards, same suit |
+| Hundred (100)  | مية        | **20** | **10** | Both modes ⚠️ | 5 consecutive; OR 4×(10/J/Q/K) |
+| Four Hundred   | أربعمئة   | **40** | —    | ⚠️ Sun ONLY  | 4 Aces |
+| Baloot         | بلوت       | —    | **2** 🔒 | Hakam ONLY | K + Q of Trump (auto, immune to doubling) |
 
-> [!IMPORTANT] **Mia (100) Correction:** Requires 5 consecutive same-suit cards OR four 10/J/Q/K of same suit OR four Aces. (Previously only had 5-consecutive in our doc.)
+> [!IMPORTANT] **Mia (100) Correction:** Requires 5 consecutive same-suit cards OR four 10/J/Q/K of same suit. Note: 100 IS available in Sun mode! Four Aces in Sun automatically upgrades to 400.
 
 ### 6.3 Project Priority Logic
 - Both teams compare their highest project.
@@ -251,17 +253,17 @@ The double escalation **alternates between teams**:
 > The Double window is open only **BEFORE the first card of the round is played**.
 > Once the lead player plays their first card, the Double option is permanently closed for that round.
 
-### 7.3 Double Values (Base Round Reward — 16 × multiplier)
+### 7.3 Double Values (Base Round Reward)
 
-| Action   | Base Scoreboard Points | Formula |
-|----------|------------------------|--------|
-| Double   | **32** pts             | 16 × 2 |
-| Triple   | **48** pts             | 16 × 3 |
-| Four     | **64** pts             | 16 × 4 |
-| Gahwa    | Instant Game Win       | — |
+| Action   | Hakam Base Pts | Sun Base Pts | Formula |
+|----------|----------------|--------------|--------|
+| Double   | **32**         | **52**       | Base (16 or 26) × 2 |
+| Triple   | **48**         | —            | 16 × 3 |
+| Four     | **64**         | —            | 16 × 4 |
+| Gahwa    | Game Win       | —            | Instant |
 
 > [!IMPORTANT] **Double = BASE reward only.** Final score = Base Value + Project Scoreboard Points.
-> Abnat determines WHO wins. It does NOT directly set the final score number.
+> Note: In Sun mode, escalation beyond 'Double' is strictly prohibited.
 
 ### 7.3 Open vs Closed Play (Jawaker Official — New)
 When a Double is active, the game must declare Open or Closed:
@@ -416,6 +418,36 @@ All previously open questions have been resolved from client meeting video recor
 | 5 | Game End Target | **152 scoreboard points OR Gahwa** | video 13-23-47.mp4 @ 03:09 |
 
 ---
-*Document Version: 3.0 — FINAL*
-*Sources: Jawaker Official Rules + Client (Visca ME) + Meeting Videos (April 2026)*
+
+## 14. Kammelna Edge-Cases (Phase 2 Programming Logic)
+
+To ensure the game engine handles edge cases identically to professional GCC tournament standards (matching **Kammelna**), the following strict rules must be programmed:
+
+### 14.1 Project Tie-Breakers & Overlaps
+- **Rank Ties:** If both teams hold a project of equal rank (e.g., both hold A-K-Q), the Hakam/Trump sequence always wins. If neither is Trump (or in Sun), the tie is broken by **Turn Order** (the player whose turn is closest to the first leader wins).
+- **Overlaps:** A single card **cannot** be double-dipped into two sequence projects. The engine must only permit declaring the highest valid sequence. Cards in a sequence, however, **can** be reused to declare a "Baloot" pair.
+
+### 14.2 The "Empty Bidding" Loop
+- If all four players Pass during Round 1, and again all four Pass during Round 2, the current distribution is scrapped. **No points are awarded**, and the Dealer role permanently passes to the right for a completely fresh hand.
+
+### 14.3 Game-End Exact Ties
+- The game triggers the end phase when a team crosses 152 points.
+- If both teams cross 152 points in the same round, the team with the higher score wins (e.g., 158 over 154).
+- If the final score is an **exact tie (e.g., 154-154)**, there are no draws. The game is extended to a **Sudden-Death Tie-Breaker Round**.
+
+### 14.4 Khams (Sweep) Project Stealing
+- If a Buyer declares projects but still suffers a Khams loss, the Defending Team is awarded the Khams base points (26/16) **AND steals the Buyer's project points**.
+- *Exception:* The "Baloot" (K+Q) declaration points cannot be stolen.
+
+### 14.5 Qaid (Violation) Penalties
+- Kammelna allows manual Qaid ("Flag") UI clicking.
+- Committing a genuine Qaid instantly loses the round. The opposing (winning) team is awarded the **Kabout score (44 Sun / 25 Hakam)** + their active project points.
+- If a player falsely claims a Qaid, the *accuser* loses the round and suffers the exact same Kabout score penalty.
+
+### 14.6 Defensive Kabout
+- If the Defending team successfully wins all 8 tricks, it overrides the standard Khams. They are awarded the massive base **Kabout points (44 Sun / 25 Hakam)** instead of the usual 26/16 sweep points.
+
+---
+*Document Version: 4.0 — FINAL (Kammelna Integration)*
+*Sources: Kammelna Edge-Cases + Jawaker Official Rules + Client (Visca ME) + Meeting Videos (April 2026)*
 *Status: ✅ COMPLETE — Ready for Phase 2.1 Engine Implementation*

@@ -110,8 +110,8 @@ class ProjectDetector {
       final runs = _findConsecutiveRuns(suitCards);
 
       for (final run in runs) {
-        if (run.length >= 5 && mode == GameMode.hakam) {
-          // 100 (5-consecutive, Hakam only)
+        if (run.length >= 5) {
+          // 100 (5-consecutive) — available in BOTH modes per Jawaker/Kammelna
           final highest = run.last.getStrength(mode: GameMode.sun);
           projects.add(DetectedProject(
             type: ProjectType.hundred,
@@ -190,23 +190,21 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/J/Q/K) of same suit → 100 (Hakam only)
-    if (mode == GameMode.hakam) {
-      final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
-      for (final suit in Suit.values) {
-        final courtCards = hand.where(
-          (c) => c.suit == suit && courtRanks.contains(c.rank),
-        ).toList();
-        if (courtCards.length == 4) {
-          final highest = courtCards
-              .map((c) => c.getStrength(mode: GameMode.sun))
-              .reduce((a, b) => a > b ? a : b);
-          projects.add(DetectedProject(
-            type: ProjectType.hundred,
-            cards: courtCards,
-            highestStrength: highest,
-          ));
-        }
+    // 4×(10/J/Q/K) of same suit → 100 (both modes per Jawaker/Kammelna)
+    final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
+    for (final suit in Suit.values) {
+      final courtCards = hand.where(
+        (c) => c.suit == suit && courtRanks.contains(c.rank),
+      ).toList();
+      if (courtCards.length == 4) {
+        final highest = courtCards
+            .map((c) => c.getStrength(mode: GameMode.sun))
+            .reduce((a, b) => a > b ? a : b);
+        projects.add(DetectedProject(
+          type: ProjectType.hundred,
+          cards: courtCards,
+          highestStrength: highest,
+        ));
       }
     }
 

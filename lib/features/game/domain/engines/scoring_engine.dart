@@ -272,15 +272,20 @@ class ScoringEngine {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
 
-    // Khams gives a fixed score. Project scoreboard pts are added separately
-    // because the Abnat-to-scoreboard conversion is bypassed.
+    // Project Stealing (BALOOT_RULES.md Section 14.4):
+    // In a Khams loss, the defender team steals all project points (except Baloot).
     int aBonus = 0, bBonus = 0;
     if (projectWinningTeam != null) {
       final multiplier = _projectMultiplier(doubleStatus);
-      if (projectWinningTeam == 'A') {
-        aBonus = teamAProjectScoreboard * multiplier;
+      final totalProjectPts = (projectWinningTeam == 'A'
+              ? teamAProjectScoreboard
+              : teamBProjectScoreboard) *
+          multiplier;
+
+      if (defenderTeam == 'A') {
+        aBonus = totalProjectPts;
       } else {
-        bBonus = teamBProjectScoreboard * multiplier;
+        bBonus = totalProjectPts;
       }
     }
 
@@ -407,19 +412,28 @@ class ScoringEngine {
 
   bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (lastDouble == DoubleStatus.gahwa) return true;
-    return teamATotal >= 152 || teamBTotal >= 152;
+    
+    final reachedTarget = teamATotal >= 152 || teamBTotal >= 152;
+    if (!reachedTarget) return false;
+
+    // Sudden-Death Tie-Breaker (BALOOT_RULES.md Section 14.3):
+    // If exact tie above 152, game continues.
+    if (teamATotal == teamBTotal) return false;
+
+    return true;
   }
 
   String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
+
     if (lastDouble == DoubleStatus.gahwa) {
-      return null; // caller must determine
+      // Caller must determine Gahwa winner based on who called it and if they won
+      return null;
     }
-    if (teamATotal >= 152 && teamBTotal >= 152) {
-      return teamATotal >= teamBTotal ? 'A' : 'B';
-    }
-    if (teamATotal >= 152) return 'A';
-    if (teamBTotal >= 152) return 'B';
-    return null;
+
+    if (teamATotal > teamBTotal) return 'A';
+    if (teamBTotal > teamATotal) return 'B';
+
+    return null; // Should be unreachable due to isGameOver tie-check
   }
 }

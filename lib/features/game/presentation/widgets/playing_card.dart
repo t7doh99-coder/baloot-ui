@@ -153,7 +153,7 @@ class PlayingCard extends StatelessWidget {
       cacheH = null;
     }
 
-    return Image.asset(
+    Widget imageWidget = Image.asset(
       path,
       width: _w,
       height: _h,
@@ -165,6 +165,10 @@ class PlayingCard extends StatelessWidget {
       // Show a placeholder card outline if image fails to load
       errorBuilder: (_, __, ___) => _errorPlaceholder(),
     );
+
+
+
+    return imageWidget;
   }
 
   Widget _errorPlaceholder() {

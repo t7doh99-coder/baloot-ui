@@ -117,6 +117,8 @@ class BalootGameController implements IBalootController {
     _deckManager.dealInitial(_dealerIndex);
 
     _hands = _deckManager.hands.map((h) => List<CardModel>.from(h)).toList();
+    // Sort human hand (seat 0)
+    _hands[0].sort((a, b) => a.compareTo(b));
 
     _roundState = RoundStateModel(
       dealerIndex: _dealerIndex,
@@ -172,6 +174,8 @@ class BalootGameController implements IBalootController {
         isAshkal: bidResult.isAshkal,
       );
       _hands = _deckManager.hands.map((h) => List<CardModel>.from(h)).toList();
+      // Sort human hand again
+      _hands[0].sort((a, b) => a.compareTo(b));
 
       // Detect projects in all hands
       for (int i = 0; i < 4; i++) {
@@ -303,8 +307,8 @@ class BalootGameController implements IBalootController {
   }
 
   void _startPlayPhase() {
-    // Jawaker/Kamelna: the buyer leads the first trick.
-    final firstPlayer = _roundState.buyerIndex!;
+    // Kammelna/Saudi rules: the player to the RIGHT of the dealer leads trick 1.
+    final firstPlayer = (_dealerIndex + 1) % 4;
     _turnManager = TurnManager(
       mode: _roundState.activeMode!,
       trumpSuit: _roundState.trumpSuit,
@@ -603,6 +607,7 @@ class BalootGameController implements IBalootController {
           trickNumber: _turnManager!.trickNumber,
           teamAAbnat: _turnManager!.teamAAbnat,
           teamBAbnat: _turnManager!.teamBAbnat,
+          buyerIndex: _roundState.buyerIndex ?? -1,
         );
         playCard(seatIndex, card);
 

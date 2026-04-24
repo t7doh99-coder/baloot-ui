@@ -131,7 +131,8 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
           _flashCtrl.forward(from: 0).then((_) => _flashCtrl.reverse());
           HapticFeedback.mediumImpact();
         }
-        unawaited(Future<void>.delayed(const Duration(milliseconds: 1000), () {
+        final collectDelay = completed == 8 ? 4000 : 1000;
+        unawaited(Future<void>.delayed(Duration(milliseconds: collectDelay), () {
           if (!mounted) return;
           setState(() => _collectAnimTick++);
         }));

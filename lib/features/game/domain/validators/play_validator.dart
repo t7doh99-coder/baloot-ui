@@ -80,11 +80,23 @@ class PlayValidator {
     final hasTrump = hand.any((c) => c.suit == trumpSuit);
 
     // Rule 2: Must play trump if holding one (mandatory cut)
-    if (hasTrump && card.suit != trumpSuit) {
-      return PlayValidationResult.violation(
-        ViolationKind.cutViolation,
-        'Must play trump (${trumpSuit!.name}) when void in leading suit.',
+    // EXCEPTION (Free Play Rule): If your partner is currently winning the trick, you are not forced to cut.
+    if (hasTrump && card.suit != trumpSuit && playerSeat != null) {
+      final int currentWinnerSeat = _getCurrentWinnerSeat(
+        currentTrick: currentTrick,
+        leadingSuit: leadingSuit,
+        trumpSuit: trumpSuit,
       );
+
+      final bool partnerIsWinning = currentWinnerSeat >= 0 &&
+          (currentWinnerSeat % 2 == playerSeat % 2);
+
+      if (!partnerIsWinning) {
+        return PlayValidationResult.violation(
+          ViolationKind.cutViolation,
+          'Must play trump (${trumpSuit!.name}) when void in leading suit unless partner is winning.',
+        );
+      }
     }
 
     // Rule 3: Up-Trump — if an opponent already cut, must play higher trump
@@ -159,7 +171,7 @@ class PlayValidator {
     }
 
     if (highestOpponentTrump < 0) {
-      // No one has played trump yet — no up-trump restriction
+      // No one (or only teammate) has played trump yet — no up-trump restriction
       return const PlayValidationResult.valid();
     }
 
@@ -169,11 +181,11 @@ class PlayValidator {
     );
 
     if (cardStrength > highestOpponentTrump) {
-      // Playing a higher trump — valid
+      // Playing a higher trump than the opponent — valid
       return const PlayValidationResult.valid();
     }
 
-    // Check if the player HAS a higher trump in hand
+    // Check if the player HAS a higher trump in hand to beat the opponent
     final hasHigherTrump = hand.any((c) {
       if (c.suit != trumpSuit) return false;
       return c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) >
@@ -215,5 +227,51 @@ class PlayValidator {
       );
       return result.isValid;
     }).toList();
+  }
+
+  /// Calculates who is currently winning the trick based on Hakam rules.
+  int _getCurrentWinnerSeat({
+    required List<CardPlayModel> currentTrick,
+    required Suit leadingSuit,
+    Suit? trumpSuit,
+  }) {
+    if (currentTrick.isEmpty) return -1;
+    
+    int winnerSeat = currentTrick.first.playerIndex;
+    CardModel winningCard = currentTrick.first.card;
+    
+    for (int i = 1; i < currentTrick.length; i++) {
+      final play = currentTrick[i];
+      final card = play.card;
+      
+      bool isNewWinner = false;
+      if (winningCard.suit == trumpSuit) {
+        // Current winning card is a trump. New card must be higher trump.
+        if (card.suit == trumpSuit && 
+            card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) > 
+            winningCard.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit)) {
+          isNewWinner = true;
+        }
+      } else {
+        // Current winning card is non-trump.
+        if (card.suit == trumpSuit) {
+          // Cut with trump wins.
+          isNewWinner = true;
+        } else if (card.suit == leadingSuit && winningCard.suit == leadingSuit) {
+          // Followed suit, must be higher strength.
+          if (card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) > 
+              winningCard.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit)) {
+            isNewWinner = true;
+          }
+        }
+      }
+      
+      if (isNewWinner) {
+        winningCard = card;
+        winnerSeat = play.playerIndex;
+      }
+    }
+    
+    return winnerSeat;
   }
 }

@@ -295,56 +295,32 @@ class RoundScoreOverlay extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              context.read<GameProvider>().leaveTable();
-                              Navigator.of(context).pop();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white.withValues(
-                                  alpha: 0.85),
-                              backgroundColor: _innerBg,
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.22),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Text(
-                              s.exitGame,
-                              style: GoogleFonts.tajawal(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          context
+                              .read<GameProvider>()
+                              .dismissRoundScoreOverlay();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _titleGold,
+                          foregroundColor: const Color(0xFF1A1A1A),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              context
-                                  .read<GameProvider>()
-                                  .playAgainFromRoundScoreboard();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _titleGold,
-                              foregroundColor: const Color(0xFF1A1A1A),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Text(
-                              s.playAgain,
-                              style: GoogleFonts.tajawal(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                        child: Text(
+                          isAr ? 'متابعة' : 'Continue',
+                          style: GoogleFonts.tajawal(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

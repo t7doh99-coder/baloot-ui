@@ -54,10 +54,12 @@ class PlayerSeatWidget extends StatelessWidget {
         : const Color(0xFFE63946);
 
     // Project cards for this seat to show face-up behind the card fan
-    final projectCards = game.allDeclaredProjects
-        .where((p) => p.playerIndex == seat)
-        .expand((p) => p.cards)
-        .toList();
+    final projectCards = game.showProjectReveal
+        ? game.allDeclaredProjects
+            .where((p) => p.playerIndex == seat)
+            .expand((p) => p.cards)
+            .toList()
+        : const <CardModel>[];
 
     if (orientation == SeatOrientation.left ||
         orientation == SeatOrientation.right) {
@@ -1057,20 +1059,23 @@ class _MiniDealerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sz = compact ? 12.0 : 15.0;
     return Container(
-      width: sz, height: sz,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Color(0xFFD4AF37),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 3 : 5,
+        vertical: compact ? 1 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD4AF37),
+        borderRadius: BorderRadius.circular(4),
       ),
       alignment: Alignment.center,
       child: Text(
-        'D',
+        'Dealer (موزع)',
         style: TextStyle(
           color: const Color(0xFF3D2518),
           fontSize: compact ? 6.5 : 8.0,
           fontWeight: FontWeight.w900,
+          fontFamily: 'Tajawal',
           height: 1,
         ),
       ),

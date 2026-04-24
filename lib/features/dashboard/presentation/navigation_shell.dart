@@ -177,14 +177,10 @@ class _NavigationShellState extends State<NavigationShell>
             ),
           ],
         ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: EdgeInsets.zero,
-        child: _BottomNav(
-          isArabic: isArabic,
-          currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
-        ),
+      bottomNavigationBar: _BottomNav(
+        isArabic: isArabic,
+        currentIndex: _currentIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
       ),
     );
   }
@@ -1148,7 +1144,7 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      height: 68,
+      // Remove fixed height, use SafeArea padding
       decoration: BoxDecoration(
         color: const Color(0xFF0B0D12),
         border: Border(
@@ -1165,9 +1161,13 @@ class _BottomNav extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: List.generate(5, (i) {
-          final active = currentIndex == i;
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 68,
+          child: Row(
+            children: List.generate(5, (i) {
+              final active = currentIndex == i;
 
           return Expanded(
             child: GestureDetector(
@@ -1221,6 +1221,8 @@ class _BottomNav extends StatelessWidget {
             ),
           );
         }),
+          ),
+        ),
       ),
     );
   }

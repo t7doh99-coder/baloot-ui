@@ -76,10 +76,12 @@ class _GameTableScreenState extends State<GameTableScreen> {
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
-    final humanProjectCards = game.allDeclaredProjects
-        .where((p) => p.playerIndex == 0)
-        .expand((p) => p.cards)
-        .toList();
+    final humanProjectCards = game.showProjectReveal
+        ? game.allDeclaredProjects
+            .where((p) => p.playerIndex == 0)
+            .expand((p) => p.cards)
+            .toList()
+        : const <CardModel>[];
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -170,6 +172,13 @@ class _GameTableScreenState extends State<GameTableScreen> {
           if (game.lastRoundResult != null && game.phase != GamePhase.gameOver)
             const RoundScoreOverlay(),
           if (game.phase == GamePhase.gameOver) const GameOverOverlay(),
+
+          // Qaid (Violation) Banner — Kammelna-style
+          if (game.qaidViolationMessage != null)
+            _QaidViolationBanner(
+              message: game.qaidViolationMessage!,
+              onDismiss: () => context.read<GameProvider>().clearQaidViolation(),
+            ),
         ],
       ),
     );
@@ -426,11 +435,15 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   @override
   void didUpdateWidget(_HumanDashboardWidget old) {
     super.didUpdateWidget(old);
+
+    // Project reveal relies on the Radial Fan, not the dashboard picker menu.
+
     // Reset picker state if the main game phase or bidding sub-phase actually advances.
-    // Also reset if double mode changes (escalation/cancellation).
+    // Also reset if double mode changes (escalation/cancellation) or trick advances to 2.
     if (widget.game.phase != old.game.phase || 
         widget.game.biddingPhase != old.game.biddingPhase ||
-        old.game.doubleStatus != widget.game.doubleStatus) {
+        old.game.doubleStatus != widget.game.doubleStatus ||
+        widget.game.trickNumber != old.game.trickNumber) {
       if (_activePicker != _DashboardPicker.none) {
         setState(() {
           _activePicker = _DashboardPicker.none;
@@ -638,6 +651,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   List<Widget> _playingButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
+    if (gp.trickNumber > 1) return [];
     final detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
     return [
@@ -899,6 +913,133 @@ class _GameBtnState extends State<_GameBtn>
                   style: textStyle,
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------------------------
+//  QAID (VIOLATION) BANNER — Kammelna-style red flash
+//  Shows when the human tries to play an illegal card.
+// -------------------------------------------------------------------------
+
+class _QaidViolationBanner extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismiss;
+  const _QaidViolationBanner({required this.message, required this.onDismiss});
+
+  @override
+  State<_QaidViolationBanner> createState() => _QaidViolationBannerState();
+}
+
+class _QaidViolationBannerState extends State<_QaidViolationBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -0.4),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+    // Auto-dismiss after 2.5 seconds
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        _ctrl.reverse().then((_) => widget.onDismiss());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  static const _labelMap = {
+    'suitViolation': 'Must follow the leading suit!',
+    'cutViolation': 'Must cut with trump (Hakam)!',
+    'upTrumpViolation': 'Must play a higher trump!',
+    'closedPlayViolation': 'Closed play - cannot cut with trump!',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 80,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFB71C1C), Color(0xFF7F0000)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.red.shade300.withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.gavel_rounded, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Illegal Play!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _labelMap.entries
+                              .firstWhere(
+                                (e) => widget.message.toLowerCase().contains(e.key.toLowerCase()),
+                                orElse: () => MapEntry('', widget.message),
+                              )
+                              .value,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
