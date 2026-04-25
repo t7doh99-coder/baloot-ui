@@ -413,10 +413,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
                   ),
                 ),
               ),
-              if (isDealer) ...[
-                const SizedBox(width: 3),
-                const _MiniDealerChip(compact: true),
-              ],
+
               if (isBuyer) ...[
                 const SizedBox(width: 2),
                 const Icon(Icons.star,
@@ -452,6 +449,18 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       );
     }
 
+    Widget? dealerBadge;
+    if (seatIndex == game.dealerIndex) {
+      dealerBadge = _KamelnaBidBadge(
+        label: loc.dealer,
+        suit: null,
+        backgroundColor: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+        borderColor: const Color(0xFFD4AF37),
+        isHighlighted: true,
+        textColorOverride: const Color(0xFFD4AF37),
+      );
+    }
+
     final bubble = game.bubbles[seatIndex];
 
     final bool isLeft = orientation == SeatOrientation.left;
@@ -464,12 +473,19 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [
-        chipFrame,
+        // Draw badges FIRST so their flat tops are hidden behind the chipFrame
+        if (dealerBadge != null)
+          Positioned(
+            bottom: bidBadge != null ? -28 : -15, // Stack lower if bidBadge is also present
+            child: dealerBadge,
+          ),
         if (bidBadge != null)
           Positioned(
             bottom: -15, // Tucked under the box
             child: bidBadge,
           ),
+        // Draw the main player box on top
+        chipFrame,
         if (bubble != null)
           Positioned(
             top: 10, // Align with avatar center
@@ -491,6 +507,7 @@ class _KamelnaBidBadge extends StatelessWidget {
   final Color backgroundColor;
   final Color borderColor;
   final bool isHighlighted;
+  final Color? textColorOverride;
 
   const _KamelnaBidBadge({
     required this.label,
@@ -498,23 +515,27 @@ class _KamelnaBidBadge extends StatelessWidget {
     required this.backgroundColor,
     required this.borderColor,
     this.isHighlighted = false,
+    this.textColorOverride,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 78, // Slightly narrower than the 92px name box
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      width: 68, // Narrower to look tucked inside the box above it
+      padding: const EdgeInsets.only(top: 5, bottom: 2), // Added more top space inside the badge
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
         ),
-        border: Border.all(
-          color: borderColor,
-          width: isHighlighted ? 1.2 : 0.8,
+        border: Border(
+          left: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
+          right: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
+          bottom: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
+          top: BorderSide.none, // Removed top border to prevent bleed-through
         ),
+
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
@@ -543,11 +564,11 @@ class _KamelnaBidBadge extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              color: isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.8),
+              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.8)),
               fontSize: 7.5,
               fontWeight: FontWeight.w900,
               fontFamily: 'Tajawal',
-              letterSpacing: 0.4,
+              letterSpacing: context.watch<LocaleProvider>().isArabic ? 0 : 0.4,
             ),
           ),
         ],
@@ -1039,45 +1060,11 @@ class _NameTag extends StatelessWidget {
               ),
             ),
           ),
-          if (isDealer) ...[
-            const SizedBox(width: 3),
-            _MiniDealerChip(compact: compact),
-          ],
-          if (isBuyer && !isDealer) ...[
+          if (isBuyer) ...[
             const SizedBox(width: 2),
             Icon(Icons.star, color: const Color(0xFFFFD700), size: compact ? 8 : 10),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _MiniDealerChip extends StatelessWidget {
-  final bool compact;
-  const _MiniDealerChip({this.compact = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 3 : 5,
-        vertical: compact ? 1 : 2,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD4AF37),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'Dealer (موزع)',
-        style: TextStyle(
-          color: const Color(0xFF3D2518),
-          fontSize: compact ? 6.5 : 8.0,
-          fontWeight: FontWeight.w900,
-          fontFamily: 'Tajawal',
-          height: 1,
-        ),
       ),
     );
   }
@@ -1107,6 +1094,10 @@ class _TopCardFan extends StatelessWidget {
     final fanWidth = cardW + (count - 1) * overlap;
     const maxAngle = 20.0;
 
+    final game = context.watch<GameProvider>();
+    final isGodMode = game.isGodModeEnabled;
+    final godCards = isGodMode ? game.getHand(seat) : const <CardModel>[];
+
     return SizedBox(
       width: fanWidth,
       height: cardH + 10,
@@ -1125,7 +1116,13 @@ class _TopCardFan extends StatelessWidget {
                 angle: angleRad,
                 alignment: Alignment.bottomCenter,
                 filterQuality: FilterQuality.medium,
-                child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
+                child: isGodMode && i < godCards.length
+                    ? PlayingCard(
+                        card: godCards[i],
+                        width: cardW,
+                        height: cardH,
+                      )
+                    : _FaceDownCard(width: cardW, height: cardH, seat: seat),
               ),
             );
           }),
@@ -1152,6 +1149,10 @@ class _SideCardFan extends StatelessWidget {
     final fanWidth = cardW + (count - 1) * overlap;
     const maxAngle = 18.0;
 
+    final game = context.watch<GameProvider>();
+    final isGodMode = game.isGodModeEnabled;
+    final godCards = isGodMode ? game.getHand(seat) : const <CardModel>[];
+
     return SizedBox(
       width: fanWidth,
       height: cardH + 8,
@@ -1170,7 +1171,13 @@ class _SideCardFan extends StatelessWidget {
                 angle: angleRad,
                 alignment: Alignment.bottomCenter,
                 filterQuality: FilterQuality.medium,
-                child: _FaceDownCard(width: cardW, height: cardH, seat: seat),
+                child: isGodMode && i < godCards.length
+                    ? PlayingCard(
+                        card: godCards[i],
+                        width: cardW,
+                        height: cardH,
+                      )
+                    : _FaceDownCard(width: cardW, height: cardH, seat: seat),
               ),
             );
           }),

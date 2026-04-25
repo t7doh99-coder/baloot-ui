@@ -10,6 +10,7 @@ import 'validators/play_validator.dart';
 import 'engines/bot_engine.dart';
 import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
+import '../../../core/utils/game_logger.dart';
 
 /// The game phase the controller is currently in.
 enum GamePhase { notStarted, dealing, bidding, doubleWindow, playing, scoring, gameOver }
@@ -26,12 +27,14 @@ class BalootGameController implements IBalootController {
   final ProjectDetector _projectDetector = const ProjectDetector();
   final ScoringEngine _scoringEngine = const ScoringEngine();
   final BotEngine _botEngine = const BotEngine();
+  final GameLogger logger = GameLogger();
 
   // Game-level state
   late List<String> _playerNames;
   int _teamAScore = 0;
   int _teamBScore = 0;
   int _dealerIndex = 0;
+  int _targetScore = 152; // Default: Jawaker standard (152)
   GamePhase _gamePhase = GamePhase.notStarted;
 
   // Round-level state
@@ -95,20 +98,27 @@ class BalootGameController implements IBalootController {
   // ── IBalootController implementation ──
 
   @override
-  void startNewGame(List<String> playerNames) {
+  void startNewGame(List<String> playerNames, {int targetScore = 152}) {
     if (playerNames.length != 4) {
       throw const InvalidMoveException('Exactly 4 players required.');
     }
+    logger.clear();
+    logger.log('--- NEW GAME STARTED ---');
     _playerNames = playerNames;
     _teamAScore = 0;
     _teamBScore = 0;
+    _targetScore = targetScore;
     _dealerIndex = _rng.nextInt(4);
+    logger.log('Initial dealer: Seat $_dealerIndex');
+    logger.log('Target score: $_targetScore');
     _gamePhase = GamePhase.dealing;
     startNewRound();
   }
 
   @override
   void startNewRound() {
+    logger.log('--- NEW ROUND ---');
+    logger.log('Score: Team A $_teamAScore - $_teamBScore Team B');
     _lastRoundScoreResult = null;
     _deckManager = DeckManager(random: _rng);
     _deckManager.createDeck();
@@ -126,6 +136,8 @@ class BalootGameController implements IBalootController {
       buyerCard: _deckManager.buyerCard,
     );
 
+    final firstToBid = (_dealerIndex + 1) % 4;
+    logger.log('Dealer: Seat $_dealerIndex. First to bid: Seat $firstToBid. Buyer card: ${_deckManager.buyerCard!.displayName}');
     _biddingManager = BiddingManager(
       dealerIndex: _dealerIndex,
       buyerCard: _deckManager.buyerCard!,
@@ -148,6 +160,7 @@ class BalootGameController implements IBalootController {
 
     _biddingManager!.placeBid(seatIndex, action,
         secondHakamSuit: secondHakamSuit);
+    logger.log('Seat $seatIndex bid: ${action.name}${secondHakamSuit != null ? ' ($secondHakamSuit)' : ''}');
 
     _roundState = _roundState.copyWith(
       currentPlayerIndex: _biddingManager!.currentBidder,
@@ -159,6 +172,7 @@ class BalootGameController implements IBalootController {
 
       if (bidResult == null) {
         // All passed both rounds → cancelled, advance dealer
+        logger.log('All players passed. Round cancelled.');
         _roundState = _roundState.copyWith(
           biddingPhase: BiddingPhase.cancelled,
         );
@@ -167,6 +181,8 @@ class BalootGameController implements IBalootController {
         startNewRound();
         return;
       }
+
+      logger.log('Bidding Complete. Mode: ${bidResult.mode.name}, Buyer: Seat ${bidResult.buyerIndex}, Trump: ${bidResult.trumpSuit?.name}, Ashkal: ${bidResult.isAshkal}');
 
       // Complete the deal
       _deckManager.dealRemainder(
@@ -198,6 +214,7 @@ class BalootGameController implements IBalootController {
       );
 
       _gamePhase = GamePhase.doubleWindow;
+      logger.log('Starting double window');
     }
   }
 
@@ -230,6 +247,8 @@ class BalootGameController implements IBalootController {
         message: 'Triple/Gahwa can only be called by the buyer team.',
       );
     }
+
+    logger.log('Seat $seatIndex called Double Level: ${level.name}');
 
     // Sun (BALOOT_RULES.md §7.1): only a single Double — no Triple/Four/Gahwa.
     if (_roundState.activeMode == GameMode.sun &&
@@ -266,9 +285,9 @@ class BalootGameController implements IBalootController {
       );
       final winnerTeam = callerIsTeamA ? 'A' : 'B';
       if (winnerTeam == 'A') {
-        _teamAScore = 152;
+        _teamAScore = _targetScore;
       } else {
-        _teamBScore = 152;
+        _teamBScore = _targetScore;
       }
       _gamePhase = GamePhase.gameOver;
       return;
@@ -369,6 +388,7 @@ class BalootGameController implements IBalootController {
 
     // Play the card
     final trickResult = _turnManager!.playCard(seatIndex, card);
+    logger.log('Seat $seatIndex played ${card.displayName}');
 
     _roundState = _roundState.copyWith(
       currentTrick: _turnManager!.currentTrick,
@@ -377,6 +397,7 @@ class BalootGameController implements IBalootController {
 
     if (trickResult != null) {
       // Trick complete
+      logger.log('Trick completed. Winner: Seat ${trickResult.winnerIndex}');
       _roundState = _roundState.copyWith(
         trickNumber: _turnManager!.trickNumber,
         currentTrick: const [],
@@ -534,10 +555,13 @@ class BalootGameController implements IBalootController {
 
     _teamAScore += scoreResult.teamAPoints;
     _teamBScore += scoreResult.teamBPoints;
+    logger.log('Round Score Added -> Team A: +${scoreResult.teamAPoints}, Team B: +${scoreResult.teamBPoints}');
 
     // Check game end
     if (_scoringEngine.isGameOver(
-        _teamAScore, _teamBScore, _roundState.doubleStatus)) {
+        _teamAScore, _teamBScore, _roundState.doubleStatus,
+        targetScore: _targetScore)) {
+      logger.log('GAME OVER! Final Score - Team A: $_teamAScore, Team B: $_teamBScore');
       _gamePhase = GamePhase.gameOver;
     } else {
       // Advance dealer to the right for next round
@@ -675,6 +699,7 @@ class BalootGameController implements IBalootController {
       trumpSuit: _roundState.trumpSuit,
       doubleStatus: _roundState.doubleStatus,
       isOpenPlay: _roundState.isOpenPlay,
+      playerSeat: seatIndex,
     );
   }
 

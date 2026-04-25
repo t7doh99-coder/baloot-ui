@@ -158,24 +158,31 @@ void main() {
   });
 
   group('DeclaredProject', () {
-    test('Sera: 20 Abnat in Hakam, 4 in Sun', () {
+    test('Sera: 20 Abnat in both modes (scoreboard formula does mode conversion)', () {
       const project = DeclaredProject(
         type: ProjectType.sera,
         playerIndex: 0,
         cards: [],
       );
+      // getAbnat returns base Abnat; conversion: Sun=round(20/10)*2=4, Hakam=round(20/10)=2
       expect(project.getAbnat(GameMode.hakam), 20);
-      expect(project.getAbnat(GameMode.sun), 4);
+      expect(project.getAbnat(GameMode.sun), 20); // same Abnat, scoreboard formula differs
+      // Scoreboard pts are mode-specific:
+      expect(project.getScoreboardPoints(GameMode.sun), 4);
+      expect(project.getScoreboardPoints(GameMode.hakam), 2);
     });
 
-    test('Fifty: 50 Abnat in Hakam, 10 in Sun', () {
+    test('Fifty: 50 Abnat in both modes (scoreboard formula does mode conversion)', () {
       const project = DeclaredProject(
         type: ProjectType.fifty,
         playerIndex: 0,
         cards: [],
       );
+      // Scoreboard pts: Sun=round(50/10)*2=10, Hakam=round(50/10)=5
       expect(project.getAbnat(GameMode.hakam), 50);
-      expect(project.getAbnat(GameMode.sun), 10);
+      expect(project.getAbnat(GameMode.sun), 50);
+      expect(project.getScoreboardPoints(GameMode.sun), 10);
+      expect(project.getScoreboardPoints(GameMode.hakam), 5);
     });
 
     test('Hundred: 100 Abnat (Hakam only)', () {
@@ -187,13 +194,15 @@ void main() {
       expect(project.getAbnat(GameMode.hakam), 100);
     });
 
-    test('FourHundred: 40 Abnat (Sun only)', () {
+    test('FourHundred: 200 Abnat → 40 scoreboard pts (Sun only)', () {
       const project = DeclaredProject(
         type: ProjectType.fourHundred,
         playerIndex: 0,
         cards: [],
       );
-      expect(project.getAbnat(GameMode.sun), 40);
+      // 200 Abnat → round(200/10)*2 = 40 scoreboard pts
+      expect(project.getAbnat(GameMode.sun), 200);
+      expect(project.getScoreboardPoints(GameMode.sun), 40);
     });
 
     test('Baloot: 0 Abnat, always 2 scoreboard pts', () {

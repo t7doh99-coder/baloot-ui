@@ -342,7 +342,7 @@ class BiddingManager {
         if (_round2PendingBuyer != null) {
           _passCount++;
           if (_passCount >= 3) {
-            // Second Hakam: same confirm-or-Sun step as Round 1 (Visca ME).
+            // Second Hakam: same confirm-or-Sun step as Round 1.
             if (_round2PendingMode == GameMode.hakam) {
               _hakamConfirmBuyer = _round2PendingBuyer;
               _hakamConfirmTrumpOverride = _round2PendingTrump;

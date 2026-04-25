@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/card_model.dart';
 import '../../../../data/models/round_state_model.dart';
+import '../../../../data/models/round_state_model.dart';
 import '../../domain/engines/project_detector.dart';
+import '../../../../core/l10n/game_l10n.dart';
 import 'playing_card.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -40,6 +42,7 @@ class _ProjectPickerSheetState extends State<ProjectPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
     final projects = widget.detected
         .where((p) => p.type != ProjectType.baloot)
         .toList();
@@ -64,13 +67,13 @@ class _ProjectPickerSheetState extends State<ProjectPickerSheet> {
           const SizedBox(height: 12),
 
           // Title
-          const Text('Declare Projects',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          Text(loc.declareProjects,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(
             _remaining > 0
-                ? 'Select up to $_remaining project${_remaining > 1 ? 's' : ''}'
-                : 'Maximum projects declared',
+                ? (loc.isArabic ? 'اختر حتى $_remaining مشروع' : 'Select up to $_remaining project${_remaining > 1 ? 's' : ''}')
+                : (loc.isArabic ? 'الحد الأقصى للمشاريع' : 'Maximum projects declared'),
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 14),
@@ -79,7 +82,7 @@ class _ProjectPickerSheetState extends State<ProjectPickerSheet> {
           if (projects.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Text('No projects found in your hand',
+              child: Text(loc.noProjectsFound,
                   style: TextStyle(color: Colors.grey[500], fontSize: 14)),
             )
           else
@@ -119,8 +122,8 @@ class _ProjectPickerSheetState extends State<ProjectPickerSheet> {
               Expanded(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context, <int>[]),
-                  child: const Text('Skip',
-                      style: TextStyle(color: Colors.grey, fontSize: 15)),
+                  child: Text(loc.skip,
+                      style: const TextStyle(color: Colors.grey, fontSize: 15)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -139,8 +142,8 @@ class _ProjectPickerSheetState extends State<ProjectPickerSheet> {
                   ),
                   child: Text(
                     _selected.isEmpty
-                        ? 'Declare'
-                        : 'Declare (${_selected.length})',
+                        ? (loc.isArabic ? 'إعلان' : 'Declare')
+                        : (loc.isArabic ? 'إعلان (${_selected.length})' : 'Declare (${_selected.length})'),
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700),
                   ),
@@ -177,6 +180,7 @@ class _ProjectTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
     final borderColor = isDeclared
         ? const Color(0xFF28802E)
         : isSelected
@@ -225,7 +229,7 @@ class _ProjectTile extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        _projectLabel(project.type),
+                        loc.projectType(project.type),
                         style: const TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w700),
                       ),
@@ -238,8 +242,8 @@ class _ProjectTile extends StatelessWidget {
                             color: const Color(0xFF28802E),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text('Declared',
-                              style: TextStyle(
+                          child: Text(loc.declared,
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
                                   fontWeight: FontWeight.w600)),
@@ -275,8 +279,8 @@ class _ProjectTile extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                       color: Color(0xFFD4AF37)),
                 ),
-                const Text('Abnat',
-                    style: TextStyle(fontSize: 9, color: Colors.grey)),
+                Text(loc.abnat,
+                    style: const TextStyle(fontSize: 9, color: Colors.grey)),
               ],
             ),
           ],

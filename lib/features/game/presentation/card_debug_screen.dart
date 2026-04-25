@@ -34,7 +34,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
       appBar: AppBar(
         title: Text(
           'Card Debug — ${_allCards.length} Cards',
-          style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+          style: GoogleFonts.readexPro(fontWeight: FontWeight.w600),
         ),
         backgroundColor: const Color(0xFF3E2723),
         foregroundColor: const Color(0xFFFFF8E7),
@@ -46,7 +46,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
             icon: const Icon(Icons.play_arrow, color: Color(0xFFD4AF37)),
             label: Text(
               'Start Engine',
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFFD4AF37),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -60,7 +60,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
             icon: const Icon(Icons.table_restaurant, color: Color(0xFF80DEEA)),
             label: Text(
               'Step 3 →',
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFF80DEEA),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -86,7 +86,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
                   child: ChoiceChip(
                     label: Text(
                       s.name.toUpperCase(),
-                      style: GoogleFonts.montserrat(
+                      style: GoogleFonts.readexPro(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: active
@@ -117,7 +117,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
                       padding: const EdgeInsets.only(bottom: 8, top: 12),
                       child: Text(
                         _suitTitle(suit),
-                        style: GoogleFonts.cairo(
+                        style: GoogleFonts.readexPro(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFFFFF8E7),
@@ -147,7 +147,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
                     padding: const EdgeInsets.only(bottom: 8, top: 24),
                     child: Text(
                       'Card Backs',
-                      style: GoogleFonts.cairo(
+                      style: GoogleFonts.readexPro(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFFFFF8E7),
@@ -168,7 +168,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
                     padding: const EdgeInsets.only(bottom: 8, top: 24),
                     child: Text(
                       'Dimmed (Invalid) Cards',
-                      style: GoogleFonts.cairo(
+                      style: GoogleFonts.readexPro(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFFFFF8E7),
@@ -204,7 +204,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
                       padding: const EdgeInsets.only(bottom: 8, top: 24),
                       child: Text(
                         'Your Hand (Seat 0) — ${game.playerHand.length} cards',
-                        style: GoogleFonts.cairo(
+                        style: GoogleFonts.readexPro(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFFD4AF37),
@@ -248,7 +248,7 @@ class _CardDebugScreenState extends State<CardDebugScreen> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: GoogleFonts.montserrat(
+          style: GoogleFonts.readexPro(
             fontSize: 11,
             color: const Color(0xFFFFF8E7).withValues(alpha: 0.7),
           ),
@@ -284,7 +284,7 @@ class _GameStatePanel extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               'Tap "Start Engine" to test Step 2 — Game Provider',
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFFD4AF37),
                 fontSize: 11,
               ),
@@ -324,7 +324,7 @@ class _GameStatePanel extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Game Over! Winner: Team ${game.gameWinner ?? "?"}  —  Tap Restart',
-                style: GoogleFonts.cairo(
+                style: GoogleFonts.readexPro(
                   color: const Color(0xFFD4AF37),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -345,7 +345,7 @@ class _GameStatePanel extends StatelessWidget {
       ),
       child: Text(
         '$label: $value',
-        style: GoogleFonts.montserrat(
+        style: GoogleFonts.readexPro(
           color: Colors.white,
           fontSize: 10,
           fontWeight: FontWeight.w600,

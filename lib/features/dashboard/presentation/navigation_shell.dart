@@ -60,14 +60,20 @@ class _NavigationShellState extends State<NavigationShell>
     super.dispose();
   }
 
+  int _selectedTargetScore = 152;
+
   // ── Hub action callbacks ──
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
   void _onPlayNow() {
-    context.read<GameProvider>().startGame();
+    context.read<GameProvider>().startGame(targetScore: _selectedTargetScore);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const GameTableScreen()),
     );
+  }
+
+  void _onSelectTargetScore(int score) {
+    setState(() => _selectedTargetScore = score);
   }
 
   void _onTableBackground() {
@@ -97,7 +103,7 @@ class _NavigationShellState extends State<NavigationShell>
       SnackBar(
         content: Text(
           '$feature — Coming Soon!',
-          style: GoogleFonts.montserrat(
+          style: GoogleFonts.readexPro(
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
@@ -131,11 +137,14 @@ class _NavigationShellState extends State<NavigationShell>
               child: Column(
                 children: [
                   // ── Thin Top Bar: Avatar (left) + Currency (right) ──
-                  _TopBar(
-                    username: user.username,
-                    avatarUrl: user.avatarUrl,
-                    coins: user.coinsFormatted,
-                    gems: user.gemsFormatted,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: _TopBar(
+                      username: user.username,
+                      avatarUrl: user.avatarUrl,
+                      coins: user.coinsFormatted,
+                      gems: user.gemsFormatted,
+                    ),
                   ),
 
                   // ── Tab Content + floating side buttons ──
@@ -148,7 +157,9 @@ class _NavigationShellState extends State<NavigationShell>
                                 child: _GameHub(
                                   isArabic: isArabic,
                                   glowAnim: _glowAnim,
+                                  selectedTargetScore: _selectedTargetScore,
                                   onPlay: _onPlayNow,
+                                  onSelectTargetScore: _onSelectTargetScore,
                                   onTableBackground: _onTableBackground,
                                   onCreateSession: _onCreateSession,
                                   onJoinSessions: _onJoinSessions,
@@ -177,10 +188,12 @@ class _NavigationShellState extends State<NavigationShell>
             ),
           ],
         ),
-      bottomNavigationBar: _BottomNav(
-        isArabic: isArabic,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+      bottomNavigationBar: SafeArea(
+        child: _BottomNav(
+          isArabic: isArabic,
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+        ),
       ),
     );
   }
@@ -208,55 +221,53 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ── Row 1: Avatar + Currency bars ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // ── Profile chip (flexible width) ──
+          Flexible(
+            child: _avatarChip(context.watch<LocaleProvider>().isArabic),
+          ),
+          // ── Currency bars with custom icons ──
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // ── Profile chip (2x bigger) ──
-              _avatarChip(),
-              const Spacer(),
-              // ── Currency bars with custom icons ──
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      _CRCurrencyBar(
-                        value: coins,
-                        iconImage: 'assets/images/dollar.png',
-                        barColor: const Color(0xFF3B2D10),
-                        barBorder: const Color(0xFF7A6529),
-                        btnColors: const [Color(0xFFD4AF37), Color(0xFFB8960B)],
-                      ),
-                      const SizedBox(width: 8),
-                      _CRCurrencyBar(
-                        value: gems,
-                        iconImage: 'assets/images/gem.png',
-                        barColor: const Color(0xFF0D3326),
-                        barBorder: const Color(0xFF2D7A5E),
-                        btnColors: const [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                      ),
-                    ],
+                  _CRCurrencyBar(
+                    value: coins,
+                    iconImage: 'assets/images/dollar.png',
+                    barColor: const Color(0xFF3B2D10),
+                    barBorder: const Color(0xFF7A6529),
+                    btnColors: const [Color(0xFFD4AF37), Color(0xFFB8960B)],
                   ),
-                  // ── Square action buttons below gems (e.g. Settings) ──
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _QuickMenuButton(
-                      onLanguage: () {
-                        final locale = context.read<LocaleProvider>();
-                        locale.toggleLocale();
-                      },
-                      onAlerts: () {
-                        debugPrint('[Menu] Alerts tapped');
-                      },
-                      onSettings: () {
-                        SettingsPanel.show(context);
-                      },
-                    ),
+                  const SizedBox(width: 6),
+                  _CRCurrencyBar(
+                    value: gems,
+                    iconImage: 'assets/images/gem.png',
+                    barColor: const Color(0xFF0D3326),
+                    barBorder: const Color(0xFF2D7A5E),
+                    btnColors: const [Color(0xFF4CAF50), Color(0xFF2E7D32)],
                   ),
                 ],
+              ),
+              // ── Square action buttons below gems (e.g. Settings) ──
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _QuickMenuButton(
+                  onLanguage: () {
+                    final locale = context.read<LocaleProvider>();
+                    locale.toggleLocale();
+                  },
+                  onAlerts: () {
+                    debugPrint('[Menu] Alerts tapped');
+                  },
+                  onSettings: () {
+                    SettingsPanel.show(context);
+                  },
+                ),
               ),
             ],
           ),
@@ -265,7 +276,7 @@ class _TopBar extends StatelessWidget {
     );
   }
 
-  Widget _avatarChip() {
+  Widget _avatarChip(bool isArabic) {
     return Container(
       padding: const EdgeInsets.fromLTRB(5, 5, 14, 5),
       decoration: BoxDecoration(
@@ -307,41 +318,44 @@ class _TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           // ── Name + Rank ──
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                username,
-                style: GoogleFonts.montserrat(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  username,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.readexPro(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: isArabic ? 0 : 0.3,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 3),
-              // ── Rank row ──
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/images/ranking.png',
-                    width: 16,
-                    height: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '532',
-                    style: GoogleFonts.montserrat(
-                      color: AppColors.royalGold,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                const SizedBox(height: 3),
+                // ── Rank row ──
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/images/ranking.png',
+                      width: 16,
+                      height: 16,
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 4),
+                    Text(
+                      '532',
+                      style: GoogleFonts.readexPro(
+                        color: AppColors.royalGold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -532,11 +546,11 @@ class _CRCurrencyBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
               value,
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
+                letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.3,
               ),
             ),
           ),
@@ -565,7 +579,9 @@ class _GameHub extends StatelessWidget {
   const _GameHub({
     required this.isArabic,
     required this.glowAnim,
+    required this.selectedTargetScore,
     required this.onPlay,
+    required this.onSelectTargetScore,
     required this.onTableBackground,
     required this.onCreateSession,
     required this.onJoinSessions,
@@ -574,7 +590,9 @@ class _GameHub extends StatelessWidget {
 
   final bool isArabic;
   final Animation<double> glowAnim;
+  final int selectedTargetScore;
   final VoidCallback onPlay;
+  final Function(int) onSelectTargetScore;
   final VoidCallback onTableBackground;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
@@ -589,6 +607,7 @@ class _GameHub extends StatelessWidget {
         _PlayMedallion(
           isArabic: isArabic,
           glowAnim: glowAnim,
+          selectedTargetScore: selectedTargetScore,
           onTap: onPlay,
         ),
 
@@ -597,7 +616,7 @@ class _GameHub extends StatelessWidget {
         // ── Game Modes link — minimal, intentional, below the hero ──
         _GameModesLink(
           isArabic: isArabic,
-          onPlay: onPlay,
+          onSelectTargetScore: onSelectTargetScore,
           onCreateSession: onCreateSession,
           onJoinSessions: onJoinSessions,
           onVipAccess: onVipAccess,
@@ -662,7 +681,7 @@ class _TableBackgroundButtonState extends State<_TableBackgroundButton> {
               const SizedBox(width: 10),
               Text(
                 widget.isArabic ? 'خلفية الطاولة' : 'Table background',
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: const Color(0xFFF4E4B7),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -737,11 +756,11 @@ class _SatelliteActionState extends State<_SatelliteAction> {
               Text(
                 widget.isArabic ? widget.labelAr : widget.labelEn,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: const Color(0xFFF4E4B7).withValues(alpha: 0.65),
                   fontSize: 9,
                   fontWeight: FontWeight.w500,
-                  letterSpacing: 0.2,
+                  letterSpacing: widget.isArabic ? 0 : 0.2,
                   height: 1.35,
                 ),
               ),
@@ -761,12 +780,14 @@ class _PlayMedallion extends StatefulWidget {
   const _PlayMedallion({
     required this.isArabic,
     required this.glowAnim,
+    required this.selectedTargetScore,
     required this.onTap,
     this.hideGlow = false,
   });
 
   final bool isArabic;
   final Animation<double> glowAnim;
+  final int selectedTargetScore;
   final VoidCallback onTap;
   final bool hideGlow;
 
@@ -845,14 +866,26 @@ class _PlayMedallionState extends State<_PlayMedallion> {
                         '♠',
                         style: TextStyle(
                           color: Color(0xFF8B92A5),
-                          fontSize: 60,
+                          fontSize: 48,
                           height: 1,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.selectedTargetScore == 152
+                            ? (widget.isArabic ? 'كلاسيكي' : 'Classic Mode')
+                            : (widget.isArabic ? 'لعبة طويلة' : 'Long Game'),
+                        style: GoogleFonts.readexPro(
+                          color: AppColors.royalGold.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: widget.isArabic ? 0 : 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
                         widget.isArabic ? 'العب' : 'PLAY',
-                        style: GoogleFonts.montserrat(
+                        style: GoogleFonts.readexPro(
                           color: const Color(0xFFF4E4B7),
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -879,14 +912,14 @@ class _PlayMedallionState extends State<_PlayMedallion> {
 class _GameModesLink extends StatefulWidget {
   const _GameModesLink({
     required this.isArabic,
-    required this.onPlay,
+    required this.onSelectTargetScore,
     required this.onCreateSession,
     required this.onJoinSessions,
     required this.onVipAccess,
   });
 
   final bool isArabic;
-  final VoidCallback onPlay;
+  final Function(int) onSelectTargetScore;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
   final VoidCallback onVipAccess;
@@ -909,7 +942,7 @@ class _GameModesLinkState extends State<_GameModesLink> {
       isScrollControlled: true,
       builder: (_) => _GameModesSheet(
         isArabic: widget.isArabic,
-        onPlay: widget.onPlay,
+        onSelectTargetScore: widget.onSelectTargetScore,
         onCreateSession: widget.onCreateSession,
         onJoinSessions: widget.onJoinSessions,
         onVipAccess: widget.onVipAccess,
@@ -929,11 +962,11 @@ class _GameModesLinkState extends State<_GameModesLink> {
           children: [
             Text(
               widget.isArabic ? 'أطوار اللعب' : 'Game Modes',
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFFF4E4B7).withValues(alpha: 0.65),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
+                letterSpacing: widget.isArabic ? 0 : 0.5,
               ),
             ),
             const SizedBox(width: 4),
@@ -956,14 +989,14 @@ class _GameModesLinkState extends State<_GameModesLink> {
 class _GameModesSheet extends StatelessWidget {
   const _GameModesSheet({
     required this.isArabic,
-    required this.onPlay,
+    required this.onSelectTargetScore,
     required this.onCreateSession,
     required this.onJoinSessions,
     required this.onVipAccess,
   });
 
   final bool isArabic;
-  final VoidCallback onPlay;
+  final Function(int) onSelectTargetScore;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
   final VoidCallback onVipAccess;
@@ -998,11 +1031,11 @@ class _GameModesSheet extends StatelessWidget {
           // ── Title ──
           Text(
             isArabic ? 'أطوار اللعب' : 'Game Modes',
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+              letterSpacing: isArabic ? 0 : 0.5,
             ),
           ),
           const SizedBox(height: 20),
@@ -1010,7 +1043,15 @@ class _GameModesSheet extends StatelessWidget {
           _SheetOption(
             icon: Icons.play_arrow_rounded,
             title: isArabic ? 'العب بلوت' : 'Play Baloot',
-            onTap: () { Navigator.pop(context); onPlay(); },
+            subtitle: isArabic ? 'كلاسيكي — ١٥٢ نقطة' : 'Classic — 152 pts',
+            onTap: () { Navigator.pop(context); onSelectTargetScore(152); },
+          ),
+          const SizedBox(height: 10),
+          _SheetOption(
+            icon: Icons.timer_outlined,
+            title: isArabic ? 'لعبة طويلة' : 'Long Game Baloot',
+            subtitle: isArabic ? 'ماراثون — ٣٠٠ نقطة' : 'Marathon — 300 pts',
+            onTap: () { Navigator.pop(context); onSelectTargetScore(300); },
           ),
           const SizedBox(height: 10),
           _SheetOption(
@@ -1041,10 +1082,12 @@ class _SheetOption extends StatefulWidget {
     required this.icon,
     required this.title,
     required this.onTap,
+    this.subtitle,
   });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
@@ -1056,6 +1099,7 @@ class _SheetOptionState extends State<_SheetOption> {
 
   @override
   Widget build(BuildContext context) {
+    final isArabic = context.read<LocaleProvider>().isArabic;
     return GestureDetector(
       onTapDown: (_) => setState(() => _scale = 0.97),
       onTapUp: (_) {
@@ -1087,14 +1131,31 @@ class _SheetOptionState extends State<_SheetOption> {
                 size: 22,
               ),
               const SizedBox(width: 14),
-              Text(
-                widget.title,
-                style: GoogleFonts.montserrat(
-                  color: const Color(0xFFF4E4B7),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFF4E4B7),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: isArabic ? 0 : 0.3,
+                    ),
+                  ),
+                  if (widget.subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle!,
+                      style: GoogleFonts.readexPro(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: isArabic ? 0 : 0.2,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -1144,7 +1205,6 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      // Remove fixed height, use SafeArea padding
       decoration: BoxDecoration(
         color: const Color(0xFF0B0D12),
         border: Border(
@@ -1161,10 +1221,8 @@ class _BottomNav extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 68,
+      child: SizedBox(
+        height: 68,
           child: Row(
             children: List.generate(5, (i) {
               final active = currentIndex == i;
@@ -1205,10 +1263,10 @@ class _BottomNav extends StatelessWidget {
                                 labels[i],
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.montserrat(
+                                style: GoogleFonts.readexPro(
                                   fontSize: 8,
                                   fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
+                                  letterSpacing: isArabic ? 0 : 0.3,
                                   color: AppColors.royalGold,
                                 ),
                               ),
@@ -1221,7 +1279,6 @@ class _BottomNav extends StatelessWidget {
             ),
           );
         }),
-          ),
         ),
       ),
     );
@@ -1343,6 +1400,7 @@ class _QuickMenuButton extends StatelessWidget {
                     children: [
                       // ── Language toggle ──
                       _menuItem(
+                        isArabic: isArabic,
                         icon: isArabic
                             ? const Text('ع', style: TextStyle(color: AppColors.royalGold, fontSize: 15, fontWeight: FontWeight.w700))
                             : const Text('EN', style: TextStyle(color: AppColors.royalGold, fontSize: 11, fontWeight: FontWeight.w800)),
@@ -1355,6 +1413,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Alerts ──
                       _menuItem(
+                        isArabic: isArabic,
                         icon: const Icon(Icons.notifications_none_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'التنبيهات' : 'Alerts',
                         onTap: () {
@@ -1365,6 +1424,7 @@ class _QuickMenuButton extends StatelessWidget {
                       _divider(),
                       // ── Settings ──
                       _menuItem(
+                        isArabic: isArabic,
                         icon: const Icon(Icons.settings_rounded, size: 18, color: AppColors.royalGold),
                         label: isArabic ? 'الإعدادات' : 'Settings',
                         onTap: () {
@@ -1384,6 +1444,7 @@ class _QuickMenuButton extends StatelessWidget {
   }
 
   Widget _menuItem({
+    required bool isArabic,
     required Widget icon,
     required String label,
     required VoidCallback onTap,
@@ -1399,11 +1460,11 @@ class _QuickMenuButton extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               label,
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFFF4E4B7),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
+                letterSpacing: isArabic ? 0 : 0.3,
               ),
             ),
           ],
@@ -1463,11 +1524,11 @@ class _ComingSoonPage extends StatelessWidget {
           // ── Title ──
           Text(
             title,
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: AppColors.royalGold.withValues(alpha: 0.7),
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              letterSpacing: 1,
+              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1,
             ),
           ),
 
@@ -1476,11 +1537,11 @@ class _ComingSoonPage extends StatelessWidget {
           // ── Coming Soon ──
           Text(
             isArabic ? 'قريباً...' : 'Coming Soon',
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: Colors.white.withValues(alpha: 0.25),
               fontSize: 13,
               fontWeight: FontWeight.w400,
-              letterSpacing: 0.5,
+              letterSpacing: isArabic ? 0 : 0.5,
             ),
           ),
         ],

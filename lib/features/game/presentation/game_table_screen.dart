@@ -448,7 +448,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
         setState(() {
           _activePicker = _DashboardPicker.none;
           _pendingDouble = null;
-          _selectedProjects.clear();
         });
       }
     }
@@ -456,7 +455,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   @override
   Widget build(BuildContext context) {
-    context.watch<LocaleProvider>();
     final game = widget.game;
 
     return Column(
@@ -480,6 +478,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
     List<Widget> buttons = [];
 
+    // During the 3s table pause + 6s scoreboard: show nothing
+    if (game.isRoundJustEnded) return const SizedBox(height: 8);
+
     if (_activePicker == _DashboardPicker.suit) {
       buttons = _buildSuitPickerButtons(context, loc);
     } else if (_activePicker == _DashboardPicker.doublePlay) {
@@ -495,15 +496,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       }
     } else if (phase == GamePhase.playing) {
       buttons = _playingButtons(context, loc);
-    } else {
-      // DEV Mock standard fallback so bottom bar doesn't vanish
-      buttons = [
-        _GameBtn(label: loc.pass, onTap: () {}),
-        _GameBtn(label: loc.hakam, onTap: () {}),
-        _GameBtn(label: loc.projects, isActive: _activePicker == _DashboardPicker.projects, onTap: () {
-          setState(() => _activePicker = _DashboardPicker.projects);
-        }),
-      ];
     }
 
     if (buttons.isEmpty) return const SizedBox(height: 8);
@@ -678,21 +670,28 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     final gp = ctx.read<GameProvider>();
     final buyerSuit = gp.buyerCard?.suit;
     final suits = Suit.values.where((s) => s != buyerSuit).toList();
-    const suitNames = {Suit.hearts: '♥', Suit.diamonds: '♦', Suit.spades: '♠', Suit.clubs: '♣'};
+    const suitNames = {Suit.hearts: '\u2665', Suit.diamonds: '\u2666', Suit.spades: '\u2660', Suit.clubs: '\u2663'};
     
     return [
-       _GameBtn(label: loc.cancel, onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
        for (final s in suits)
-         _GameBtn(label: suitNames[s]!, onTap: () => gp.humanBid(BidAction.secondHakam, secondHakamSuit: s)),
+         _GameBtn(label: suitNames[s]!, onTap: () {
+           gp.humanBid(BidAction.secondHakam, secondHakamSuit: s);
+           setState(() => _activePicker = _DashboardPicker.none);
+         }),
     ];
   }
 
   List<Widget> _buildDoublePlayButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
     return [
-       _GameBtn(label: loc.cancel, onTap: () => setState(() => _activePicker = _DashboardPicker.none)),
-       _GameBtn(label: loc.closed, onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: false)),
-       _GameBtn(label: loc.open, onTap: () => gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: true)),
+       _GameBtn(label: loc.closed, onTap: () {
+         gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: false);
+         setState(() => _activePicker = _DashboardPicker.none);
+       }),
+       _GameBtn(label: loc.open, onTap: () {
+         gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: true);
+         setState(() => _activePicker = _DashboardPicker.none);
+       }),
     ];
   }
 
@@ -1047,3 +1046,5 @@ class _QaidViolationBannerState extends State<_QaidViolationBanner>
     );
   }
 }
+
+

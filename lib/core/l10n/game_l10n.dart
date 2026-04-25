@@ -58,6 +58,15 @@ class GameL10n {
   String get dealer => _ar ? 'موزع' : 'Dealer';
   String get buyer => _ar ? 'مشتري' : 'Buyer';
 
+  // ── Project & Game Log Overlays ──
+  String get declareProjects => _ar ? 'إعلان المشاريع' : 'Declare Projects';
+  String get noProjectsFound => _ar ? 'لا توجد مشاريع في يدك' : 'No projects found in your hand';
+  String get skip => _ar ? 'تخطي' : 'Skip';
+  String get declared => _ar ? 'معلنة' : 'Declared';
+  String get abnat => _ar ? 'أبناط' : 'Abnat';
+  String get gameLogCopied => _ar ? 'تم نسخ السجل!' : 'Game log copied to clipboard!';
+  String get copyGameLog => _ar ? 'نسخ سجل اللعب' : 'Copy Game Log';
+
   String modeLabel(String engineLabel) {
     if (!_ar) return engineLabel;
     return switch (engineLabel) {
@@ -87,11 +96,11 @@ class GameL10n {
   String get gahwaTitle => _ar ? 'قهوة' : 'Gahwa';
   String get youWin => _ar ? 'فزت!' : 'You win!';
   String get youLose => _ar ? 'خسرت' : 'You lose';
-  String teamReached152(bool teamIsUs) {
+  String teamReachedTarget(bool teamIsUs, int target) {
     if (_ar) {
-      return teamIsUs ? 'فريقنا وصل ١٥٢' : 'فريقهم وصل ١٥٢';
+      return teamIsUs ? 'فريقنا وصل $target' : 'فريقهم وصل $target';
     }
-    return teamIsUs ? 'Team Us reached 152' : 'Team Them reached 152';
+    return teamIsUs ? 'Team Us reached $target' : 'Team Them reached $target';
   }
 
   String get finalScore => _ar ? 'النتيجة النهائية' : 'Final score';

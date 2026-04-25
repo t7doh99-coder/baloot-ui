@@ -267,7 +267,7 @@ class ScoringEngine {
     int defenderPts;
 
     if (doubleStatus != DoubleStatus.none) {
-      defenderPts = _doubleBaseValue(doubleStatus);
+      defenderPts = _doubleBaseValue(doubleStatus, mode);
     } else {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
@@ -329,7 +329,7 @@ class ScoringEngine {
     if (doubleStatus != DoubleStatus.none) {
       // With double: winner gets base value, loser gets 0.
       // Project scoreboard pts added separately (Abnat conversion bypassed).
-      final basePts = _doubleBaseValue(doubleStatus);
+      final basePts = _doubleBaseValue(doubleStatus, mode);
       aPts = buyerTeam == 'A' ? basePts : 0;
       bPts = buyerTeam == 'B' ? basePts : 0;
 
@@ -364,17 +364,23 @@ class ScoringEngine {
 
   /// Base round reward when Double is active.
   /// Jawaker/Kamelna: 16 × multiplier (32/48/64).
-  int _doubleBaseValue(DoubleStatus status) {
+  int _doubleBaseValue(DoubleStatus status, GameMode mode) {
+    if (status == DoubleStatus.none) return 0;
+    if (mode == GameMode.sun) {
+      // Sun Double is always 52 (26 * 2). No Triple/Four in Sun per Rule 7.1.
+      return status == DoubleStatus.doubled ? 52 : 0;
+    }
+    // Hakam: 16 * multiplier (32/48/64)
     switch (status) {
-      case DoubleStatus.none:
-        return 0;
       case DoubleStatus.doubled:
-        return 32;  // 16 × 2
+        return 32;
       case DoubleStatus.tripled:
-        return 48;  // 16 × 3
+        return 48;
       case DoubleStatus.four:
-        return 64;  // 16 × 4
+        return 64;
       case DoubleStatus.gahwa:
+        return 0;
+      default:
         return 0;
     }
   }
@@ -410,21 +416,24 @@ class ScoringEngine {
     }
   }
 
-  bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
+  bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble,
+      {int targetScore = 152}) {
     if (lastDouble == DoubleStatus.gahwa) return true;
-    
-    final reachedTarget = teamATotal >= 152 || teamBTotal >= 152;
+
+    final reachedTarget = teamATotal >= targetScore || teamBTotal >= targetScore;
     if (!reachedTarget) return false;
 
     // Sudden-Death Tie-Breaker (BALOOT_RULES.md Section 14.3):
-    // If exact tie above 152, game continues.
+    // If exact tie above target score, game continues.
     if (teamATotal == teamBTotal) return false;
 
     return true;
   }
 
-  String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
-    if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
+  String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble,
+      {int targetScore = 152}) {
+    if (!isGameOver(teamATotal, teamBTotal, lastDouble,
+        targetScore: targetScore)) return null;
 
     if (lastDouble == DoubleStatus.gahwa) {
       // Caller must determine Gahwa winner based on who called it and if they won

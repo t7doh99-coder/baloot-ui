@@ -102,6 +102,7 @@ class _SettingsPanelContent extends StatelessWidget {
                           children: [
                             Expanded(
                               child: _settingsButton(
+                                isArabic: isArabic,
                                 label: isArabic ? 'الصوت' : 'Audio',
                                 sublabel: isArabic ? 'الصوت' : 'Audio',
                                 icon: Icons.volume_up_rounded,
@@ -114,6 +115,7 @@ class _SettingsPanelContent extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                               child: _settingsButton(
+                                isArabic: isArabic,
                                 label: isArabic ? 'اللغة' : 'Language',
                                 sublabel: isArabic ? 'عربي' : 'English',
                                 icon: Icons.language_rounded,
@@ -127,6 +129,7 @@ class _SettingsPanelContent extends StatelessWidget {
 
                         // ── Change Name (full width) ──
                         _settingsButton(
+                          isArabic: isArabic,
                           label: isArabic ? 'تغيير الاسم' : 'Change Name',
                           icon: Icons.edit_rounded,
                           onTap: () {
@@ -139,6 +142,7 @@ class _SettingsPanelContent extends StatelessWidget {
 
                         // ── Notifications ──
                         _settingsButton(
+                          isArabic: isArabic,
                           label: isArabic ? 'الإشعارات' : 'Notifications',
                           icon: Icons.notifications_none_rounded,
                           onTap: () {
@@ -169,6 +173,7 @@ class _SettingsPanelContent extends StatelessWidget {
                           children: [
                             Expanded(
                               child: _linkButton(
+                                isArabic,
                                 isArabic ? 'المساعدة' : 'Help & Support',
                                 () => debugPrint('[Settings] Help'),
                               ),
@@ -176,6 +181,7 @@ class _SettingsPanelContent extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: _linkButton(
+                                isArabic,
                                 isArabic ? 'الخصوصية' : 'Privacy',
                                 () => debugPrint('[Settings] Privacy'),
                               ),
@@ -187,6 +193,7 @@ class _SettingsPanelContent extends StatelessWidget {
                           children: [
                             Expanded(
                               child: _linkButton(
+                                isArabic,
                                 isArabic ? 'شروط الخدمة' : 'Terms of Service',
                                 () => debugPrint('[Settings] Terms'),
                               ),
@@ -194,6 +201,7 @@ class _SettingsPanelContent extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: _linkButton(
+                                isArabic,
                                 isArabic ? 'حول' : 'Credits',
                                 () => debugPrint('[Settings] Credits'),
                               ),
@@ -207,10 +215,10 @@ class _SettingsPanelContent extends StatelessWidget {
                         Center(
                           child: Text(
                             'Player ID: #MOCK001',
-                            style: GoogleFonts.montserrat(
+                            style: GoogleFonts.readexPro(
                               color: AppColors.royalGold.withValues(alpha: 0.3),
                               fontSize: 9,
-                              letterSpacing: 0.5,
+                              letterSpacing: isArabic ? 0 : 0.5,
                             ),
                           ),
                         ),
@@ -241,11 +249,11 @@ class _SettingsPanelContent extends StatelessWidget {
           const Spacer(),
           Text(
             isArabic ? 'الإعدادات' : 'Settings',
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: const Color(0xFFF4E4B7),
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              letterSpacing: 1,
+              letterSpacing: isArabic ? 0 : 1,
             ),
           ),
           const Spacer(),
@@ -304,11 +312,11 @@ class _SettingsPanelContent extends StatelessWidget {
             children: [
               Text(
                 'Royal Baloot',
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: const Color(0xFFF4E4B7),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
+                  letterSpacing: isArabic ? 0 : 0.5,
                 ),
               ),
               const SizedBox(height: 2),
@@ -316,7 +324,7 @@ class _SettingsPanelContent extends StatelessWidget {
                 isArabic
                     ? 'اربط حسابك للعب على أجهزة متعددة'
                     : 'Connect to play on multiple devices',
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: Colors.white.withValues(alpha: 0.45),
                   fontSize: 9,
                   height: 1.3,
@@ -346,11 +354,11 @@ class _SettingsPanelContent extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             isArabic ? 'متصل' : 'CONNECTED',
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: const Color(0xFF4ADE80),
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
+              letterSpacing: isArabic ? 0 : 1.5,
             ),
           ),
         ],
@@ -360,6 +368,7 @@ class _SettingsPanelContent extends StatelessWidget {
 
   // ── Gold Settings Button ──
   Widget _settingsButton({
+    required bool isArabic,
     required String label,
     String? sublabel,
     required IconData icon,
@@ -399,7 +408,7 @@ class _SettingsPanelContent extends StatelessWidget {
                 if (sublabel != null)
                   Text(
                     sublabel,
-                    style: GoogleFonts.montserrat(
+                    style: GoogleFonts.readexPro(
                       color: AppColors.royalGold.withValues(alpha: 0.5),
                       fontSize: 7,
                       fontWeight: FontWeight.w500,
@@ -407,11 +416,11 @@ class _SettingsPanelContent extends StatelessWidget {
                   ),
                 Text(
                   label,
-                  style: GoogleFonts.montserrat(
+                  style: GoogleFonts.readexPro(
                     color: const Color(0xFFF4E4B7),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
+                    letterSpacing: isArabic ? 0 : 0.3,
                   ),
                 ),
               ],
@@ -423,7 +432,7 @@ class _SettingsPanelContent extends StatelessWidget {
   }
 
   // ── Bottom Link Button ──
-  Widget _linkButton(String label, VoidCallback onTap) {
+  Widget _linkButton(bool isArabic, String label, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -439,11 +448,11 @@ class _SettingsPanelContent extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: const Color(0xFFF4E4B7).withValues(alpha: 0.6),
               fontSize: 9.5,
               fontWeight: FontWeight.w500,
-              letterSpacing: 0.2,
+              letterSpacing: isArabic ? 0 : 0.2,
             ),
           ),
         ),

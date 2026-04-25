@@ -71,16 +71,17 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ── Session Name ──
-                    _sectionLabel(isArabic ? 'اسم الجلسة' : 'Session Name'),
+                    _sectionLabel(isArabic ? 'اسم الجلسة' : 'Session Name', isArabic),
                     const SizedBox(height: 8),
                     _nameField(isArabic),
 
                     const SizedBox(height: 24),
 
                     // ── Game Type ──
-                    _sectionLabel(isArabic ? 'نوع اللعب' : 'Game Type'),
+                    _sectionLabel(isArabic ? 'نوع اللعب' : 'Game Type', isArabic),
                     const SizedBox(height: 8),
                     _segmentedPicker(
+                      isArabic: isArabic,
                       items: isArabic ? _gameTypesAr : _gameTypes,
                       selected: _gameType,
                       onTap: (i) => setState(() => _gameType = i),
@@ -94,7 +95,7 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
                           : (isArabic
                               ? 'يمكنك القطع والتقييد'
                               : 'Free Play lets you cut and restrict'),
-                      style: GoogleFonts.montserrat(
+                      style: GoogleFonts.readexPro(
                         color: Colors.white.withValues(alpha: 0.35),
                         fontSize: 10,
                         height: 1.4,
@@ -104,9 +105,10 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
                     const SizedBox(height: 24),
 
                     // ── Game Speed ──
-                    _sectionLabel(isArabic ? 'سرعة اللعب' : 'Game Speed'),
+                    _sectionLabel(isArabic ? 'سرعة اللعب' : 'Game Speed', isArabic),
                     const SizedBox(height: 8),
                     _segmentedPicker(
+                      isArabic: isArabic,
                       items: isArabic ? _speedsAr : _speeds,
                       selected: _gameSpeed,
                       onTap: (i) => setState(() => _gameSpeed = i),
@@ -116,9 +118,10 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
 
                     // ── Minimum Play Level ──
                     _sectionLabel(
-                        isArabic ? 'الحد الأدنى للمستوى' : 'Minimum Play Level'),
+                        isArabic ? 'الحد الأدنى للمستوى' : 'Minimum Play Level', isArabic),
                     const SizedBox(height: 8),
                     _segmentedPicker(
+                      isArabic: isArabic,
                       items: isArabic ? _levelsAr : _levels,
                       selected: _minLevel,
                       onTap: (i) => setState(() => _minLevel = i),
@@ -154,11 +157,11 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
           const Spacer(),
           Text(
             isArabic ? 'إنشاء جلسة' : 'Create Session',
-            style: GoogleFonts.montserrat(
+            style: GoogleFonts.readexPro(
               color: const Color(0xFFF4E4B7),
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
+              letterSpacing: isArabic ? 0 : 0.5,
             ),
           ),
           const Spacer(),
@@ -181,14 +184,14 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
   }
 
   // ── Section Label ──
-  Widget _sectionLabel(String text) {
+  Widget _sectionLabel(String text, bool isArabic) {
     return Text(
       text,
-      style: GoogleFonts.montserrat(
+      style: GoogleFonts.readexPro(
         color: AppColors.royalGold.withValues(alpha: 0.6),
         fontSize: 11,
         fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
+        letterSpacing: isArabic ? 0 : 0.5,
       ),
     );
   }
@@ -225,13 +228,13 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
           Expanded(
             child: TextField(
               controller: _nameController,
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: const Color(0xFFF4E4B7),
                 fontSize: 13,
               ),
               decoration: InputDecoration(
                 hintText: isArabic ? 'اسم الجلسة' : 'Session Name',
-                hintStyle: GoogleFonts.montserrat(
+                hintStyle: GoogleFonts.readexPro(
                   color: Colors.white.withValues(alpha: 0.2),
                   fontSize: 13,
                 ),
@@ -248,6 +251,7 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
 
   // ── Segmented Picker ──
   Widget _segmentedPicker({
+    required bool isArabic,
     required List<String> items,
     required int selected,
     required ValueChanged<int> onTap,
@@ -285,13 +289,13 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
                 child: Center(
                   child: Text(
                     items[i],
-                    style: GoogleFonts.montserrat(
+                    style: GoogleFonts.readexPro(
                       color: active
                           ? const Color(0xFFF4E4B7)
                           : Colors.white.withValues(alpha: 0.35),
                       fontSize: 11,
                       fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      letterSpacing: 0.2,
+                      letterSpacing: isArabic ? 0 : 0.2,
                     ),
                   ),
                 ),
@@ -327,11 +331,11 @@ class _CreateSessionScreenState extends State<CreateSessionScreen> {
           child: Center(
             child: Text(
               isArabic ? 'إنشاء جلسة' : 'Create Session',
-              style: GoogleFonts.montserrat(
+              style: GoogleFonts.readexPro(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
+                letterSpacing: isArabic ? 0 : 0.5,
               ),
             ),
           ),

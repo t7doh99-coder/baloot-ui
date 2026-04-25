@@ -46,22 +46,22 @@ class CardModel {
   @override
   int get hashCode => Object.hash(suit, rank);
 
-  /// Sorts cards by Suit (Spades, Hearts, Clubs, Diamonds) and then by Rank descending.
+  /// Sorts cards by Suit and then by Rank descending.
   int compareTo(CardModel other) {
-    // Suit sorting order (alternating colors for Kamelna clarity): Spades, Hearts, Clubs, Diamonds
+    // Suit sorting order as requested: Hearts, Diamonds, Spades, Clubs
+    // (Note: This groups Red/Red and Black/Black suits together)
     const suitOrder = {
-      Suit.spades: 0,
-      Suit.hearts: 1,
-      Suit.clubs: 2,
-      Suit.diamonds: 3,
+      Suit.hearts: 0,
+      Suit.diamonds: 1,
+      Suit.spades: 2,
+      Suit.clubs: 3,
     };
     
     int suitCmp = suitOrder[suit]!.compareTo(suitOrder[other.suit]!);
     if (suitCmp != 0) return suitCmp;
 
-    // Rank order for projects: Ace (highest) to 7 (lowest)
-    // Rank enum is ordered 7, 8, 9, 10, J, Q, K, A.
-    // So descending index gives A, K, Q, J, 10, 9, 8, 7.
+    // Rank order for projects (A, K, Q, J, 10, 9, 8, 7)
+    // This ensures that sequences like A-K-Q-J-10 (100 project) are always contiguous.
     return other.rank.index.compareTo(rank.index);
   }
 

@@ -138,6 +138,9 @@ class GameProvider extends ChangeNotifier {
   int _lastHumanThrowCardIndex = 0;
   int _lastHumanThrowHandCount = 8;
 
+  // ── God Mode (for debugging bots) ──
+  bool _isGodModeEnabled = false;
+
   GameProvider({Random? random})
       : _engine = BalootGameController(random: random ?? Random()),
         _rng = random ?? Random();
@@ -147,6 +150,17 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   GamePhase get phase => _engine.gamePhase;
+  int _targetScore = 152;
+  int get targetScore => _targetScore;
+
+  String get gameLog => _engine.logger.fullLog;
+
+  bool get isGodModeEnabled => _isGodModeEnabled;
+
+  void toggleGodMode() {
+    _isGodModeEnabled = !_isGodModeEnabled;
+    notifyListeners();
+  }
 
   /// Safe accessor — returns a dummy empty RoundStateModel before game starts.
   RoundStateModel get roundState =>
@@ -161,6 +175,10 @@ class GameProvider extends ChangeNotifier {
   /// The player's own hand (seat 0).
   List<CardModel> get playerHand =>
       phase == GamePhase.notStarted ? [] : _engine.getHand(0);
+
+  /// Get the hand of any player (for God Mode).
+  List<CardModel> getHand(int seat) =>
+      phase == GamePhase.notStarted ? [] : _engine.getHand(seat);
 
   /// Get any player's hand size (for opponent card-count display).
   int handSize(int seat) =>
@@ -388,21 +406,25 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   /// Start a new game. Call this once after creating the provider.
-  void startGame() {
+  /// [targetScore]: 152 for Classic, 300 for Long Game.
+  void startGame({int targetScore = 152}) {
+    _targetScore = targetScore;
     _lastTrickMiniBySeat = null;
-    _engine.startNewGame(_playerNames);
+    _engine.startNewGame(_playerNames, targetScore: targetScore);
     _prevPhase = _engine.gamePhase;
     _lastRoundResult = null;
     _selectedCard = null;
+    _roundJustEnded = false;
+    _roundCancelled = false;
     notifyListeners();
     _scheduleNextAction();
   }
 
-  /// Restart game after game over.
+  /// Restart game after game over (keeps same target score).
   void restartGame() {
     _cancelTimers();
     _bubbles.clear();
-    startGame();
+    startGame(targetScore: _targetScore);
   }
 
   /// Leave the table (e.g. Exit from round scoreboard). Cancels timers; engine
@@ -410,6 +432,8 @@ class GameProvider extends ChangeNotifier {
   void leaveTable() {
     _cancelTimers();
     _lastRoundResult = null;
+    _roundJustEnded = false;
+    _roundCancelled = false;
     _humanTurnStartedAt = null;
     _botTurnStartedAt = null;
     for (final t in _bubbleTimers.values) {
@@ -418,16 +442,6 @@ class GameProvider extends ChangeNotifier {
     _bubbleTimers.clear();
     _bubbles.clear();
     notifyListeners();
-  }
-
-  /// From round scoreboard: play another full match (fresh scores). When
-  /// [_singleRoundMode] is false, continues the current rubber instead.
-  void playAgainFromRoundScoreboard() {
-    if (_singleRoundMode) {
-      restartGame();
-    } else {
-      dismissRoundScoreOverlay();
-    }
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -439,10 +453,16 @@ class GameProvider extends ChangeNotifier {
     if (!isHumanTurn || phase != GamePhase.bidding) return;
     _cancelTimers();
     try {
+      final dealerBefore = roundState.dealerIndex;
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
       _showBubble(0, _bidActionLabel(action, secondHakamSuit));
       HapticFeedback.lightImpact();
-      _afterEngineAction();
+      // Detect all-pass cancellation: dealer rotated means a new deal started
+      if (phase == GamePhase.bidding && roundState.dealerIndex != dealerBefore) {
+        _showCancelledOverlay(roundState.dealerIndex);
+      } else {
+        _afterEngineAction();
+      }
     } catch (e) {
       debugPrint('[GameProvider] humanBid error: $e');
     }
@@ -552,76 +572,83 @@ class GameProvider extends ChangeNotifier {
   //  INTERNAL: schedule bot actions and timer
   // ══════════════════════════════════════════════════════════════════
 
-  bool _isWaitingForScoreboard = false;
+  /// True during the 3s table pause + 6s scoreboard window after trick 8.
+  /// Used by UI to hide Dealing spinner and bidding buttons.
+  bool _roundJustEnded = false;
+  bool get isRoundJustEnded => _roundJustEnded;
 
-  /// Close the round scoreboard early (same as waiting for the auto timer).
-  void dismissRoundScoreOverlay() {
-    _botTimer?.cancel();
-    _botTimer = null;
-    if (_lastRoundResult == null) return;
-    _lastRoundResult = null;
-    if (!_engine.isGameOver && _engine.gamePhase == GamePhase.dealing) {
-      _engine.startNewRound();
-      _prevPhase = _engine.gamePhase;
-    }
-    notifyListeners();
-    _scheduleNextAction();
-  }
+  // ── Round Cancelled (all-pass both rounds) overlay ──
+  bool _roundCancelled = false;
+  String _cancelledNewDealerName = '';
+  bool get isRoundCancelled => _roundCancelled;
+  String get cancelledNewDealerName => _cancelledNewDealerName;
 
   void _afterEngineAction() {
     _syncLastTrickMini();
 
     final newPhase = _engine.gamePhase;
 
-    // The engine's _scoreRound() transitions: scoring (transient) → dealing or gameOver.
-    // By the time we read it the phase is already 'dealing' or 'gameOver', not 'scoring'.
     // Detect "round just completed" by watching playing → dealing|gameOver.
     final roundJustScored = _prevPhase == GamePhase.playing &&
         (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
 
     if (roundJustScored) {
-      _isWaitingForScoreboard = true;
-      _botTimer = Timer(const Duration(milliseconds: 4000), () {
-        _isWaitingForScoreboard = false;
-        _captureLastRoundResult();
-        notifyListeners();
-      });
+      _roundJustEnded = true;
+      // Step 1: Show the last trick cards on the table for 3 seconds.
+      // Step 2: After 3s, show scoreboard overlay.
+      // Step 3: After 6s of scoreboard, auto-start next round.
       HapticFeedback.heavyImpact();
+      _botTimer = Timer(const Duration(milliseconds: 3000), () {
+        _captureLastRoundResult(); // shows scoreboard overlay
+        notifyListeners();
+        // Auto-dismiss scoreboard and start next round after 6 seconds
+        _botTimer = Timer(const Duration(milliseconds: 6000), () {
+          _roundJustEnded = false;
+          _lastRoundResult = null;
+          if (!_engine.isGameOver && _engine.gamePhase == GamePhase.dealing) {
+            _engine.startNewRound();
+            _prevPhase = _engine.gamePhase;
+          }
+          notifyListeners();
+          _scheduleNextAction();
+        });
+      });
     } else {
       _lastRoundResult = null; // clear stale result from previous round
     }
 
     _prevPhase = newPhase;
     notifyListeners();
-    _scheduleNextAction();
+    if (!roundJustScored) _scheduleNextAction();
+  }
+
+  /// Called when all 4 players passed both bidding rounds.
+  /// Shows a 2-second "Round Cancelled / New Dealer" overlay then resumes.
+  void _showCancelledOverlay(int newDealerSeat) {
+    _cancelTimers();
+    _roundCancelled = true;
+    _cancelledNewDealerName = playerName(newDealerSeat);
+    _prevPhase = phase;
+    notifyListeners();
+
+    _botTimer = Timer(const Duration(milliseconds: 2200), () {
+      _roundCancelled = false;
+      _cancelledNewDealerName = '';
+      notifyListeners();
+      _scheduleNextAction();
+    });
   }
 
   void _scheduleNextAction() {
     _cancelTimers();
 
-    if (_engine.isGameOver) {
-      if (_isWaitingForScoreboard) return;
-      return;
-    }
+    if (_engine.isGameOver) return;
 
     final p = _engine.gamePhase;
 
-    // 'dealing' is the phase the engine sits in between rounds.
-    // If _lastRoundResult is set, we just finished a round → show overlay
-    // for 3.5 s then start the next round.
-    // If _lastRoundResult is null, this is the very first deal → advance
-    // quickly after a short animation pause.
     if (p == GamePhase.dealing) {
-      if (_isWaitingForScoreboard) return;
-      
-      // After a full round, show scoreboard until the player chooses (preview flow).
-      if (_lastRoundResult != null) {
-        return; // Now waiting for player to manually press 'Continue'
-      }
-      
-      final delay = const Duration(milliseconds: 900); // initial deal animation
-      _botTimer = Timer(delay, () {
-        _lastRoundResult = null;
+      // Very first deal at game start — advance quickly after short animation.
+      _botTimer = Timer(const Duration(milliseconds: 900), () {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
         notifyListeners();
@@ -630,11 +657,9 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    // The engine no longer stays in 'scoring' — handled above.
-    // Keep this guard for safety:
     if (p == GamePhase.scoring) {
-      if (_isWaitingForScoreboard) return;
-      _botTimer = Timer(const Duration(milliseconds: 3500), () {
+      // Safety guard — engine shouldn't stay here but handle just in case.
+      _botTimer = Timer(const Duration(milliseconds: 3000), () {
         _lastRoundResult = null;
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
@@ -667,6 +692,7 @@ class GameProvider extends ChangeNotifier {
 
     final phaseBefore = _engine.gamePhase;
     final trickBefore = trickNumber;
+    final dealerBefore = roundState.dealerIndex;
 
     try {
       _engine.botPlay(seat);
@@ -688,6 +714,14 @@ class GameProvider extends ChangeNotifier {
           _showProjectReveal = false;
           notifyListeners();
         });
+      }
+
+      // Detect all-pass cancellation: dealer rotated means new deal was triggered
+      if (phaseBefore == GamePhase.bidding &&
+          phase == GamePhase.bidding &&
+          roundState.dealerIndex != dealerBefore) {
+        _showCancelledOverlay(roundState.dealerIndex);
+        return;
       }
 
       _afterEngineAction();

@@ -280,7 +280,7 @@ class _DesignerTableTestScreenState extends State<DesignerTableTestScreen> {
     final baseTheme = Theme.of(context);
     return Theme(
       data: baseTheme.copyWith(
-        textTheme: GoogleFonts.tajawalTextTheme(baseTheme.textTheme),
+        textTheme: GoogleFonts.readexProTextTheme(baseTheme.textTheme),
       ),
       child: Scaffold(
         body: Stack(

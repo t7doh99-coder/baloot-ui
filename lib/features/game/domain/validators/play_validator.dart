@@ -79,17 +79,20 @@ class PlayValidator {
     // Hakam mode — void in leading suit
     final hasTrump = hand.any((c) => c.suit == trumpSuit);
 
-    // Rule 2: Must play trump if holding one (mandatory cut)
-    // EXCEPTION (Free Play Rule): If your partner is currently winning the trick, you are not forced to cut.
-    if (hasTrump && card.suit != trumpSuit && playerSeat != null) {
-      final int currentWinnerSeat = _getCurrentWinnerSeat(
-        currentTrick: currentTrick,
-        leadingSuit: leadingSuit,
-        trumpSuit: trumpSuit,
-      );
-
-      final bool partnerIsWinning = currentWinnerSeat >= 0 &&
-          (currentWinnerSeat % 2 == playerSeat % 2);
+    // Rule 2: Must play trump if holding one (mandatory cut).
+    // EXCEPTION (Free Play Rule): If your partner is currently winning the trick,
+    // you are not forced to cut. Only applies when playerSeat is known.
+    if (hasTrump && card.suit != trumpSuit) {
+      bool partnerIsWinning = false;
+      if (playerSeat != null) {
+        final int currentWinnerSeat = _getCurrentWinnerSeat(
+          currentTrick: currentTrick,
+          leadingSuit: leadingSuit,
+          trumpSuit: trumpSuit,
+        );
+        partnerIsWinning = currentWinnerSeat >= 0 &&
+            (currentWinnerSeat % 2 == playerSeat % 2);
+      }
 
       if (!partnerIsWinning) {
         return PlayValidationResult.violation(

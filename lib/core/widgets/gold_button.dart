@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../l10n/locale_provider.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_sizes.dart';
 
@@ -60,7 +62,7 @@ class _GoldButtonState extends State<GoldButton>
               borderRadius: BorderRadius.circular(AppSizes.radiusLg),
             ),
           ),
-          child: _buildContent(AppColors.royalGold),
+          child: _buildContent(context, AppColors.royalGold),
         ),
       );
     }
@@ -108,7 +110,7 @@ class _GoldButtonState extends State<GoldButton>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppSizes.radiusLg),
               ),
-              child: _buildContent(AppColors.antigravityBlack),
+              child: _buildContent(context, AppColors.antigravityBlack),
             ),
           ),
         );
@@ -116,12 +118,13 @@ class _GoldButtonState extends State<GoldButton>
     );
   }
 
-  Widget _buildContent(Color color) {
-    final style = GoogleFonts.montserrat(
+  Widget _buildContent(BuildContext context, Color color) {
+    final isArabic = context.watch<LocaleProvider>().isArabic;
+    final style = GoogleFonts.readexPro(
       fontSize: 16,
       fontWeight: FontWeight.w700,
       color: color,
-      letterSpacing: 0.5,
+      letterSpacing: isArabic ? 0 : 0.5,
     );
 
     if (widget.icon != null) {

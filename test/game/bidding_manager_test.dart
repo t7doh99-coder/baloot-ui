@@ -225,7 +225,7 @@ void main() {
       );
     });
 
-    test('Round 2 Second Hakam — 3 passes → hakamConfirmation (Visca / apps)', () {
+    test('Round 2 Second Hakam — 3 passes → hakamConfirmation', () {
       final bm = toRound2();
 
       bm.placeBid(1, BidAction.secondHakam, secondHakamSuit: Suit.spades);
@@ -262,6 +262,8 @@ void main() {
       expect(bm.result!.buyerIndex, 1);
       expect(bm.result!.trumpSuit, isNull);
     });
+
+
 
     test('Second Hakam with same suit as buyer card throws', () {
       final bm = toRound2();

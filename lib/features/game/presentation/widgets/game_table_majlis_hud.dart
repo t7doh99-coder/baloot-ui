@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -28,7 +29,7 @@ class GameTableMajlisHud extends StatelessWidget {
     final loc = GameL10n.of(context);
     final score = game.gameScore;
     final base = Theme.of(context).textTheme;
-    final textTheme = GoogleFonts.tajawalTextTheme(base);
+    final textTheme = GoogleFonts.readexProTextTheme(base);
 
     return Theme(
       data: Theme.of(context).copyWith(textTheme: textTheme),
@@ -63,6 +64,13 @@ class GameTableMajlisHud extends StatelessWidget {
               if (value == 1) onCycleWallpaper();
               if (value == 2 && onTestMode != null) onTestMode!();
               if (value == 77) game.triggerTestProjectReveal();
+              if (value == 98) game.toggleGodMode();
+              if (value == 99) {
+                Clipboard.setData(ClipboardData(text: game.gameLog));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(loc.gameLogCopied)),
+                );
+              }
               // value == 4 is Emote
             },
             itemBuilder: (context) {
@@ -110,6 +118,30 @@ class GameTableMajlisHud extends StatelessWidget {
                     const Icon(Icons.auto_awesome_motion_rounded, color: iconColor, size: 18),
                     const SizedBox(width: 12),
                     Text(loc.testProjectUi, style: textStyle),
+                  ]),
+                ),
+                divider,
+                PopupMenuItem<int>(
+                  value: 98,
+                  height: 48,
+                  child: Row(children: [
+                    Icon(
+                      game.isGodModeEnabled ? Icons.visibility_off : Icons.visibility,
+                      color: iconColor, 
+                      size: 18
+                    ),
+                    const SizedBox(width: 12),
+                    Text(game.isGodModeEnabled ? 'Disable God Mode' : 'Enable God Mode', style: textStyle),
+                  ]),
+                ),
+                divider,
+                PopupMenuItem<int>(
+                  value: 99,
+                  height: 48,
+                  child: Row(children: [
+                    const Icon(Icons.copy_all_rounded, color: iconColor, size: 18),
+                    const SizedBox(width: 12),
+                    Text(loc.copyGameLog, style: textStyle),
                   ]),
                 ),
                 divider,

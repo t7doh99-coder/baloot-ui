@@ -11,7 +11,7 @@ abstract class IBalootController {
   // ── Game Lifecycle ──
 
   /// Start a brand new game (resets scores, picks first dealer).
-  void startNewGame(List<String> playerNames);
+  void startNewGame(List<String> playerNames, {int targetScore = 152});
 
   /// Start a new round within the current game.
   void startNewRound();

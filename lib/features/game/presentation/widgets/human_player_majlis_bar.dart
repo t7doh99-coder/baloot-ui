@@ -123,7 +123,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                           color: Colors.white.withValues(alpha: 0.96),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          letterSpacing: 0.15,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.15,
                         ),
                       ),
                     ),
@@ -179,7 +179,7 @@ class _RankChip extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.94),
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
+          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.2,
         ),
       ),
     );

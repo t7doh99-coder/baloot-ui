@@ -27,7 +27,12 @@ class DealOverlayWidget extends StatelessWidget {
     final game  = context.watch<GameProvider>();
     final phase = game.phase;
 
-    if (phase == GamePhase.dealing) {
+    // All-pass both rounds — show cancelled overlay before new deal
+    if (game.isRoundCancelled) {
+      return _RoundCancelledOverlay(newDealerName: game.cancelledNewDealerName);
+    }
+
+    if (phase == GamePhase.dealing && !game.isRoundJustEnded) {
       return const _DealingSpinner();
     }
 
@@ -259,6 +264,78 @@ class _PhasePill extends StatelessWidget {
           fontSize: 11,
           fontFamily: 'Tajawal',
           fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Round Cancelled overlay ─────────────────────────────────────────
+
+class _RoundCancelledOverlay extends StatefulWidget {
+  final String newDealerName;
+  const _RoundCancelledOverlay({required this.newDealerName});
+
+  @override
+  State<_RoundCancelledOverlay> createState() => _RoundCancelledOverlayState();
+}
+
+class _RoundCancelledOverlayState extends State<_RoundCancelledOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..forward();
+    _scale = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, 0.45), // below the card throw zone
+      child: FadeTransition(
+        opacity: _fade,
+        child: ScaleTransition(
+          scale: _scale,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE63946).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFE63946).withValues(alpha: 0.6),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              'الجلسة ملغية  •  موزع جديد: ${widget.newDealerName}',
+              textDirection: TextDirection.rtl,
+              style: const TextStyle(
+                color: Color(0xFFE63946),
+                fontSize: 12,
+                fontFamily: 'Tajawal',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
       ),
     );

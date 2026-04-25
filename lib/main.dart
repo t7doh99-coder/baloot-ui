@@ -17,9 +17,7 @@ void main() async {
   GoogleFonts.config.allowRuntimeFetching = true;
   await Future.wait([
     GoogleFonts.pendingFonts([
-      GoogleFonts.cairo(),
-      GoogleFonts.montserrat(),
-      GoogleFonts.tajawal(),
+      GoogleFonts.readexPro(),
     ]),
   ]);
 

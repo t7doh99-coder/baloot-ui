@@ -281,7 +281,7 @@ class _SplashScreenState extends State<SplashScreen>
                         context.read<LocaleProvider>().isArabic
                             ? 'لعبة الورق الملكية'
                             : 'THE ROYAL CARD GAME',
-                        style: GoogleFonts.montserrat(
+                        style: GoogleFonts.readexPro(
                           fontSize: 13,
                           fontWeight: FontWeight.w300,
                           letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 6,

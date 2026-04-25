@@ -104,7 +104,7 @@ class RoundScoreOverlay extends StatelessWidget {
       FontWeight w = FontWeight.w500,
       Color? color,
     }) =>
-        GoogleFonts.tajawal(
+        GoogleFonts.readexPro(
           fontSize: size,
           fontWeight: w,
           color: color ?? Colors.white.withValues(alpha: 0.88),
@@ -152,11 +152,11 @@ class RoundScoreOverlay extends StatelessWidget {
                           children: [
                             Text(
                               s.title,
-                              style: GoogleFonts.tajawal(
+                              style: GoogleFonts.readexPro(
                                 color: _titleGold,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
+                                letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.3,
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -291,34 +291,6 @@ class RoundScoreOverlay extends StatelessWidget {
                               textAlign: TextAlign.center,
                             ),
                           ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          context
-                              .read<GameProvider>()
-                              .dismissRoundScoreOverlay();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _titleGold,
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          isAr ? 'متابعة' : 'Continue',
-                          style: GoogleFonts.tajawal(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                          ),
                         ),
                       ),
                     ),
@@ -576,18 +548,18 @@ class GameOverOverlay extends StatelessWidget {
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.goldAccent,
                       fontSize: 26,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.5,
                     ),
                   ),
                   if (winner != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        loc.teamReached152(winner == 'A'),
+                        loc.teamReachedTarget(winner == 'A', context.read<GameProvider>().targetScore),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.55),
                           fontSize: 13,
