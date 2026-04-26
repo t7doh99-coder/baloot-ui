@@ -16,6 +16,30 @@
 
 ---
 
+## 0. `BALOOT_RULES.md` — section traceability & gaps
+
+| Doc section | Topic | Primary code | Automated tests / notes |
+|-------------|-------|--------------|-------------------------|
+| (preamble) | Corrections vs client / Jawaker | — | See table in rulebook; each row should match engine + `test/game/` or be marked N/A |
+| §1 | Core foundation (152, teams, 32 cards) | `round_state_model`, `baloot_game_controller` | `scoring_engine_test` (152 / Gahwa) |
+| §2 | Dealing, Kut, remainder, Ashkal path | `deck_manager.dart` | `deck_manager_test` |
+| §3 | Card values / Hakam & Sun ranking | `card_model.dart`, `turn_manager` | `turn_manager_test` |
+| §4 | Bidding (R1, R2, Sawa, Ashkal) | `bidding_manager.dart` | `bidding_manager_test` |
+| §5 | Play (lead, follow, void, +10 last trick) | `play_validator.dart`, `turn_manager` | `play_validator_test`, `turn_manager_test` |
+| §6 | Projects (Sra, 50, 100, 400, Baloot) | `project_detector.dart`, `baloot_game_controller` | `project_detector_test` |
+| §7 | Double / Sun exception / open-closed / tie | `baloot_game_controller`, `scoring_engine` | `baloot_game_controller_test`, `scoring_engine_test`, `play_validator_test` (closed) |
+| §8 | Scoring, Khams, Kabout, rounding | `scoring_engine.dart` | `scoring_engine_test`, `round_score_rules_test` |
+| §9 | Qaid / violations | `play_validator` (illegal play blocked); round loss for violation | play-level; **false Qaid penalty** = 📋 not in engine (see gaps in §0 / section 13) |
+| §10 | 10s timer, bot on expiry | `game_provider.dart` | manual / UI; human seat 0 only in local build |
+| §11 | Reconnection | `getGameState()` snapshot | **Partial:** JSON snapshot for future sync; no live multiplayer resume |
+| §12 | Terminology | L10N / `game_l10n` | N/A (copy) |
+| §13 | Confirmed decisions | — | product sign-off |
+| §14 | Kammelna edge-cases (14.1–14.6) | various | 14.1 priority: `project_detector` (tie → Team A by convention, not turn order); 14.2 empty bid: `bidding_manager` + `baloot_game_controller_test`; 14.3 tie 152+: `isGameOver` / `gameWinner`; 14.4 Khams steal buyer projects: `scoring_engine._scoreKhams` + test; 14.5 Qaid: **📋**; 14.6 Kabout overrides Khams: `isKabout` first in `calculateRoundScore` |
+
+**Gaps to track (not silent):** §9 false Qaid claim, §11 full reconnect, §14.5 manual Qaid flag, optional bot Sawa (see section 13).
+
+---
+
 ## 1. Foundation & dealing
 
 | Rule | Engine | Tests |
@@ -86,6 +110,7 @@
 | Hakam: Jawaker .5 down | ✅ | `scoring_engine_test` |
 | Thresholds 65 / 81 | ✅ | |
 | Khams 26 / 16 | ✅ | |
+| Khams §14.4: defenders steal **buyer’s** project pts (not project-priority team) | ✅ | `scoring_engine_test` “Khams: defenders get buyer declared projects…” |
 | Kabout Sun 44 / Hakam 25 + projects + ace/double rules | ✅ | `scoring_engine_test` |
 | Game to 152 or Gahwa | ✅ | |
 | Round scoreboard numbers vs §8 (Sun 67/63→14/12, Khams 26/0, etc.) | ✅ | `round_score_rules_test` |
@@ -115,7 +140,58 @@ These are **not** fully testable without UI snapshots:
 
 ---
 
-## 9. Recommended implementation order (remaining work)
+## 9. Manual E2E flow scenarios (Kammelna / Jawaker–style)
+
+Run on **device or web** with human at seat 0. Pass = tick each line when done.
+
+1. **Hakam R1 — happy path:** Deal → R1 `Hakam` (human if able) or let bots set Hakam → 3× Pass → **Confirm Hakam** (not Sun) → double window: all **Pass** → play **8 tricks** → round score; no exceptions.
+2. **Sun R2:** R1 all **Pass** → R2 open **Sun** (human or wait for bot) → 3× **Pass** from others → **Sawa** or lock by passes → double → play to score.
+3. **Second Hakam R2:** R1 all Pass → R2 **Second Hakam** + suit (≠ buyer card suit) → 3× Pass → **Confirm Hakam** or **Switch to Sun** → double → play.
+4. **Empty round:** R1 all Pass, R2 all Pass → **round cancelled**, dealer advances; no points.
+5. **Gahwa (if reachable from UI):** In Hakam double chain, when buyer may call **Gahwa** per rules → **game ends** immediately; verify `gameOver` / winner.
+6. **Ashkal (R1 only):** When human is **dealer or sane**, bid **Ashkal** once; verify teammate receives buyer card and mode is Sun + Ashkal per HUD.
+
+**Exit:** Each row completes without red screen / unhandled engine error; first trick leader matches [BALOOT_RULES.md](BALOOT_RULES.md) §5.0 and controller (`_startPlayPhase`).
+
+---
+
+## 10. Scoring & §8 — test index (Kammelna / Jawaker rounding)
+
+| Doc / behavior | `test/game/` location |
+|----------------|------------------------|
+| Sun `round(abnat/10)×2`, examples 88→18, 42→8, round total 26 | `scoring_engine_test` → `Abnat to scoreboard conversion` / Sun group |
+| Hakam Jawaker .5 down (155→15, 85→8, 86→9, …) | `scoring_engine_test` → Hakam group |
+| Khams 26 / 16 | `scoring_engine_test` + `round_score_rules_test` Sun Khams |
+| Kabout Sun 44, Hakam 25, ace/double variants | `scoring_engine_test` Kabout group |
+| Double 32, Triple 48, Four 64; Sera ×2 cap; Baloot not ×2; tie 81–81 | `scoring_engine_test` Double system group |
+| Kammelna-style full round: Sun 67/63 Abnat → 14/12 | `round_score_rules_test` |
+| Game end 152, Gahwa, both over 152 | `scoring_engine_test` Game end detection |
+
+**Rounding parity:** All Hakam Abnat→scoreboard cases above assert **Jawaker-style** behaviour already codified in [BALOOT_RULES.md](BALOOT_RULES.md) §8.5.
+
+---
+
+## 11. Kammelna / Jawaker — parity log (fill on spot-check)
+
+| Date | App & version | Scenario (short) | Expected (doc §) | Observed in app | Royal Baloot build | Match (Y/N) |
+|------|---------------|------------------|------------------|-----------------|--------------------|------------|
+| | e.g. Kammelna iOS / Jawaker | e.g. Doubled Hakam + Sera 34 | §8.6 | | `git` / APK | |
+| | | e.g. Sun double gate >100 & <100 | §7.1 | | | |
+| | | e.g. Khams 26 vs buyer 0 | §8.3 | | | |
+
+Use when claiming **identical** behaviour to a commercial app; the **source of truth** for implementation remains `BALOOT_RULES.md`.
+
+---
+
+## 12. Audit run log
+
+| When | `flutter test test/game/` | Notes |
+|------|----------------------------|--------|
+| 2026-04-20 | **144 passed**, 0 failed | Hakam **10–J–Q–K** same suit now classified as **100** in [`project_detector.dart`](../lib/features/game/domain/engines/project_detector.dart) (was misclassified as 50); matches BALOOT_RULES §6 / Kammelna-style 100. |
+
+---
+
+## 13. Recommended implementation order (remaining work)
 
 1. **Playtest R2 bidding** after Sun/Second Hakam with Pass/Sawa (3 passes) — confirm copy matches app labels.  
 2. **UI:** Hide/disable Triple/Four/Gahwa in Sun on the bottom bar (engine already blocks).  
@@ -125,7 +201,7 @@ These are **not** fully testable without UI snapshots:
 
 ---
 
-## 10. Test commands
+## 14. Test commands
 
 ```bash
 flutter test test/game/

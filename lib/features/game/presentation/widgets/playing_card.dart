@@ -137,31 +137,12 @@ class PlayingCard extends StatelessWidget {
         showFace ? AppAssets.cardImage(card!) : backAssetPath(back);
 
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final int? cacheW;
-    final int? cacheH;
-    if (!showFace) {
-      // Slight oversample for small backs so rotation + lattice pattern stay cleaner.
-      final oversample = _w < 56
-          ? 1.2
-          : _w < 96
-              ? 1.1
-              : 1.0;
-      cacheW = (_w * dpr * oversample).round().clamp(1, 8192);
-      cacheH = (_h * dpr * oversample).round().clamp(1, 8192);
-    } else {
-      cacheW = null;
-      cacheH = null;
-    }
-
     Widget imageWidget = Image.asset(
       path,
       width: _w,
       height: _h,
       fit: showFace ? BoxFit.fill : BoxFit.cover,
-      filterQuality:
-          !showFace && _w < 96 ? FilterQuality.high : FilterQuality.medium,
-      cacheWidth: cacheW,
-      cacheHeight: cacheH,
+      filterQuality: FilterQuality.medium,
       // Show a placeholder card outline if image fails to load
       errorBuilder: (_, __, ___) => _errorPlaceholder(),
     );

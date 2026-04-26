@@ -121,6 +121,7 @@ class GameProvider extends ChangeNotifier {
 
   // ── Phase tracking for transition detection ──
   GamePhase _prevPhase = GamePhase.notStarted;
+  int _prevCompletedTricks = 0;
 
   bool _singleRoundMode = false;
 
@@ -336,9 +337,18 @@ class GameProvider extends ChangeNotifier {
 
   /// All declared projects in the current round (for reveal on trick 2).
   List<DeclaredProject> _testDeclaredProjects = [];
-  List<DeclaredProject> get allDeclaredProjects => _testDeclaredProjects.isNotEmpty 
-      ? _testDeclaredProjects 
-      : roundState.declaredProjects;
+  List<DeclaredProject> get allDeclaredProjects {
+    if (_testDeclaredProjects.isNotEmpty) return _testDeclaredProjects;
+    
+    final winner = _engine.projectWinningTeam;
+    if (winner == null) return roundState.declaredProjects;
+    
+    return roundState.declaredProjects.where((p) {
+      if (p.type == ProjectType.baloot) return true; // Baloot is always valid/shown
+      final isTeamA = p.playerIndex % 2 == 0;
+      return (winner == 'A' && isTeamA) || (winner == 'B' && !isTeamA);
+    }).toList();
+  }
 
   /// Trigger a fake project reveal for testing the UI animation.
   void triggerTestProjectReveal() {
@@ -406,12 +416,12 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   /// Start a new game. Call this once after creating the provider.
-  /// [targetScore]: 152 for Classic, 300 for Long Game.
-  void startGame({int targetScore = 152}) {
-    _targetScore = targetScore;
+  void startGame() {
+    _targetScore = 152;
     _lastTrickMiniBySeat = null;
-    _engine.startNewGame(_playerNames, targetScore: targetScore);
+    _engine.startNewGame(_playerNames);
     _prevPhase = _engine.gamePhase;
+    _prevCompletedTricks = 0;
     _lastRoundResult = null;
     _selectedCard = null;
     _roundJustEnded = false;
@@ -424,7 +434,7 @@ class GameProvider extends ChangeNotifier {
   void restartGame() {
     _cancelTimers();
     _bubbles.clear();
-    startGame(targetScore: _targetScore);
+    startGame();
   }
 
   /// Leave the table (e.g. Exit from round scoreboard). Cancels timers; engine
@@ -540,8 +550,12 @@ class GameProvider extends ChangeNotifier {
       // Qaid (Violation) — show Kammelna-style banner
       _qaidViolationMessage = e.message;
       _qaidViolationSeat = 0;
+      
+      // Apply professional Kammelna penalty (instant round loss + Kabout score)
+      _engine.applyQaidPenalty(0);
+      
       HapticFeedback.heavyImpact();
-      notifyListeners();
+      _afterEngineAction(); // Transition to next round/game over
     } catch (e) {
       debugPrint('[GameProvider] humanPlayCard error: $e');
     }
@@ -592,7 +606,13 @@ class GameProvider extends ChangeNotifier {
     final roundJustScored = _prevPhase == GamePhase.playing &&
         (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
 
+    final newCompletedTricks = completedTricksCount;
+    final trickJustCompleted =
+        newPhase == GamePhase.playing && newCompletedTricks > _prevCompletedTricks;
+    _prevCompletedTricks = newCompletedTricks;
+
     if (roundJustScored) {
+      _prevCompletedTricks = 0;
       _roundJustEnded = true;
       // Step 1: Show the last trick cards on the table for 3 seconds.
       // Step 2: After 3s, show scoreboard overlay.
@@ -619,7 +639,18 @@ class GameProvider extends ChangeNotifier {
 
     _prevPhase = newPhase;
     notifyListeners();
-    if (!roundJustScored) _scheduleNextAction();
+
+    if (roundJustScored) return;
+
+    if (trickJustCompleted) {
+      // Pause for trick collection animation (Overlay flash + gather motion)
+      // TrickAreaWidget uses 1000ms delay + 850ms collect duration = ~1.85s
+      _botTimer = Timer(const Duration(milliseconds: 1850), () {
+        _scheduleNextAction();
+      });
+    } else {
+      _scheduleNextAction();
+    }
   }
 
   /// Called when all 4 players passed both bidding rounds.
@@ -830,6 +861,8 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
   //  SCORE CAPTURE
   // ══════════════════════════════════════════════════════════════════
+
+  bool get isKabout => _engine.roundState.teamATricksWon.length == 8 || _engine.roundState.teamBTricksWon.length == 8;
 
   void _captureLastRoundResult() {
     final rs = _engine.roundState;

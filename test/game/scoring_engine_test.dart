@@ -87,6 +87,25 @@ void main() {
       expect(result.teamAPoints, 0);
       expect(result.teamBPoints, 16);
     });
+
+    // BALOOT_RULES §14.4 (Kammelna): steal *buyer* project scoreboard pts, not
+    // the project-priority winner when that team is the defender.
+    test('Khams: defenders get buyer declared projects, not other team priority', () {
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 40,
+        teamBAbnat: 90,
+        mode: GameMode.sun,
+        buyerTeam: 'A',
+        teamATricksCount: 3,
+        teamBTricksCount: 5,
+        teamAProjectScoreboard: 5, // buyer (A) declared
+        teamBProjectScoreboard: 10, // defender had higher-priority project
+        projectWinningTeam: 'B', // B wins project priority; irrelevant for Khams
+      );
+      expect(result.isKhams, true);
+      expect(result.teamBPoints, 26 + 5);
+      expect(result.teamAPoints, 0);
+    });
   });
 
   group('Kabout (all-tricks sweep)', () {

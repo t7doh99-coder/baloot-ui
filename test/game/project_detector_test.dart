@@ -56,12 +56,12 @@ void main() {
       ];
 
       final projects = detector.detectAll(hand, GameMode.sun);
-      final fifties = projects.where((p) => p.type == ProjectType.fifty).toList();
-      expect(fifties.length, greaterThanOrEqualTo(1));
+      final hundreds = projects.where((p) => p.type == ProjectType.hundred).toList();
+      expect(hundreds.length, greaterThanOrEqualTo(1));
     });
   });
 
-  group('Hundred (100) — Hakam only', () {
+  group('Hundred (100) — Both modes', () {
     test('5 consecutive same suit → 100', () {
       final hand = [
         const CardModel(suit: Suit.hearts, rank: Rank.seven),
@@ -79,7 +79,7 @@ void main() {
       expect(hundreds.length, greaterThanOrEqualTo(1));
     });
 
-    test('4x(10,J,Q,K) same suit → 100 in Hakam', () {
+    test('4x(10,J,Q,K) same rank → 100', () {
       final hand = [
         const CardModel(suit: Suit.clubs, rank: Rank.ten),
         const CardModel(suit: Suit.clubs, rank: Rank.jack),
@@ -91,7 +91,7 @@ void main() {
         const CardModel(suit: Suit.hearts, rank: Rank.ace),
       ];
 
-      final projects = detector.detectAll(hand, GameMode.hakam, trumpSuit: Suit.spades);
+      final projects = detector.detectAll(hand, GameMode.sun);
       final hundreds = projects.where((p) => p.type == ProjectType.hundred).toList();
       expect(hundreds.length, greaterThanOrEqualTo(1));
     });
@@ -215,7 +215,7 @@ void main() {
         ),
       ];
 
-      final winner = detector.resolveProjectPriority(teamA, teamB);
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
       expect(winner, 'A');
     });
 
@@ -243,8 +243,67 @@ void main() {
         ),
       ];
 
-      final winner = detector.resolveProjectPriority(teamA, teamB);
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
       expect(winner, 'B'); // Q,K,A has higher card than 7,8,9
+    });
+
+    test('exact tie (rank & card) → Trump wins (Rule 14.1)', () {
+      final teamA = [
+        DeclaredProject(
+          type: ProjectType.sera,
+          playerIndex: 2,
+          cards: const [
+            CardModel(suit: Suit.hearts, rank: Rank.seven),
+            CardModel(suit: Suit.hearts, rank: Rank.eight),
+            CardModel(suit: Suit.hearts, rank: Rank.nine),
+          ],
+        ),
+      ];
+      final teamB = [
+        DeclaredProject(
+          type: ProjectType.sera,
+          playerIndex: 1,
+          cards: const [
+            CardModel(suit: Suit.spades, rank: Rank.seven),
+            CardModel(suit: Suit.spades, rank: Rank.eight),
+            CardModel(suit: Suit.spades, rank: Rank.nine),
+          ],
+        ),
+      ];
+
+      // In Hakam mode where Spades is Trump, Team B wins the tie
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.hakam, Suit.spades, 0);
+      expect(winner, 'B');
+    });
+
+    test('exact tie (rank & card & no trump) → Turn order wins (Rule 14.1)', () {
+      final teamA = [
+        DeclaredProject(
+          type: ProjectType.sera,
+          playerIndex: 2,
+          cards: const [
+            CardModel(suit: Suit.hearts, rank: Rank.seven),
+            CardModel(suit: Suit.hearts, rank: Rank.eight),
+            CardModel(suit: Suit.hearts, rank: Rank.nine),
+          ],
+        ),
+      ];
+      final teamB = [
+        DeclaredProject(
+          type: ProjectType.sera,
+          playerIndex: 1,
+          cards: const [
+            CardModel(suit: Suit.diamonds, rank: Rank.seven),
+            CardModel(suit: Suit.diamonds, rank: Rank.eight),
+            CardModel(suit: Suit.diamonds, rank: Rank.nine),
+          ],
+        ),
+      ];
+
+      // First leader is 0. Players are 1 and 2.
+      // Proximity: 1 is closer to 0 than 2 is. So Player 1 (Team B) wins.
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
+      expect(winner, 'B');
     });
   });
 

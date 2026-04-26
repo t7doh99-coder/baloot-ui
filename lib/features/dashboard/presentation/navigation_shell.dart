@@ -60,21 +60,18 @@ class _NavigationShellState extends State<NavigationShell>
     super.dispose();
   }
 
-  int _selectedTargetScore = 152;
 
   // ── Hub action callbacks ──
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
   void _onPlayNow() {
-    context.read<GameProvider>().startGame(targetScore: _selectedTargetScore);
+    context.read<GameProvider>().startGame();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const GameTableScreen()),
     );
   }
 
-  void _onSelectTargetScore(int score) {
-    setState(() => _selectedTargetScore = score);
-  }
+
 
   void _onTableBackground() {
     Navigator.of(context).push(
@@ -157,9 +154,7 @@ class _NavigationShellState extends State<NavigationShell>
                                 child: _GameHub(
                                   isArabic: isArabic,
                                   glowAnim: _glowAnim,
-                                  selectedTargetScore: _selectedTargetScore,
                                   onPlay: _onPlayNow,
-                                  onSelectTargetScore: _onSelectTargetScore,
                                   onTableBackground: _onTableBackground,
                                   onCreateSession: _onCreateSession,
                                   onJoinSessions: _onJoinSessions,
@@ -579,9 +574,7 @@ class _GameHub extends StatelessWidget {
   const _GameHub({
     required this.isArabic,
     required this.glowAnim,
-    required this.selectedTargetScore,
     required this.onPlay,
-    required this.onSelectTargetScore,
     required this.onTableBackground,
     required this.onCreateSession,
     required this.onJoinSessions,
@@ -590,9 +583,7 @@ class _GameHub extends StatelessWidget {
 
   final bool isArabic;
   final Animation<double> glowAnim;
-  final int selectedTargetScore;
   final VoidCallback onPlay;
-  final Function(int) onSelectTargetScore;
   final VoidCallback onTableBackground;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
@@ -607,7 +598,7 @@ class _GameHub extends StatelessWidget {
         _PlayMedallion(
           isArabic: isArabic,
           glowAnim: glowAnim,
-          selectedTargetScore: selectedTargetScore,
+
           onTap: onPlay,
         ),
 
@@ -616,7 +607,7 @@ class _GameHub extends StatelessWidget {
         // ── Game Modes link — minimal, intentional, below the hero ──
         _GameModesLink(
           isArabic: isArabic,
-          onSelectTargetScore: onSelectTargetScore,
+          onPlayNow: onPlay,
           onCreateSession: onCreateSession,
           onJoinSessions: onJoinSessions,
           onVipAccess: onVipAccess,
@@ -780,14 +771,14 @@ class _PlayMedallion extends StatefulWidget {
   const _PlayMedallion({
     required this.isArabic,
     required this.glowAnim,
-    required this.selectedTargetScore,
+
     required this.onTap,
     this.hideGlow = false,
   });
 
   final bool isArabic;
   final Animation<double> glowAnim;
-  final int selectedTargetScore;
+
   final VoidCallback onTap;
   final bool hideGlow;
 
@@ -872,9 +863,7 @@ class _PlayMedallionState extends State<_PlayMedallion> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        widget.selectedTargetScore == 152
-                            ? (widget.isArabic ? 'كلاسيكي' : 'Classic Mode')
-                            : (widget.isArabic ? 'لعبة طويلة' : 'Long Game'),
+                        widget.isArabic ? 'كلاسيكي' : 'Classic Mode',
                         style: GoogleFonts.readexPro(
                           color: AppColors.royalGold.withValues(alpha: 0.9),
                           fontSize: 12,
@@ -912,14 +901,14 @@ class _PlayMedallionState extends State<_PlayMedallion> {
 class _GameModesLink extends StatefulWidget {
   const _GameModesLink({
     required this.isArabic,
-    required this.onSelectTargetScore,
+    required this.onPlayNow,
     required this.onCreateSession,
     required this.onJoinSessions,
     required this.onVipAccess,
   });
 
   final bool isArabic;
-  final Function(int) onSelectTargetScore;
+  final VoidCallback onPlayNow;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
   final VoidCallback onVipAccess;
@@ -942,7 +931,7 @@ class _GameModesLinkState extends State<_GameModesLink> {
       isScrollControlled: true,
       builder: (_) => _GameModesSheet(
         isArabic: widget.isArabic,
-        onSelectTargetScore: widget.onSelectTargetScore,
+        onPlayNow: widget.onPlayNow,
         onCreateSession: widget.onCreateSession,
         onJoinSessions: widget.onJoinSessions,
         onVipAccess: widget.onVipAccess,
@@ -989,14 +978,14 @@ class _GameModesLinkState extends State<_GameModesLink> {
 class _GameModesSheet extends StatelessWidget {
   const _GameModesSheet({
     required this.isArabic,
-    required this.onSelectTargetScore,
+    required this.onPlayNow,
     required this.onCreateSession,
     required this.onJoinSessions,
     required this.onVipAccess,
   });
 
   final bool isArabic;
-  final Function(int) onSelectTargetScore;
+  final VoidCallback onPlayNow;
   final VoidCallback onCreateSession;
   final VoidCallback onJoinSessions;
   final VoidCallback onVipAccess;
@@ -1044,15 +1033,9 @@ class _GameModesSheet extends StatelessWidget {
             icon: Icons.play_arrow_rounded,
             title: isArabic ? 'العب بلوت' : 'Play Baloot',
             subtitle: isArabic ? 'كلاسيكي — ١٥٢ نقطة' : 'Classic — 152 pts',
-            onTap: () { Navigator.pop(context); onSelectTargetScore(152); },
+            onTap: () { Navigator.pop(context); onPlayNow(); },
           ),
-          const SizedBox(height: 10),
-          _SheetOption(
-            icon: Icons.timer_outlined,
-            title: isArabic ? 'لعبة طويلة' : 'Long Game Baloot',
-            subtitle: isArabic ? 'ماراثون — ٣٠٠ نقطة' : 'Marathon — 300 pts',
-            onTap: () { Navigator.pop(context); onSelectTargetScore(300); },
-          ),
+
           const SizedBox(height: 10),
           _SheetOption(
             icon: Icons.add_rounded,

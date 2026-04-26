@@ -50,7 +50,6 @@ class GameL10n {
   String get leave => _ar ? 'مغادرة' : 'Leave';
   String get wallpaper => _ar ? 'الخلفية' : 'Wallpaper';
   String get testMode => _ar ? 'وضع تجريبي' : 'Test Mode';
-  String get testProjectUi => _ar ? 'اختبار المشاريع' : 'Test Project UI';
   String get sound => _ar ? 'صوت' : 'Sound';
   String get emotes => _ar ? 'إيموشن' : 'Emotes';
 

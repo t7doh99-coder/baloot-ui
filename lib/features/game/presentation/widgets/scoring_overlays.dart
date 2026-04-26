@@ -249,8 +249,8 @@ class RoundScoreOverlay extends StatelessWidget {
                                   _thinRule(),
                                   _ScoreTableRow.data(
                                     s.points,
-                                    r.teamBAbnat,
-                                    r.teamAAbnat,
+                                    r.teamBTrickAbnat,
+                                    r.teamATrickAbnat,
                                     taj,
                                     emphasize: true,
                                   ),

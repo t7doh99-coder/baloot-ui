@@ -529,8 +529,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       // Kammelna-style row: صن · حكم · أشكال · بس (+ سوى when defending after a Hakam)
       return [
         _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
-        if (canAshkal)
+        if (!gp.hasActiveHakamBid)
+          _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
+        if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
         if (_humanCanSawaRound1(gp))

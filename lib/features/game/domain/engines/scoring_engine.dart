@@ -101,31 +101,44 @@ class ScoringEngine {
     String? projectWinningTeam,
     String? doubleCallerTeam,
   }) {
-    // Preserve raw trick Abnat before adding project Abnat
+    // teamAAbnat / teamBAbnat are TRICK card points only (including ground).
+    // Projects are handled separately via their own scoreboard point values.
     final trickAbnatA = teamAAbnat;
     final trickAbnatB = teamBAbnat;
 
-    // Add project Abnat to the winning team's total
-    int aAbnat = teamAAbnat;
-    int bAbnat = teamBAbnat;
-
+    // Effective project Abnat (for scoreboard display only — NOT used in math)
     int effectiveProjectA = 0;
     int effectiveProjectB = 0;
     if (projectWinningTeam == 'A') {
-      aAbnat += teamAProjectAbnat;
       effectiveProjectA = teamAProjectAbnat;
     } else if (projectWinningTeam == 'B') {
-      bAbnat += teamBProjectAbnat;
       effectiveProjectB = teamBProjectAbnat;
     }
 
     // Shared breakdown context passed into sub-functions
     RoundScoreResult _withBreakdown(RoundScoreResult base) {
+      int finalProjA = effectiveProjectA;
+      int finalProjB = effectiveProjectB;
+
+      // Rule 14.4: Stolen projects in Khams.
+      // Update breakdown Abnat to match the stolen points logic in _scoreKhams.
+      if (base.isKhams) {
+        if (buyerTeam == 'A') {
+          // Team A (Buyer) projects are stolen by Team B (Defenders)
+          finalProjA = 0;
+          finalProjB = teamBProjectAbnat + teamAProjectAbnat;
+        } else {
+          // Team B (Buyer) projects are stolen by Team A (Defenders)
+          finalProjB = 0;
+          finalProjA = teamAProjectAbnat + teamBProjectAbnat;
+        }
+      }
+
       return RoundScoreResult(
         teamAPoints: base.teamAPoints,
         teamBPoints: base.teamBPoints,
-        teamARawAbnat: base.teamARawAbnat,
-        teamBRawAbnat: base.teamBRawAbnat,
+        teamARawAbnat: trickAbnatA,
+        teamBRawAbnat: trickAbnatB,
         isKhams: base.isKhams,
         isKabout: base.isKabout,
         winningTeam: base.winningTeam,
@@ -133,8 +146,8 @@ class ScoringEngine {
         teamATrickAbnat: trickAbnatA,
         teamBTrickAbnat: trickAbnatB,
         lastTrickBonusTeam: lastTrickBonusTeam,
-        teamAProjectAbnat: effectiveProjectA,
-        teamBProjectAbnat: effectiveProjectB,
+        teamAProjectAbnat: finalProjA,
+        teamBProjectAbnat: finalProjB,
         mode: mode,
         buyerTeam: buyerTeam,
         doubleStatus: doubleStatus,
@@ -144,8 +157,8 @@ class ScoringEngine {
     // --- Kabout check (uses actual trick counts, not Abnat) ---
     if (isKabout) {
       return _withBreakdown(_scoreKabout(
-        teamAAbnat: aAbnat,
-        teamBAbnat: bAbnat,
+        teamAAbnat: trickAbnatA,
+        teamBAbnat: trickAbnatB,
         buyerCardIsAce: buyerCardIsAce,
         teamATricksWon: teamATricksCount,
         teamBTricksWon: teamBTricksCount,
@@ -159,16 +172,19 @@ class ScoringEngine {
       ));
     }
 
-    // --- Determine round winner ---
+    // --- Determine round winner (using TRICK Abnaat only, NOT projects) ---
+    // Per Kammelna: Khams is decided by trick card points only.
+    // Sun threshold: 65 (out of 130 total trick Abnaat)
+    // Hakam threshold: 81 (out of 162 total trick Abnaat)
     final threshold = mode == GameMode.sun ? 65 : 81;
-    final buyerAbnat = buyerTeam == 'A' ? aAbnat : bAbnat;
-    final defenderAbnat = buyerTeam == 'A' ? bAbnat : aAbnat;
+    final buyerTrickAbnat = buyerTeam == 'A' ? trickAbnatA : trickAbnatB;
+    final defenderTrickAbnat = buyerTeam == 'A' ? trickAbnatB : trickAbnatA;
 
     bool buyerWins;
-    if (doubleStatus != DoubleStatus.none && buyerAbnat == defenderAbnat) {
+    if (doubleStatus != DoubleStatus.none && buyerTrickAbnat == defenderTrickAbnat) {
       buyerWins = doubleCallerTeam != buyerTeam;
     } else {
-      buyerWins = buyerAbnat > threshold;
+      buyerWins = buyerTrickAbnat > threshold;
     }
 
     // --- Khams (buyer loses) ---
@@ -176,10 +192,9 @@ class ScoringEngine {
       return _withBreakdown(_scoreKhams(
         mode: mode,
         buyerTeam: buyerTeam,
-        teamAAbnat: aAbnat,
-        teamBAbnat: bAbnat,
+        teamAAbnat: trickAbnatA,
+        teamBAbnat: trickAbnatB,
         doubleStatus: doubleStatus,
-        projectWinningTeam: projectWinningTeam,
         teamAProjectScoreboard: teamAProjectScoreboard,
         teamBProjectScoreboard: teamBProjectScoreboard,
         balootPoints: balootPoints,
@@ -191,8 +206,8 @@ class ScoringEngine {
     return _withBreakdown(_scoreNormal(
       mode: mode,
       buyerTeam: buyerTeam,
-      teamAAbnat: aAbnat,
-      teamBAbnat: bAbnat,
+      teamAAbnat: trickAbnatA,
+      teamBAbnat: trickAbnatB,
       doubleStatus: doubleStatus,
       projectWinningTeam: projectWinningTeam,
       teamAProjectScoreboard: teamAProjectScoreboard,
@@ -201,6 +216,7 @@ class ScoringEngine {
       balootTeam: balootTeam,
     ));
   }
+
 
   RoundScoreResult _scoreKabout({
     required int teamAAbnat,
@@ -257,7 +273,6 @@ class ScoringEngine {
     required int teamAAbnat,
     required int teamBAbnat,
     required DoubleStatus doubleStatus,
-    String? projectWinningTeam,
     int teamAProjectScoreboard = 0,
     int teamBProjectScoreboard = 0,
     int balootPoints = 0,
@@ -272,21 +287,18 @@ class ScoringEngine {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
 
-    // Project Stealing (BALOOT_RULES.md Section 14.4):
-    // In a Khams loss, the defender team steals all project points (except Baloot).
+    // Project stealing (BALOOT_RULES.md §14.4 — Kammelna):
+    // Defenders get Khams base + the *buyer's team's* declared project scoreboard
+    // points (not the abstract project-priority winner). Baloot is handled below
+    // and is not stolen (exception in same section).
     int aBonus = 0, bBonus = 0;
-    if (projectWinningTeam != null) {
-      final multiplier = _projectMultiplier(doubleStatus);
-      final totalProjectPts = (projectWinningTeam == 'A'
-              ? teamAProjectScoreboard
-              : teamBProjectScoreboard) *
-          multiplier;
-
-      if (defenderTeam == 'A') {
-        aBonus = totalProjectPts;
-      } else {
-        bBonus = totalProjectPts;
-      }
+    final multiplier = _projectMultiplier(doubleStatus);
+    
+    // Rule 14.4: Defenders get their OWN projects + the STOLEN projects from buyer.
+    if (defenderTeam == 'A') {
+      aBonus = (teamAProjectScoreboard + teamBProjectScoreboard) * multiplier;
+    } else {
+      bBonus = (teamBProjectScoreboard + teamAProjectScoreboard) * multiplier;
     }
 
     if (balootTeam == 'A') aBonus += balootPoints;
@@ -340,11 +352,23 @@ class ScoringEngine {
         bPts += teamBProjectScoreboard * multiplier;
       }
     } else {
-      // No double: Abnat -> scoreboard conversion already includes project
-      // Abnat contribution. Do NOT add project scoreboard pts separately.
+      // No double: convert TRICK Abnaat to scoreboard points.
+      // Per Kammelna: Sun always totals 26, Hakam always totals 16.
+      // Compute Team A via formula, derive Team B as complement to
+      // prevent rounding drift (matches client example: "opponents get 18" = 26−8).
+      final modeTotal = mode == GameMode.sun ? 26 : 16;
       aPts = abnatToScoreboard(teamAAbnat, mode);
-      bPts = abnatToScoreboard(teamBAbnat, mode);
+      bPts = modeTotal - aPts;
+
+      // Add project scoreboard points for the winning team
+      if (projectWinningTeam == 'A') {
+        aPts += teamAProjectScoreboard;
+      } else if (projectWinningTeam == 'B') {
+        bPts += teamBProjectScoreboard;
+      }
     }
+
+
 
     // Baloot is always 2 pts (never derived from Abnat, immune to doubling)
     if (balootTeam == 'A') aPts += balootPoints;
@@ -416,11 +440,10 @@ class ScoringEngine {
     }
   }
 
-  bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble,
-      {int targetScore = 152}) {
+  bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (lastDouble == DoubleStatus.gahwa) return true;
 
-    final reachedTarget = teamATotal >= targetScore || teamBTotal >= targetScore;
+    final reachedTarget = teamATotal >= 152 || teamBTotal >= 152;
     if (!reachedTarget) return false;
 
     // Sudden-Death Tie-Breaker (BALOOT_RULES.md Section 14.3):
@@ -430,10 +453,8 @@ class ScoringEngine {
     return true;
   }
 
-  String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble,
-      {int targetScore = 152}) {
-    if (!isGameOver(teamATotal, teamBTotal, lastDouble,
-        targetScore: targetScore)) return null;
+  String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
+    if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
 
     if (lastDouble == DoubleStatus.gahwa) {
       // Caller must determine Gahwa winner based on who called it and if they won
@@ -444,5 +465,47 @@ class ScoringEngine {
     if (teamBTotal > teamATotal) return 'B';
 
     return null; // Should be unreachable due to isGameOver tie-check
+  }
+
+  /// Calculate score for a Qaid (Violation) penalty.
+  /// Per BALOOT_RULES.md Section 14.5:
+  /// Award Kabout score (44 Sun / 25 Hakam) + active project points to the winning team.
+  RoundScoreResult calculateViolationScore({
+    required GameMode mode,
+    required String winningTeam,
+    required DoubleStatus doubleStatus,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    final baseKabout = mode == GameMode.hakam ? 25 : 44;
+    final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
+    final kaboutPts = baseKabout * doubleMultiplier;
+
+    int aPts = winningTeam == 'A' ? kaboutPts : 0;
+    int bPts = winningTeam == 'B' ? kaboutPts : 0;
+
+    // Award winning team's projects (multiplied by x2 if doubled)
+    final pm = _projectMultiplier(doubleStatus);
+    if (winningTeam == 'A') {
+      aPts += teamAProjectScoreboard * pm;
+    } else {
+      bPts += teamBProjectScoreboard * pm;
+    }
+
+    if (balootTeam == 'A') aPts += balootPoints;
+    if (balootTeam == 'B') bPts += balootPoints;
+
+    return RoundScoreResult(
+      teamAPoints: aPts,
+      teamBPoints: bPts,
+      teamARawAbnat: 0,
+      teamBRawAbnat: 0,
+      isKhams: false,
+      isKabout: true,
+      winningTeam: winningTeam,
+      reason: 'qaid_penalty',
+    );
   }
 }

@@ -110,23 +110,33 @@ class ProjectDetector {
       final runs = _findConsecutiveRuns(suitCards);
 
       for (final run in runs) {
-        if (run.length >= 5 && mode == GameMode.hakam) {
-          // 100 (5-consecutive) — Hakam only per Jawaker rules
-          final highest = run.last.getStrength(mode: GameMode.sun);
+        if (run.length >= 5) {
+          // 100 (5+ consecutive). Kammelna rules only require showing 5 cards.
+          final best5 = run.length > 5 ? run.sublist(run.length - 5) : run;
+          final highest = best5.last.getStrength(mode: GameMode.sun);
           projects.add(DetectedProject(
             type: ProjectType.hundred,
-            cards: run,
+            cards: best5,
             highestStrength: highest,
           ));
         } else if (run.length >= 4) {
-          // 50 (4-consecutive) — also covers 5+ runs in Sun (downgrade)
+          // 50 (4-consecutive)
           final best4 = run.length > 4 ? run.sublist(run.length - 4) : run;
           final highest = best4.last.getStrength(mode: GameMode.sun);
-          projects.add(DetectedProject(
-            type: ProjectType.fifty,
-            cards: best4,
-            highestStrength: highest,
-          ));
+          // 10–J–Q–K same suit = 100 (BALOOT_RULES §6), not 50
+          if (_isHundredFourCourtRun(best4)) {
+            projects.add(DetectedProject(
+              type: ProjectType.hundred,
+              cards: best4,
+              highestStrength: highest,
+            ));
+          } else {
+            projects.add(DetectedProject(
+              type: ProjectType.fifty,
+              cards: best4,
+              highestStrength: highest,
+            ));
+          }
         } else if (run.length >= 3) {
           // Sera (3-consecutive)
           final highest = run.last.getStrength(mode: GameMode.sun);
@@ -165,6 +175,17 @@ class ProjectDetector {
     return runs;
   }
 
+  /// True if [run] is exactly 10, J, Q, K of one suit (consecutive run of four).
+  bool _isHundredFourCourtRun(List<CardModel> run) {
+    if (run.length != 4) return false;
+    final ranks = run.map((c) => c.rank).toSet();
+    return ranks.length == 4 &&
+        ranks.contains(Rank.ten) &&
+        ranks.contains(Rank.jack) &&
+        ranks.contains(Rank.queen) &&
+        ranks.contains(Rank.king);
+  }
+
   /// Detect 4-of-a-kind projects:
   /// - 4 Aces in Sun → 400 (Jawaker: Sun only)
   /// - 4 Aces in Hakam → 100
@@ -192,21 +213,19 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/J/Q/K) same rank → 100 (Hakam only per Jawaker)
-    if (mode == GameMode.hakam) {
-      final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
-      for (final rank in courtRanks) {
-        final sameRankCards = hand.where((c) => c.rank == rank).toList();
-        if (sameRankCards.length == 4) {
-          final highest = sameRankCards
-              .map((c) => c.getStrength(mode: GameMode.sun))
-              .reduce((a, b) => a > b ? a : b);
-          projects.add(DetectedProject(
-            type: ProjectType.hundred,
-            cards: sameRankCards,
-            highestStrength: highest,
-          ));
-        }
+    // 4×(10/J/Q/K) same rank → 100 (Available in both modes per BALOOT_RULES.md)
+    final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
+    for (final rank in courtRanks) {
+      final sameRankCards = hand.where((c) => c.rank == rank).toList();
+      if (sameRankCards.length == 4) {
+        final highest = sameRankCards
+            .map((c) => c.getStrength(mode: GameMode.sun))
+            .reduce((a, b) => a > b ? a : b);
+        projects.add(DetectedProject(
+          type: ProjectType.hundred,
+          cards: sameRankCards,
+          highestStrength: highest,
+        ));
       }
     }
 
@@ -236,13 +255,18 @@ class ProjectDetector {
   /// Compare two teams' projects and determine which team's projects count.
   /// Returns 'A', 'B', or null (if no projects declared).
   ///
-  /// Per BALOOT_RULES.md Section 6.3:
+  /// Per BALOOT_RULES.md Section 6.3 & 14.1:
   /// Both teams compare highest project. Superior project wins.
   /// If tied rank → highest card in sequence wins.
-  /// Only winning team's project Abnat is counted.
+  /// If STILL tied (Rule 14.1):
+  ///   - Trump sequence wins over non-trump.
+  ///   - Otherwise, turn order (closest to firstLeaderIndex clockwise).
   String? resolveProjectPriority(
     List<DeclaredProject> teamAProjects,
     List<DeclaredProject> teamBProjects,
+    GameMode mode,
+    Suit? trumpSuit,
+    int firstLeaderIndex,
   ) {
     // Filter out Baloot (doesn't participate in priority)
     final aRegular = teamAProjects.where((p) => p.type != ProjectType.baloot).toList();
@@ -252,29 +276,45 @@ class ProjectDetector {
     if (aRegular.isEmpty) return 'B';
     if (bRegular.isEmpty) return 'A';
 
-    // Compare highest project from each team
-    aRegular.sort((a, b) {
-      final cmp = b.priorityRank.compareTo(a.priorityRank);
-      if (cmp != 0) return cmp;
-      return b.highestCardStrength.compareTo(a.highestCardStrength);
-    });
-    bRegular.sort((a, b) {
-      final cmp = b.priorityRank.compareTo(a.priorityRank);
-      if (cmp != 0) return cmp;
-      return b.highestCardStrength.compareTo(a.highestCardStrength);
-    });
+    // Helper to get project strength for tie-breaking
+    // We sort teams by their absolute best project first.
+    _sortProjects(aRegular);
+    _sortProjects(bRegular);
 
     final aBest = aRegular.first;
     final bBest = bRegular.first;
 
+    // 1. Priority Rank (Sera < 50 < 100 < 400)
     if (aBest.priorityRank > bBest.priorityRank) return 'A';
     if (bBest.priorityRank > aBest.priorityRank) return 'B';
 
-    // Same priority rank — compare highest card
+    // 2. Highest Card Strength
     if (aBest.highestCardStrength > bBest.highestCardStrength) return 'A';
     if (bBest.highestCardStrength > aBest.highestCardStrength) return 'B';
 
-    // Exact tie — first declared wins (Team A by convention)
-    return 'A';
+    // 3. Trump Suit vs Non-Trump (Rule 14.1)
+    if (mode == GameMode.hakam && trumpSuit != null) {
+      final aIsTrump = aBest.cards.any((c) => c.suit == trumpSuit);
+      final bIsTrump = bBest.cards.any((c) => c.suit == trumpSuit);
+      if (aIsTrump && !bIsTrump) return 'A';
+      if (bIsTrump && !aIsTrump) return 'B';
+    }
+
+    // 4. Turn Order Tie-Breaker (Rule 14.1)
+    // "Closest to the first leader wins" (clockwise on screen: 0->1->2->3)
+    // firstLeaderIndex is the starter (e.g. seat 1).
+    // Proximity = (playerIndex - firstLeaderIndex) % 4
+    final aProximity = (aBest.playerIndex - firstLeaderIndex) % 4;
+    final bProximity = (bBest.playerIndex - firstLeaderIndex) % 4;
+
+    return aProximity <= bProximity ? 'A' : 'B';
+  }
+
+  void _sortProjects(List<DeclaredProject> list) {
+    list.sort((a, b) {
+      final cmp = b.priorityRank.compareTo(a.priorityRank);
+      if (cmp != 0) return cmp;
+      return b.highestCardStrength.compareTo(a.highestCardStrength);
+    });
   }
 }

@@ -98,7 +98,7 @@ class BalootGameController implements IBalootController {
   // ── IBalootController implementation ──
 
   @override
-  void startNewGame(List<String> playerNames, {int targetScore = 152}) {
+  void startNewGame(List<String> playerNames) {
     if (playerNames.length != 4) {
       throw const InvalidMoveException('Exactly 4 players required.');
     }
@@ -107,7 +107,7 @@ class BalootGameController implements IBalootController {
     _playerNames = playerNames;
     _teamAScore = 0;
     _teamBScore = 0;
-    _targetScore = targetScore;
+    _targetScore = 152; // Kammelna strict classic score
     _dealerIndex = _rng.nextInt(4);
     logger.log('Initial dealer: Seat $_dealerIndex');
     logger.log('Target score: $_targetScore');
@@ -150,6 +150,59 @@ class BalootGameController implements IBalootController {
     _escalationDefenderSeat = null;
 
     _gamePhase = GamePhase.bidding;
+  }
+
+  @override
+  void applyQaidPenalty(int violatorSeatIndex) {
+    if (_gamePhase != GamePhase.playing) return;
+
+    final winnerTeam = violatorSeatIndex % 2 == 0 ? 'B' : 'A';
+    final mode = _roundState.activeMode ?? GameMode.sun;
+
+    // Projects: count all declared projects for the winning team
+    int teamAProjectScoreboard = 0, teamBProjectScoreboard = 0;
+    for (final p in _activeDeclaredProjects) {
+      if (p.type == ProjectType.baloot) continue;
+      if (p.playerIndex % 2 == 0) {
+        teamAProjectScoreboard += p.getScoreboardPoints(mode);
+      } else {
+        teamBProjectScoreboard += p.getScoreboardPoints(mode);
+      }
+    }
+
+    // Baloot handling
+    int balootPts = 0;
+    String? balootTeam;
+    final balootProjects = _activeDeclaredProjects.where((p) => p.type == ProjectType.baloot);
+    if (balootProjects.isNotEmpty) {
+      balootPts = 2;
+      balootTeam = balootProjects.first.playerIndex % 2 == 0 ? 'A' : 'B';
+    }
+
+    final scoreResult = _scoringEngine.calculateViolationScore(
+      mode: mode,
+      winningTeam: winnerTeam,
+      doubleStatus: _roundState.doubleStatus,
+      teamAProjectScoreboard: teamAProjectScoreboard,
+      teamBProjectScoreboard: teamBProjectScoreboard,
+      balootPoints: balootPts,
+      balootTeam: balootTeam,
+    );
+
+    _lastRoundScoreResult = scoreResult;
+    _teamAScore += scoreResult.teamAPoints;
+    _teamBScore += scoreResult.teamBPoints;
+
+    logger.log('QAID VIOLATION by Seat $violatorSeatIndex. Penalty applied.');
+    logger.log('Score Added -> Team A: +${scoreResult.teamAPoints}, Team B: +${scoreResult.teamBPoints}');
+
+    // Check game end
+    if (_scoringEngine.isGameOver(_teamAScore, _teamBScore, _roundState.doubleStatus)) {
+      _gamePhase = GamePhase.gameOver;
+    } else {
+      _dealerIndex = (_dealerIndex + 1) % 4;
+      _gamePhase = GamePhase.dealing;
+    }
   }
 
   @override
@@ -485,9 +538,15 @@ class BalootGameController implements IBalootController {
         .where((p) => p.playerIndex % 2 != 0)
         .toList();
 
-    // Resolve project priority
-    final projectWinner =
-        _projectDetector.resolveProjectPriority(teamAProjects, teamBProjects);
+    // Resolve project priority (Rule 14.1)
+    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
+    final projectWinner = _projectDetector.resolveProjectPriority(
+      teamAProjects,
+      teamBProjects,
+      mode,
+      _roundState.trumpSuit,
+      firstLeaderIndex,
+    );
 
     // Calculate project Abnat and scoreboard points
     int teamAProjectAbnat = 0, teamBProjectAbnat = 0;
@@ -556,11 +615,35 @@ class BalootGameController implements IBalootController {
     _teamAScore += scoreResult.teamAPoints;
     _teamBScore += scoreResult.teamBPoints;
     logger.log('Round Score Added -> Team A: +${scoreResult.teamAPoints}, Team B: +${scoreResult.teamBPoints}');
+    logger.log('--- KAMMELNA SCORE BREAKDOWN ---');
+    logger.log('  Buyer: Seat ${_roundState.buyerIndex} (Team $buyerTeam)');
+    logger.log('  Mode: ${scoreResult.mode.name.toUpperCase()}, Double: ${scoreResult.doubleStatus.name}');
+    logger.log('  Outcome Reason: ${scoreResult.reason ?? "Normal"}');
+    logger.log('  Trick Abnat (Cards): A=${scoreResult.teamATrickAbnat}, B=${scoreResult.teamBTrickAbnat}');
+    if (lastTrickTeam != null) {
+      logger.log('  Ground Bonus (+10): Team $lastTrickTeam');
+    }
+    
+    // Log explicit projects
+    for (final p in teamAProjects) {
+      if (p.type != ProjectType.baloot) logger.log('  Project (Team A): ${p.type.name} (${p.getAbnat(mode)} Abnat)');
+    }
+    for (final p in teamBProjects) {
+      if (p.type != ProjectType.baloot) logger.log('  Project (Team B): ${p.type.name} (${p.getAbnat(mode)} Abnat)');
+    }
+    
+    if (projectWinner != null) {
+      logger.log('  Project Priority Winner: Team $projectWinner');
+    }
+    
+    logger.log('  Effective Project Abnat (After Priority/Stealing): A=${scoreResult.teamAProjectAbnat}, B=${scoreResult.teamBProjectAbnat}');
+    
+    if (balootTeam != null) {
+      logger.log('  Baloot Declared: Team $balootTeam (+2 Scoreboard Pts)');
+    }
 
     // Check game end
-    if (_scoringEngine.isGameOver(
-        _teamAScore, _teamBScore, _roundState.doubleStatus,
-        targetScore: _targetScore)) {
+    if (_scoringEngine.isGameOver(_teamAScore, _teamBScore, _roundState.doubleStatus)) {
       logger.log('GAME OVER! Final Score - Team A: $_teamAScore, Team B: $_teamBScore');
       _gamePhase = GamePhase.gameOver;
     } else {
@@ -571,6 +654,7 @@ class BalootGameController implements IBalootController {
   }
 
   // ── Bot Logic ──
+
 
   /// Smart bot play using [BotEngine] for strategic decisions.
   ///
@@ -708,6 +792,25 @@ class BalootGameController implements IBalootController {
     if (!isGameOver) return null;
     return _scoringEngine.gameWinner(
         _teamAScore, _teamBScore, _roundState.doubleStatus);
+  }
+
+  @override
+  String? get projectWinningTeam {
+    if (_roundState.activeMode == null) return null;
+    final teamAProjects = _activeDeclaredProjects
+        .where((p) => p.playerIndex % 2 == 0)
+        .toList();
+    final teamBProjects = _activeDeclaredProjects
+        .where((p) => p.playerIndex % 2 != 0)
+        .toList();
+    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
+    return _projectDetector.resolveProjectPriority(
+      teamAProjects,
+      teamBProjects,
+      _roundState.activeMode!,
+      _roundState.trumpSuit,
+      firstLeaderIndex,
+    );
   }
 
   @override

@@ -1203,10 +1203,6 @@ class _FaceDownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = PlayingCard.backAssetPath(cardBackForSeat(seat));
     final r = BorderRadius.circular(3.0);
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final oversample = width < 56 ? 1.2 : width < 72 ? 1.12 : 1.0;
-    final cacheW = (width * dpr * oversample).round().clamp(1, 8192);
-    final cacheH = (height * dpr * oversample).round().clamp(1, 8192);
     return Container(
       width: width,
       height: height,
@@ -1227,9 +1223,7 @@ class _FaceDownCard extends StatelessWidget {
           width: width,
           height: height,
           fit: BoxFit.cover,
-          filterQuality: width < 72 ? FilterQuality.high : FilterQuality.medium,
-          cacheWidth: cacheW,
-          cacheHeight: cacheH,
+          filterQuality: FilterQuality.medium,
           errorBuilder: (_, __, ___) => ColoredBox(
             color: cardBackForSeat(seat) == CardBack.red
                 ? const Color(0xFFB71C1C)

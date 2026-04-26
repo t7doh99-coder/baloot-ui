@@ -11,7 +11,7 @@ abstract class IBalootController {
   // ── Game Lifecycle ──
 
   /// Start a brand new game (resets scores, picks first dealer).
-  void startNewGame(List<String> playerNames, {int targetScore = 152});
+  void startNewGame(List<String> playerNames);
 
   /// Start a new round within the current game.
   void startNewRound();
@@ -53,6 +53,9 @@ abstract class IBalootController {
 
   /// Get the winning team ('A' or 'B'), or null if not over.
   String? get gameWinner;
+
+  /// Get the team ('A' or 'B') that won the project priority this round, or null.
+  String? get projectWinningTeam;
 
   /// Full state snapshot for reconnection.
   Map<String, dynamic> getGameState();

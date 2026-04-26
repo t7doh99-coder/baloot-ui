@@ -63,7 +63,6 @@ class GameTableMajlisHud extends StatelessWidget {
               if (value == 0) onBack();
               if (value == 1) onCycleWallpaper();
               if (value == 2 && onTestMode != null) onTestMode!();
-              if (value == 77) game.triggerTestProjectReveal();
               if (value == 98) game.toggleGodMode();
               if (value == 99) {
                 Clipboard.setData(ClipboardData(text: game.gameLog));
@@ -112,16 +111,6 @@ class GameTableMajlisHud extends StatelessWidget {
                 ],
                 divider,
                 PopupMenuItem<int>(
-                  value: 77,
-                  height: 48,
-                  child: Row(children: [
-                    const Icon(Icons.auto_awesome_motion_rounded, color: iconColor, size: 18),
-                    const SizedBox(width: 12),
-                    Text(loc.testProjectUi, style: textStyle),
-                  ]),
-                ),
-                divider,
-                PopupMenuItem<int>(
                   value: 98,
                   height: 48,
                   child: Row(children: [
@@ -131,7 +120,7 @@ class GameTableMajlisHud extends StatelessWidget {
                       size: 18
                     ),
                     const SizedBox(width: 12),
-                    Text(game.isGodModeEnabled ? 'Disable God Mode' : 'Enable God Mode', style: textStyle),
+                    Text(game.isGodModeEnabled ? 'Hide All Cards' : 'Reveal All Cards', style: textStyle),
                   ]),
                 ),
                 divider,
