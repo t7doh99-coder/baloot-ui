@@ -28,7 +28,7 @@ class AppTheme {
         backgroundColor: AppColors.antigravityBlack,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: _montserratStyle(18, FontWeight.w700, AppColors.royalGold),
+        titleTextStyle: _fontStyle(18, FontWeight.w700, AppColors.royalGold),
         iconTheme: const IconThemeData(color: AppColors.royalGold),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -54,18 +54,18 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppSizes.radiusLg),
           borderSide: const BorderSide(color: AppColors.royalGold, width: 1.4),
         ),
-        hintStyle: _montserratStyle(13, FontWeight.w400, AppColors.muted),
+        hintStyle: _fontStyle(13, FontWeight.w400, AppColors.muted),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.slateGlass.withValues(alpha: 0.7),
         selectedColor: AppColors.royalGold.withValues(alpha: 0.18),
-        labelStyle: _montserratStyle(12, FontWeight.w600, AppColors.silverLining),
+        labelStyle: _fontStyle(12, FontWeight.w600, AppColors.silverLining),
         side: BorderSide(color: AppColors.royalGold.withValues(alpha: 0.2)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusXl)),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: const Color(0xFF1C1F26),
-        contentTextStyle: _montserratStyle(13, FontWeight.w500, AppColors.pureWhite),
+        contentTextStyle: _fontStyle(13, FontWeight.w500, AppColors.pureWhite),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSizes.radiusMd),
@@ -98,7 +98,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSizes.radiusLg),
           ),
-          textStyle: _montserratStyle(16, FontWeight.w700, AppColors.antigravityBlack),
+          textStyle: _fontStyle(16, FontWeight.w700, AppColors.antigravityBlack),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -112,7 +112,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSizes.radiusLg),
           ),
-          textStyle: _montserratStyle(16, FontWeight.w600, AppColors.royalGold),
+          textStyle: _fontStyle(16, FontWeight.w600, AppColors.royalGold),
         ),
       ),
       dividerTheme: const DividerThemeData(
@@ -123,65 +123,65 @@ class AppTheme {
     );
   }
 
-  /// English text style (Montserrat)
-  static TextStyle _montserratStyle(double size, FontWeight weight, Color color) {
-    return GoogleFonts.montserrat(
+  /// Readex Pro — single font for both Arabic and English
+  static TextStyle _fontStyle(double size, FontWeight weight, Color color) {
+    return GoogleFonts.readexPro(
       fontSize: size,
       fontWeight: weight,
       color: color,
     );
   }
 
-  /// Build text theme — uses Montserrat by default, Arabic handled via locale
+  /// Build text theme — uses Readex Pro (supports Arabic + English natively)
   static TextTheme _buildTextTheme() {
     return TextTheme(
-      displayLarge: GoogleFonts.montserrat(
+      displayLarge: GoogleFonts.readexPro(
         fontSize: 36,
         fontWeight: FontWeight.w800,
         color: AppColors.pureWhite,
         letterSpacing: -0.5,
       ),
-      displayMedium: GoogleFonts.montserrat(
+      displayMedium: GoogleFonts.readexPro(
         fontSize: 28,
         fontWeight: FontWeight.w700,
         color: AppColors.pureWhite,
       ),
-      headlineLarge: GoogleFonts.montserrat(
+      headlineLarge: GoogleFonts.readexPro(
         fontSize: 24,
         fontWeight: FontWeight.w700,
         color: AppColors.royalGold,
       ),
-      headlineMedium: GoogleFonts.montserrat(
+      headlineMedium: GoogleFonts.readexPro(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: AppColors.pureWhite,
       ),
-      titleLarge: GoogleFonts.montserrat(
+      titleLarge: GoogleFonts.readexPro(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: AppColors.pureWhite,
       ),
-      titleMedium: GoogleFonts.montserrat(
+      titleMedium: GoogleFonts.readexPro(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: AppColors.pureWhite,
       ),
-      bodyLarge: GoogleFonts.montserrat(
+      bodyLarge: GoogleFonts.readexPro(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: AppColors.silverLining,
       ),
-      bodyMedium: GoogleFonts.montserrat(
+      bodyMedium: GoogleFonts.readexPro(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: AppColors.silverLining,
       ),
-      bodySmall: GoogleFonts.montserrat(
+      bodySmall: GoogleFonts.readexPro(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: AppColors.muted,
       ),
-      labelLarge: GoogleFonts.montserrat(
+      labelLarge: GoogleFonts.readexPro(
         fontSize: 14,
         fontWeight: FontWeight.w700,
         color: AppColors.royalGold,
@@ -190,22 +190,10 @@ class AppTheme {
     );
   }
 
-  /// Returns locale-aware text theme — Tajawal for Arabic, Montserrat for English
+  /// Returns locale-aware text theme.
+  /// Readex Pro supports both Arabic and English natively,
+  /// so we use it for both locales — no font switching needed.
   static TextTheme localizedTextTheme(Locale locale) {
-    if (locale.languageCode == 'ar') {
-      return TextTheme(
-        displayLarge: GoogleFonts.tajawal(fontSize: 36, fontWeight: FontWeight.w800, color: AppColors.pureWhite),
-        displayMedium: GoogleFonts.tajawal(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.pureWhite),
-        headlineLarge: GoogleFonts.tajawal(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.royalGold),
-        headlineMedium: GoogleFonts.tajawal(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.pureWhite),
-        titleLarge: GoogleFonts.tajawal(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.pureWhite),
-        titleMedium: GoogleFonts.tajawal(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.pureWhite),
-        bodyLarge: GoogleFonts.tajawal(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.silverLining),
-        bodyMedium: GoogleFonts.tajawal(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.silverLining),
-        bodySmall: GoogleFonts.tajawal(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.muted),
-        labelLarge: GoogleFonts.tajawal(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.royalGold),
-      );
-    }
     return _buildTextTheme();
   }
 }

@@ -18,6 +18,7 @@ dependencies:
   animate_do: ^3.3.4
   provider: ^6.1.2
   shimmer: ^3.0.0
+  playing_cards: ^0.4.1+11
 
 dev_dependencies:
   flutter_test:
@@ -31,8 +32,11 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/cards/
+    - assets/images/avatars/
     - assets/icons/
     - assets/lottie/
+    - assets/figma/
 
 flutter_launcher_icons:
   android: "launcher_icon"

@@ -144,11 +144,11 @@ class _FindingGameContentState extends State<_FindingGameContent>
                 context.watch<LocaleProvider>().isArabic
                     ? 'البحث عن لعبة'
                     : 'Finding Game',
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: const Color(0xFFF4E4B7),
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
+                  letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1,
                 ),
               ),
 
@@ -159,10 +159,10 @@ class _FindingGameContentState extends State<_FindingGameContent>
                 context.watch<LocaleProvider>().isArabic
                     ? 'جاري البحث عن لاعبين...'
                     : 'Searching for players...',
-                style: GoogleFonts.montserrat(
+                style: GoogleFonts.readexPro(
                   color: Colors.white.withValues(alpha: 0.35),
                   fontSize: 11,
-                  letterSpacing: 0.3,
+                  letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.3,
                 ),
               ),
 

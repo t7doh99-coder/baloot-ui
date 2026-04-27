@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_assets.dart';
 import '../../../data/models/user_model.dart';
 
 /// Provides the current user profile data to the widget tree.
@@ -14,9 +15,10 @@ import '../../../data/models/user_model.dart';
 /// ```
 class UserProvider extends ChangeNotifier {
   // ── MOCK DATA — Replace with real backend fetch ──
-  UserModel _user = const UserModel(
+  UserModel _user = UserModel(
     id: 'mock-001',
-    username: 'ElPatron',
+    username: 'Stanley',
+    avatarUrl: AppAssets.playerAvatarPath(0),
     coins: 1139194,
     gems: 662,
     level: 'Expert',

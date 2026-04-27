@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/l10n/locale_provider.dart';
 import 'core/l10n/app_localizations.dart';
 import 'core/providers/user_provider.dart';
+import 'features/game/presentation/game_provider.dart';
 import 'features/splash/presentation/splash_screen.dart';
 
 void main() async {
@@ -15,9 +17,7 @@ void main() async {
   GoogleFonts.config.allowRuntimeFetching = true;
   await Future.wait([
     GoogleFonts.pendingFonts([
-      GoogleFonts.cairo(),
-      GoogleFonts.montserrat(),
-      GoogleFonts.tajawal(),
+      GoogleFonts.readexPro(),
     ]),
   ]);
 
@@ -26,6 +26,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => GameProvider()),
       ],
       child: const AntigravittyBalootApp(),
     ),
@@ -42,6 +43,8 @@ class AntigravittyBalootApp extends StatelessWidget {
     return MaterialApp(
       title: 'Royal Baloot',
       debugShowCheckedModeBanner: false,
+      // Web on iPhone: allow drag from touch + mouse for cards / scrollables
+      scrollBehavior: const _BalootScrollBehavior(),
       theme: AppTheme.darkTheme.copyWith(
         textTheme: AppTheme.localizedTextTheme(localeProvider.locale),
       ),
@@ -59,13 +62,35 @@ class AntigravittyBalootApp extends StatelessWidget {
       // Force LTR layout for game UI — Arabic text still renders correctly,
       // but the layout stays fixed (like Clash Royale / mobile games).
       builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: child!,
+        final mq = MediaQuery.of(context);
+        final bounded = mq.copyWith(
+          textScaler: mq.textScaler.clamp(
+            minScaleFactor: 0.88,
+            maxScaleFactor: 1.12,
+          ),
+        );
+        return MediaQuery(
+          data: bounded,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: child!,
+          ),
         );
       },
       home: const SplashScreen(),
     );
   }
+}
+
+class _BalootScrollBehavior extends MaterialScrollBehavior {
+  const _BalootScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
 }
 
