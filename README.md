@@ -1,307 +1,502 @@
-# Royal Baloot 🃏 — VIP Card Game
+<div align="center">
 
-**App Name:** Royal Baloot  
-**Client:** Visca ME  
-**Lead UI Developer:** Abdul Sami  
-**Phase:** 1 — UI Foundation & Architecture (Logic-Ready)
+# 🃏 Arba'a Morba'a — أربعة مربعة
 
----
+### *The Premier Professional Baloot Platform*
 
-## 1. Executive Summary
-
-Royal Baloot is a premium VIP card game app built with Flutter, targeting the Middle Eastern market. The UI delivers a **"Luxury Minimalist"** dark-themed experience inspired by mobile games like Clash Royale, with full Arabic/English bilingual support.
-
-Phase 1 delivers a **fully polished, logic-ready UI shell** — all screens, animations, and navigation are complete. A backend/logic developer can integrate the game engine by implementing the provided abstract interfaces without touching the UI layer.
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![License](https://img.shields.io/badge/License-Proprietary-gold)]()
+[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android%20%7C%20Web-brightgreen)]()
+[![Rules](https://img.shields.io/badge/Rules-Kammelna%20%2F%20Jawaker-critical)]()
 
 ---
 
-## 2. Technical Stack
+*A tournament-grade Baloot card game engineered to rival market leaders like **Kammelna** and **Jawaker**.*
+*Built with a Security-First architecture, 100% rulebook fidelity, and a sustainable business ecosystem.*
 
-| Technology | Details |
-|---|---|
-| **Framework** | Flutter 3.x (Stable) |
-| **Language** | Dart |
-| **Architecture** | Feature-First Clean Architecture |
-| **State Management** | Provider (ChangeNotifier) |
-| **Design System** | VIP Dark & Gold (Charcoal + Royal Gold `#D4AF37`) |
-| **Localization** | Dual-language (Arabic / English) via `LocaleProvider` |
-| **Typography** | Google Fonts — `Montserrat` (EN), `Tajawal` / `Cairo` (AR) |
-| **Platforms** | Android & iOS |
+</div>
 
 ---
 
-## 3. Project Structure
+## 📋 Table of Contents
 
-```plaintext
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Game Engine](#-game-engine)
+- [Getting Started](#-getting-started)
+- [Development Roadmap](#-development-roadmap)
+- [Testing](#-testing)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🌟 Overview
+
+**Arba'a Morba'a** (أربعة مربعة) is a premium, enterprise-grade Baloot card game platform designed to deliver a flawless, professional gaming experience. Every rule, animation, and scoring calculation has been meticulously validated against the official **Kammelna / Jawaker** rulebooks to ensure 100% fidelity with professional Saudi Baloot standards.
+
+The platform targets the **152-point classic game mode** with full support for:
+
+- **Hakam** (حكم) and **Sun** (صن) game modes
+- **Ashkal** (أشكال) dealer/sane bidding
+- **Projects** (مشاريع): Sera, 50, 100, 400, and Baloot
+- **Escalation**: Double → Triple → Four → Gahwa
+- **Professional penalties**: Qaid violations and Project Stealing
+
+---
+
+## ✨ Key Features
+
+### 🎮 Game Engine
+| Feature | Description |
+|---------|-------------|
+| **100% Rulebook Fidelity** | Every bid, play, and score validated against Kammelna/Jawaker standards |
+| **Smart AI Opponents** | Rule-based bot engine with strategic bidding and card play |
+| **Real-Time Project Detection** | Automatic scanning of hands for Sera, 50, 100, 400 during the deal phase |
+| **Complementary Scoring** | Drift-proof math ensuring round totals always equal 162 (Hakam) or 130 (Sun) |
+| **Jawaker-Style Rounding** | Precise `.5 rounds DOWN, .6+ rounds UP` scoreboard conversion |
+| **Professional Penalties** | Qaid violation detection with instant Kabout-score penalties |
+| **Project Stealing** | Rule 14.4 — defenders steal buyer's project points on Khams |
+
+### 🎨 Premium UI/UX
+| Feature | Description |
+|---------|-------------|
+| **VIP Visual Identity** | Gold/Obsidian theme with custom Tajawal typography |
+| **3D Majlis Table** | Hand-painted carpet perspective with ambient lighting |
+| **Cinematic Card Animations** | Deal arcs, trick throws, and collection sweeps at 60 FPS |
+| **Responsive Design** | Pixel-perfect rendering from Samsung A06 to iPhone 15 Pro Max |
+| **Bilingual Support** | Full Arabic (RTL) and English localization |
+
+### 🔐 Architecture
+| Feature | Description |
+|---------|-------------|
+| **Feature-First Architecture** | Clean separation of concerns for long-term scalability |
+| **Modular Engine Design** | Independent modules for dealing, bidding, playing, and scoring |
+| **State Management** | Provider-based reactive UI with immutable game state models |
+| **Comprehensive Logging** | Kammelna-style score breakdowns for transparent rule verification |
+
+---
+
+## 🏗 Architecture
+
+The application follows a **Feature-First Clean Architecture** pattern, ensuring separation of concerns and long-term maintainability.
+
+```
+┌─────────────────────────────────────────────────┐
+│                 PRESENTATION                     │
+│  GameProvider → GameTableScreen → Widgets        │
+├─────────────────────────────────────────────────┤
+│                   DOMAIN                         │
+│  BalootGameController (Orchestrator)             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
+│  │  Deck    │ │ Bidding  │ │ Turn             │ │
+│  │ Manager  │ │ Manager  │ │ Manager          │ │
+│  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
+│  │ Scoring  │ │ Project  │ │ Bot              │ │
+│  │ Engine   │ │ Detector │ │ Engine           │ │
+│  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────────────────────────────────────────┐│
+│  │           Play Validator                     ││
+│  └──────────────────────────────────────────────┘│
+├─────────────────────────────────────────────────┤
+│                    DATA                          │
+│  CardModel · RoundStateModel · CardPlayModel     │
+├─────────────────────────────────────────────────┤
+│                    CORE                          │
+│  Theme · L10n · Constants · Interfaces · Utils   │
+└─────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```mermaid
+graph LR
+    A[User Tap] --> B[GameProvider]
+    B --> C[BalootGameController]
+    C --> D{Phase?}
+    D -->|Bidding| E[BiddingManager]
+    D -->|Playing| F[TurnManager + PlayValidator]
+    D -->|Scoring| G[ScoringEngine + ProjectDetector]
+    G --> H[RoundScoreResult]
+    H --> B
+    B --> I[UI Rebuild]
+```
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Framework** | Flutter 3.x | Cross-platform UI (iOS, Android, Web) |
+| **Language** | Dart 3.x | Type-safe, null-safe application logic |
+| **State** | Provider | Reactive UI state management |
+| **Typography** | Google Fonts (Tajawal) | Premium Arabic/Latin typography |
+| **Animations** | animate_do | Micro-animations and transitions |
+| **Localization** | flutter_localizations + intl | Full AR/EN bilingual support |
+| **Graphics** | flutter_svg | Scalable vector assets |
+| **Testing** | flutter_test | Unit and widget testing |
+
+---
+
+## 📁 Project Structure
+
+```
 lib/
+├── main.dart                          # App entry point & provider setup
 ├── core/
-│   ├── constants/
-│   │   └── app_colors.dart          # Design tokens (royalGold, antigravityBlack)
-│   ├── theme/
-│   │   └── app_theme.dart           # Global dark theme + localized text themes
-│   ├── widgets/
-│   │   ├── glass_container.dart     # Glassmorphic card widget
-│   │   ├── gold_button.dart         # Reusable gold gradient button
-│   │   └── vip_background_shell.dart# Static suit pattern background (cached)
-│   ├── interfaces/
-│   │   └── i_baloot_controller.dart # Abstract game logic contract
-│   ├── l10n/
-│   │   ├── locale_provider.dart     # Language toggle (AR ↔ EN)
-│   │   └── app_localizations.dart   # Localization delegate
-│   └── providers/
-│       └── user_provider.dart       # Mock user data (coins, gems, username)
-│
+│   ├── constants/                     # Asset paths, app-wide constants
+│   ├── errors/                        # Custom exception classes
+│   ├── interfaces/                    # IBalootController abstract contract
+│   ├── l10n/                          # Arabic/English game translations
+│   ├── layout/                        # Responsive layout utilities
+│   ├── providers/                     # Locale and theme providers
+│   ├── theme/                         # Gold/Obsidian VIP theme system
+│   ├── utils/                         # GameLogger, helpers
+│   └── widgets/                       # Shared reusable widgets
 ├── data/
 │   └── models/
-│       └── user_model.dart          # User data schema
-│
-├── features/
-│   ├── splash/
-│   │   └── presentation/
-│   │       └── splash_screen.dart   # Animated splash with card fan + golden arcs
-│   ├── dashboard/
-│   │   └── presentation/
-│   │       └── navigation_shell.dart# Main game hub (TopBar, GameHub, BottomNav)
-│   ├── game/
-│   │   └── presentation/
-│   │       └── finding_game_popup.dart # Matchmaking popup with sine-wave animation
-│   ├── session/
-│   │   └── presentation/
-│   │       └── create_session_screen.dart # Session creation form
-│   └── settings/
-│       └── presentation/
-│           └── settings_screen.dart  # Settings modal panel
-│
-└── main.dart                         # App entry point, providers, theme injection
+│       ├── card_model.dart            # Card suits, ranks, strength, points
+│       ├── card_play_model.dart       # Card + player index for tricks
+│       └── round_state_model.dart     # Immutable round state snapshot
+└── features/
+    ├── dashboard/                     # Home screen & navigation shell
+    ├── game/
+    │   ├── domain/
+    │   │   ├── baloot_game_controller.dart  # Master game orchestrator
+    │   │   ├── engines/
+    │   │   │   ├── bot_engine.dart          # AI opponent logic
+    │   │   │   ├── project_detector.dart    # Sera/50/100/400/Baloot scanner
+    │   │   │   └── scoring_engine.dart      # Points, Khams, Kabout math
+    │   │   ├── managers/
+    │   │   │   ├── bidding_manager.dart     # Mzad (auction) state machine
+    │   │   │   ├── deck_manager.dart        # Shuffle, Kut, 2-phase deal
+    │   │   │   └── turn_manager.dart        # Trick flow & winner evaluation
+    │   │   └── validators/
+    │   │       └── play_validator.dart      # Legal move enforcement
+    │   └── presentation/
+    │       ├── game_provider.dart           # UI state bridge
+    │       ├── game_table_screen.dart       # Main game screen
+    │       └── widgets/
+    │           ├── playing_card.dart        # Card face/back renderer
+    │           ├── player_seat_widget.dart  # Opponent card fans & avatars
+    │           ├── human_hand_widget.dart   # Player's interactive hand
+    │           ├── scoring_overlays.dart    # Round-end score breakdown
+    │           ├── project_sheet.dart       # Project declaration UI
+    │           └── ...                      # 8 more specialized widgets
+    ├── session/                        # Game session management
+    ├── settings/                       # User preferences
+    └── splash/                         # Animated splash screen
 ```
 
 ---
 
-## 4. Screens & Features
+## 🧠 Game Engine
 
-### 4.1 Splash Screen
-- **4 animated playing cards** fan out from center with arcade-style physics
-- **Golden rotating arc** circles behind the logo
-- **Logo images** (`logo-text1.png`, `logo-text2.png`) fade in with scale animation
-- **Subtitle** translates: "THE ROYAL CARD GAME" / "لعبة الورق الملكية"
-- Auto-navigates to Home after animation completes
+### Module Breakdown
 
-### 4.2 Home Screen (Navigation Shell)
-The main hub with three distinct zones:
+#### 🃏 DeckManager
+Manages the 32-card Baloot deck lifecycle:
+- **Create** → Standard 32-card deck (7 through Ace, 4 suits)
+- **Shuffle** → Fisher-Yates randomization
+- **Kut (Cut)** → Randomized deck split before dealing
+- **Deal Phase 1** → 3 + 2 cards per player, 1 buyer card revealed
+- **Deal Phase 2** → Remaining 3 cards per player after bidding
 
-#### Top Bar
-- **Player avatar chip** — 52px circle with username and rank badge
-- **Currency bars** (Clash Royale style):
-  - 💰 Coins: Gold gradient `+` button
-  - 💎 Gems: Green gradient `+` button
-- **Quick Menu button** (☰) — opens a dropdown with:
-  - Language toggle (EN ↔ عربي)
-  - Alerts
-  - Settings
+#### 🎤 BiddingManager
+Full Mzad (مزاد) state machine per Kammelna rules:
+- **Round 1**: Hakam (buyer card suit) or Pass
+- **Round 2**: Sun, Second Hakam (different suit), or Pass
+- **Ashkal**: Special Sun bid available only to Dealer and Sane
+- **Sawa**: Defending team accepts the active bid
+- **Confirmation**: Hakam buyer chooses to confirm or switch to Sun
 
-#### Game Hub (Center)
-- **Play Medallion** — 170px pulsing glow circle with `♠` icon
-  - Glow animation separated into its own layer via `RepaintBoundary` for performance
-  - Tap scales up with spring-back animation
-- **3 Satellite Actions:**
-  - Create Session
-  - Join Sessions  
-  - VIP Store
+#### ⚔️ TurnManager
+Manages the 8-trick round flow:
+- Card play validation and trick collection
+- Winner evaluation (highest trump > highest lead suit)
+- Abnat accumulation with +10 ground bonus on Trick 8
+- Kabout detection (all 8 tricks won by one team)
 
-#### Bottom Navigation (5 tabs)
-| Index | Tab | Icon | Status |
-|---|---|---|---|
-| 0 | Shop | `storefront` | Coming Soon |
-| 1 | Community | `people` | Coming Soon |
-| 2 | **Home** | `home` | ✅ Active |
-| 3 | Chat | `chat` | Coming Soon |
-| 4 | Leagues | `emoji_events` | Coming Soon |
+#### 📊 ScoringEngine
+Tournament-grade scoring mathematics:
+- **Sun Formula**: `round(abnat / 10) × 2` (total always = 26)
+- **Hakam Formula**: Jawaker rounding (`.5↓ .6↑`) with complementary scoring (total always = 16)
+- **Khams (Sweep)**: Buyer fails threshold → defenders get base score (26 Sun / 16 Hakam)
+- **Kabout**: All 8 tricks → 44 Sun / 25 Hakam (× Ace multiplier × Double multiplier)
+- **Project Stealing**: On Khams, defenders receive buyer's project points (Rule 14.4)
+- **Qaid Penalty**: Illegal play → instant round loss with Kabout-base award
 
-- Active tab: enlarged gold icon + label
-- Inactive tabs: smaller muted icon, no label
-- Non-Home tabs show a **"Coming Soon"** placeholder with lock icon
+#### 🔍 ProjectDetector
+Scans 8-card hands for professional projects:
+- **Sera** (سرا): 3 consecutive same suit → 20 Abnat / 2 pts
+- **Fifty** (خمسين): 4 consecutive same suit → 50 Abnat / 5 pts
+- **Hundred** (مئة): 5 consecutive OR 10-J-Q-K same suit → 100 Abnat / 10 pts
+- **Four Hundred** (أربعمئة): 4 Aces in Sun mode → 400 Abnat / 40 pts
+- **Baloot** (بلوت): K+Q of trump (auto-declared on 2nd card play)
+- **Rule 14.1 Tie-Breaking**: Trump sequence wins; otherwise turn-order proximity
 
-### 4.3 Create Session Screen
-- Session name text input
-- Game type selector (Restricted / Free Play)
-- Game speed selector (30s / 10s / 5s)
-- Minimum play level selector (Beginner / Intermediate / Expert)
-- All labels fully translated to Arabic
-- Scrollable form with back chevron
-
-### 4.4 Finding Game Popup
-- Modal overlay triggered by "Play" button
-- **Sine-wave animated suit icons** (♠♥♣♦) — smooth opacity/scale pulse
-- "Finding Game" / "البحث عن لعبة" + "Searching for players..." / "جاري البحث عن لاعبين..."
-- Close chevron in top-right corner
-
-### 4.5 Settings Panel
-- Modal overlay with blurred backdrop
-- Toggle switches for Audio, Language
-- Action items: Change Name, Notifications
-- Links: Help & Support, Privacy, Terms of Service, Credits
-- Player ID display
-- All text fully translated
+#### 🤖 BotEngine
+Strategic AI opponent with contextual decision-making:
+- **Bidding**: Hand strength evaluation for Hakam/Sun/Pass decisions
+- **Playing**: Trick-position awareness, partner card tracking, trump management
+- **Double**: Defensive hand evaluation for escalation decisions
 
 ---
 
-## 5. Design System
-
-### Color Palette
-
-| Token | Hex | Usage |
-|---|---|---|
-| **Antigravity Black** | `#0D0F14` | Primary background |
-| **Surface** | `#1C1F26` | Cards, overlays |
-| **Royal Gold** | `#D4AF37` | Borders, accents, primary actions |
-| **Soft Ivory** | `#F4E4B7` | Text on dark surfaces |
-| **Gem Green** | `#4CAF50` → `#2E7D32` | Gem currency button gradient |
-
-### Typography
-
-| Context | Font | Weight | Size |
-|---|---|---|---|
-| **Headings (EN)** | Montserrat | 600-800 | 15-20px |
-| **Body (EN)** | Montserrat | 400-500 | 9-13px |
-| **Arabic text** | Tajawal / Cairo | 500-700 | Matches EN sizes |
-
----
-
-## 6. Localization (Arabic / English)
-
-### Strategy
-- **Layout is always LTR** — forced via `Directionality(textDirection: TextDirection.ltr)` in the `MaterialApp` builder. This follows the game industry standard (Clash Royale, PUBG, etc.) where UI positions stay fixed regardless of language.
-- **Text content translates** — all user-facing strings switch between Arabic and English via `LocaleProvider.isArabic`.
-- **Arabic text renders correctly** — Arabic glyphs naturally render right-to-left within their `Text` widget, no special handling needed.
-
-### Translation Coverage
-
-| Screen | Status |
-|---|---|
-| Splash subtitle | ✅ Translated |
-| Home — Play button | ✅ Translated |
-| Home — Satellite labels | ✅ Translated |
-| Home — Bottom nav labels | ✅ Translated |
-| Home — Quick menu items | ✅ Translated |
-| Home — Coming Soon pages | ✅ Translated |
-| Create Session — all labels | ✅ Translated |
-| Finding Game — title & subtitle | ✅ Translated |
-| Settings — all items | ✅ Translated |
-
----
-
-## 7. Performance Optimizations
-
-| Optimization | Implementation |
-|---|---|
-| **Background caching** | `VipStaticBackground` uses `RepaintBoundary` + `shouldRepaint: false` — painted once, never redraws |
-| **Medallion glow separation** | Animated glow shadow is in its own layer; static medallion content wrapped in `RepaintBoundary` |
-| **Lazy-loaded popups** | Settings, Finding Game, and Quick Menu are only built when opened |
-| **Minimal rebuilds** | `Provider` with `context.watch` / `context.read` for targeted rebuilds |
-| **Font pre-caching** | Google Fonts loaded in `main()` before app renders |
-
----
-
-## 8. Responsiveness
-
-| Device Class | Width | Status |
-|---|---|---|
-| **Small phones** (iPhone SE, Galaxy A series) | 320-360px | ✅ Supported |
-| **Standard phones** (iPhone 14, Pixel 7) | 375-412px | ✅ Primary target |
-| **Large phones** (iPhone Pro Max, Galaxy Ultra) | 428-480px | ✅ Supported |
-| **Tablets** | 600px+ | ⚠️ Functional but not optimized |
-
-### Responsive Techniques Used
-- `MediaQuery.of(context).size` for popup widths (85-88% of screen)
-- `Expanded` + `Spacer` for flexible row layouts
-- `SafeArea` for notch/status bar handling
-- `SingleChildScrollView` for scrollable forms
-- `MainAxisSize.min` to prevent unnecessary stretching
-
----
-
-## 9. Developer Handoff — Logic Integration
-
-All game interactions are behind `debugPrint` stubs marked with `LOGIC_PLUG_IN` comments. A backend developer can replace them without modifying any widget code.
-
-### Key Integration Points
-
-| Action | Current Stub | File |
-|---|---|---|
-| Play Now | `FindingGamePopup.show()` | `navigation_shell.dart` |
-| Create Session | `debugPrint('[CreateSession]...')` | `create_session_screen.dart` |
-| Join Sessions | `debugPrint('[LobbyAction]...')` | `navigation_shell.dart` |
-| VIP Store | Shows "Coming Soon" snackbar | `navigation_shell.dart` |
-| Change Name | `debugPrint('[Settings]...')` | `settings_screen.dart` |
-| Notifications | `debugPrint('[Settings]...')` | `settings_screen.dart` |
-
-### Abstract Interfaces
-- `IBalootController` — Game engine contract (in `lib/core/interfaces/`)
-- `UserProvider` — Mock user data (replace with real API)
-- `LocaleProvider` — Language state management
-
----
-
-## 10. Assets
-
-```plaintext
-assets/
-├── images/
-│   ├── icon.png           # App launcher icon (Royal Baloot logo)
-│   ├── logo-text1.png     # Bottom splash logo text
-│   ├── logo-text2.png     # Top splash logo text
-│   ├── dollar.png         # Coin currency icon
-│   ├── gem.png            # Gem currency icon
-│   └── chevron-left.png   # Custom back button icon
-├── icons/                 # Reserved for future SVG icons
-└── lottie/                # Reserved for future Lottie animations
-```
-
----
-
-## 11. Setup & Run
+## 🚀 Getting Started
 
 ### Prerequisites
-- Flutter SDK >= 3.0.0
-- Android Studio / Xcode for platform builds
-- A physical device or emulator
 
-### Commands
+- **Flutter SDK** ≥ 3.0.0
+- **Dart SDK** ≥ 3.0.0
+- **Android Studio** or **VS Code** with Flutter extensions
+- Physical device or emulator (Android / iOS)
+
+### Installation
+
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/arba4-morba4.git
+cd arba4-morba4
+
 # Install dependencies
 flutter pub get
 
-# Run in debug mode
+# Run on connected device
 flutter run
 
-# Run in release mode (for performance testing)
-flutter run --release
+# Run on web (preview)
+flutter run -d chrome
 
-# Analyze code
-flutter analyze
+# Build release APK
+flutter build apk --release
+```
 
-# Regenerate app launcher icons
-dart run flutter_launcher_icons
+### Environment Setup
+
+```bash
+# Verify Flutter installation
+flutter doctor
+
+# Enable web support (optional)
+flutter config --enable-web
 ```
 
 ---
 
-## 12. Known Issues & TODOs
+## 🗺 Development Roadmap
 
-### Known Issues
-- `create_session_screen.dart` has dead code warnings from hardcoded `isArabic = false` — will be resolved when `LocaleProvider` is fully integrated
-- iOS launcher icon has alpha channel warning — set `remove_alpha_ios: true` in pubspec if submitting to App Store
+### Phase Overview
 
-### Phase 2 TODOs
-- [ ] Connect `IBalootController` to real game engine
-- [ ] Replace mock `UserProvider` with API-backed data
-- [ ] Build Game Table UI (`features/game/`)
-- [ ] Implement Shop screen with in-app purchases
-- [ ] Implement Chat screen with real-time messaging
-- [ ] Implement Leagues/Tournaments screen
-- [ ] Add push notification support
-- [ ] Tablet-optimized layouts
+```mermaid
+gantt
+    title Arba'a Morba'a — Production Roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %Y
+
+    section Phase 1
+    Foundation & VIP UI           :done, p1, 2025-01-01, 30d
+
+    section Phase 2
+    Core Game Engine (2.1)        :done, p21, after p1, 20d
+    Pro Experience & AI (2.2)     :active, p22, after p21, 21d
+
+    section Phase 3
+    Backend & Multiplayer         :p3, after p22, 28d
+
+    section Phase 4
+    Economy & Social              :p4, after p3, 28d
+
+    section Phase 5
+    QA & Global Launch            :p5, after p4, 20d
+
+    section Phase 6
+    LiveOps & Growth              :p6, after p5, 25d
+```
 
 ---
 
-**Built with ♠ by Antigravitty**
+### ✅ Phase 1 — Foundation & VIP UI `COMPLETED`
+
+> Clean Feature-First Architecture, VIP Visual Identity, and Core UI Templates.
+
+- [x] Feature-First Flutter architecture for long-term scalability
+- [x] VIP Gold/Obsidian theme with custom Tajawal typography
+- [x] Home Screen, Lobby, and Navigation framework
+- [x] Live web preview for stakeholder review
+
+---
+
+### ✅ Phase 2.1 — Core Game Engine & Logic `COMPLETED`
+
+> The "Brain" of the game — 100% rulebook fidelity with Kammelna standards.
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| **Advanced Dealer System** | Shuffle, Kut, 2-phase dealing, auto project detection | ✅ Done |
+| **Turn & Timeout Management** | Player sequences, trick evaluation, Kabout detection | ✅ Done |
+| **Bidding & Modes** | Sun, Hakam, Ashkal, Second Hakam, Sawa, Confirmation | ✅ Done |
+| **Rulebook & Validation** | Legal move enforcement, Qaid violations, project priority | ✅ Done |
+| **Scoring & State** | Complementary scoring, Khams/Kabout, project stealing | ✅ Done |
+
+---
+
+### 🔄 Phase 2.2 — Pro Experience & AI Engine `IN PROGRESS`
+
+> Premium visual experience, AI opponents, and offline play capability.
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| **VIP Game Table** | 3D Majlis table, custom card sprites, high-res UI | ✅ Done |
+| **UX & Animations** | Card-throwing arcs, trick transitions, Kammelna polish | ✅ Done |
+| **Advanced AI Engine** | 3 difficulty levels (Easy, Medium, Hard) | 🔄 In Progress |
+| **Offline & Practice** | Local game loop without internet | 🔄 In Progress |
+| **Voice & Audio** | Arabic/English voice-overs and immersive SFX | ⬚ Planned |
+
+---
+
+### ⬚ Phase 3 — Backend & Multiplayer Infrastructure `PLANNED`
+
+> Secure, un-hackable, real-time multiplayer with authoritative server validation.
+
+| Module | Description | Duration |
+|--------|-------------|----------|
+| **Socket.io Core** | Real-time bi-directional communication layer | 4 Days |
+| **Matchmaking & Rooms** | Dynamic room management and player grouping | 5 Days |
+| **Authoritative Logic** | Server-side rule validation (Anti-Cheat) | 6 Days |
+| **Redis State & Sync** | Sub-millisecond state storage, instant reconnection | 4 Days |
+| **Security & Auth** | JWT authentication and session management | 3 Days |
+| **DevOps & Scaling** | Docker containerization, Nginx load balancing | 3 Days |
+| **Stress Testing** | 1,000+ concurrent player simulation | 3 Days |
+
+**Technologies**: Node.js · Socket.io · Redis · MongoDB · Docker · Nginx
+
+---
+
+### ⬚ Phase 4 — Social Ecosystem & Monetization `PLANNED`
+
+> Player retention, community features, and revenue generation.
+
+| Module | Description | Duration |
+|--------|-------------|----------|
+| **User Economy** | Coin/Gem balances with secure transaction logging | 4 Days |
+| **VIP Store** | IAP integration for skins, avatars, and VIP membership | 5 Days |
+| **Global & Room Chat** | Real-time Socket.io chat with moderation | 5 Days |
+| **Leagues & Ranks** | Bronze → Legend tier system with weekly leaderboards | 5 Days |
+| **Social & Friends** | Add Friend, private room invitations, activity status | 3 Days |
+| **Daily Rewards** | Daily Spin / login rewards for DAU retention | 3 Days |
+| **UI Polish** | Shop, Community, and Trophy tab finalization | 3 Days |
+
+---
+
+### ⬚ Phase 5 — Quality Assurance & Global Launch `PLANNED`
+
+> The "Zero-Glitch" guarantee across all mobile hardware.
+
+| Module | Description | Duration |
+|--------|-------------|----------|
+| **Cross-Device QA** | Physical iPhone/Android testing for SafeArea/notch | 4 Days |
+| **Performance Tuning** | 60 FPS optimization on mid-range devices | 3 Days |
+| **Network Stress Test** | Server latency and stability validation | 3 Days |
+| **Bug Squashing** | Edge-case and UI glitch cleanup | 3 Days |
+| **Store Assets** | Professional screenshots and marketing copy | 2 Days |
+| **Beta Launch** | TestFlight (iOS) and Google Play Beta deployment | 3 Days |
+| **Official Submission** | Apple App Store and Google Play review management | 2 Days |
+
+---
+
+### ⬚ Phase 6 — LiveOps & Global Growth `PLANNED`
+
+> Long-term business management, analytics, and content delivery.
+
+| Module | Description | Duration |
+|--------|-------------|----------|
+| **Admin Dashboard** | MERN-based web portal for user and economy management | 5 Days |
+| **Live Monitoring** | Automated alerts for server health and uptime (99.9%) | 3 Days |
+| **Analytics Integration** | Firebase/Mixpanel for retention and monetization tracking | 4 Days |
+| **LiveOps Content** | Hot-loading seasonal themes and content without app updates | 5 Days |
+| **Customer Support** | In-app reporting and automated ticketing system | 3 Days |
+| **Optimization Cycle** | Post-launch patch cycle based on real user feedback | 5 Days |
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+
+```bash
+# Run all tests
+flutter test
+
+# Run specific test suite
+flutter test test/game/project_detector_test.dart
+
+# Run with coverage
+flutter test --coverage
+```
+
+### Current Test Coverage
+
+| Module | Tests | Status |
+|--------|-------|--------|
+| ProjectDetector | 16 test cases | ✅ All Passing |
+| Scoring Engine | Manual log verification | ✅ Verified |
+| Bidding Manager | Integration tested | ✅ Verified |
+| Play Validator | Integration tested | ✅ Verified |
+
+### Game Log Verification
+
+The engine produces a detailed **Kammelna Score Breakdown** after every round for transparent rule verification:
+
+```
+[22:48:09] Round Score Added -> Team A: +2, Team B: +36
+[22:48:09] --- KAMMELNA SCORE BREAKDOWN ---
+[22:48:09]   Buyer: Seat 3 (Team B)
+[22:48:09]   Mode: HAKAM, Double: doubled
+[22:48:09]   Outcome Reason: normal
+[22:48:09]   Trick Abnat (Cards): A=27, B=135
+[22:48:09]   Ground Bonus (+10): Team B
+[22:48:09]   Project (Team B): sera (20 Abnat)
+[22:48:09]   Project Priority Winner: Team B
+[22:48:09]   Effective Project Abnat (After Priority/Stealing): A=0, B=20
+[22:48:09]   Baloot Declared: Team A (+2 Scoreboard Pts)
+```
+
+---
+
+## 👥 Contributing
+
+This is a **proprietary project** developed for Arba'a Morba'a by **Abdul Sami**. Contributions are managed internally.
+
+### Development Standards
+
+- **Dart Analysis**: Zero warnings policy (`flutter analyze`)
+- **Code Style**: Follow existing patterns — Feature-First architecture
+- **Documentation**: All engine modules must include JSDoc-style comments
+- **Testing**: New scoring/rule logic must include unit tests
+- **Git**: Conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`)
+
+---
+
+## 📄 License
+
+**Proprietary** — All rights reserved.
+This software is the intellectual property of the Arba'a Morba'a project stakeholders. Unauthorized copying, distribution, or modification is strictly prohibited.
+
+---
+
+<div align="center">
+
+**Built with ❤️ by Abdul Sami**
+
+*Engineered to rival Kammelna. Designed to exceed expectations.*
+
+🃏 ♠️ ♥️ ♦️ ♣️
+
+</div>
