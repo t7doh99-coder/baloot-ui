@@ -46,6 +46,10 @@ class _RoundScoreStrings {
   String get labelWon => ar ? 'نتيجة الشراء: فائزة' : 'Purchase result: Won';
   String get labelLost => ar ? 'نتيجة الشراء: خسرانة' : 'Purchase result: Lost';
 
+  /// In-play master-card Sawa (Kammelna) — distinct from bidding Sawa.
+  String get playSawaEndNote =>
+      ar ? 'انتهى الجول بالسوا (يد)' : 'Round ended with Sawa (hands)';
+
   String matchCaption(int teamA, int teamB) => ar
       ? 'المباراة: لنا $teamA · لهم $teamB'
       : 'Match: Us $teamA · Them $teamB';
@@ -160,6 +164,19 @@ class RoundScoreOverlay extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 10),
+                            if (r.playSawaClaimSeat != null) ...[
+                              Text(
+                                s.playSawaEndNote,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.readexPro(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _titleGold.withValues(alpha: 0.9),
+                                  height: 1.3,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
                             Container(
                               height: 1,
                               margin:

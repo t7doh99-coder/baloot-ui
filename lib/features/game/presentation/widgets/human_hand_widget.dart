@@ -48,6 +48,11 @@ class HumanHandWidget extends StatelessWidget {
     final isHumanTurn = game.isHumanTurn;
     final selectedCard = game.selectedCard;
     final validCards = isPlayPhase && isHumanTurn ? game.validCards : hand;
+    final trumpSuit = game.roundState.activeMode == GameMode.hakam
+        ? game.roundState.trumpSuit
+        : null;
+
+    final sawaReveal = game.isSawaRevealPlaying;
 
     final screenW = MediaQuery.sizeOf(context).width;
     final bandH = GameTableLayout.handFanBandHeight(scale);
@@ -63,30 +68,37 @@ class HumanHandWidget extends StatelessWidget {
             height: bandH,
             child: Align(
               alignment: Alignment.bottomCenter,
-              child: Transform.translate(
-                offset: Offset(0, -4 * scale),
-                child: _DesignerHandFan(
-                  scale: scale,
-                  cards: hand,
-                  selectedCard: selectedCard,
-                  validCards: validCards,
-                  interactive: isPlayPhase && isHumanTurn,
-                  // Reduce available width so rotated cards don't overhang screen edges
-                  availableWidth: screenW - 40 * scale,
-                  onCardTap: (card) {
-                    if (!isPlayPhase || !isHumanTurn) return;
-                    if (validCards.contains(card)) {
-                      game.humanPlayCard(card);
-                    } else {
-                      game.selectCard(card);
-                    }
-                  },
-                  onSwipePlay: (card) {
-                    if (!isPlayPhase || !isHumanTurn) return;
-                    if (validCards.contains(card)) {
-                      game.humanPlayCard(card);
-                    }
-                  },
+              child: IgnorePointer(
+                ignoring: sawaReveal,
+                child: Opacity(
+                  opacity: sawaReveal ? 0.0 : 1.0,
+                  child: Transform.translate(
+                    offset: Offset(0, -4 * scale),
+                    child: _DesignerHandFan(
+                      scale: scale,
+                      cards: hand,
+                      selectedCard: selectedCard,
+                      validCards: validCards,
+                      interactive: isPlayPhase && isHumanTurn && !sawaReveal,
+                      trumpSuit: trumpSuit,
+                      // Reduce available width so rotated cards don't overhang screen edges
+                      availableWidth: screenW - 40 * scale,
+                      onCardTap: (card) {
+                        if (!isPlayPhase || !isHumanTurn) return;
+                        if (validCards.contains(card)) {
+                          game.humanPlayCard(card);
+                        } else {
+                          game.selectCard(card);
+                        }
+                      },
+                      onSwipePlay: (card) {
+                        if (!isPlayPhase || !isHumanTurn) return;
+                        if (validCards.contains(card)) {
+                          game.humanPlayCard(card);
+                        }
+                      },
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -107,6 +119,7 @@ class _DesignerHandFan extends StatelessWidget {
     required this.availableWidth,
     required this.onCardTap,
     required this.onSwipePlay,
+    this.trumpSuit,
   });
 
   final double scale;
@@ -117,6 +130,7 @@ class _DesignerHandFan extends StatelessWidget {
   final double availableWidth;
   final ValueChanged<CardModel> onCardTap;
   final ValueChanged<CardModel> onSwipePlay;
+  final Suit? trumpSuit;
 
   double get _cardWidth => GameTableLayout.handCardSize(scale).width;
   double get _cardHeight => GameTableLayout.handCardSize(scale).height;
@@ -171,6 +185,40 @@ class _DesignerHandFan extends StatelessWidget {
 
           final cardModel = cards[index];
           final isValid = !interactive || validCards.contains(cardModel);
+          final isTrump = trumpSuit != null && cardModel.suit == trumpSuit;
+
+          final cardWidget = PlayingCard(
+            card: cardModel,
+            size: CardSize.hand,
+            width: _cardWidth,
+            height: _cardHeight,
+            faceUp: true,
+            selected: isSelected,
+            suppressSelectionOffset: true,
+            dimmed: !isValid,
+            onTap: null,
+          );
+
+          // Trump highlight: subtle golden border glow (Kammelna-style)
+          final highlightedCard = isTrump
+              ? Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
+                        blurRadius: 6,
+                        spreadRadius: 0.5,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.7),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: cardWidget,
+                )
+              : cardWidget;
 
           final cardFace = AnimatedScale(
             duration: const Duration(milliseconds: 220),
@@ -182,17 +230,7 @@ class _DesignerHandFan extends StatelessWidget {
               curve: Curves.easeOutCubic,
               alignment: Alignment.bottomCenter,
               turns: ((index - (n - 1) / 2) * _largeRotation) / (2 * 3.14159),
-              child: PlayingCard(
-                card: cardModel,
-                size: CardSize.hand,
-                width: _cardWidth,
-                height: _cardHeight,
-                faceUp: true,
-                selected: isSelected,
-                suppressSelectionOffset: true,
-                dimmed: !isValid,
-                onTap: null,
-              ),
+              child: highlightedCard,
             ),
           );
 

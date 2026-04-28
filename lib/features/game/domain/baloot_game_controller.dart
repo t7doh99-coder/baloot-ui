@@ -2,6 +2,7 @@ import 'dart:math';
 import '../../../core/errors/game_exceptions.dart';
 import '../../../core/interfaces/i_baloot_controller.dart';
 import '../../../data/models/card_model.dart';
+import '../../../data/models/card_play_model.dart';
 import '../../../data/models/round_state_model.dart';
 import 'managers/deck_manager.dart';
 import 'managers/bidding_manager.dart';
@@ -10,10 +11,11 @@ import 'validators/play_validator.dart';
 import 'engines/bot_engine.dart';
 import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
+import 'engines/sawa_probability_engine.dart';
 import '../../../core/utils/game_logger.dart';
 
 /// The game phase the controller is currently in.
-enum GamePhase { notStarted, dealing, bidding, doubleWindow, playing, scoring, gameOver }
+enum GamePhase { notStarted, dealing, bidding, doubleWindow, projectDeclaration, playing, scoring, gameOver }
 
 /// Master controller that ties all engine modules together.
 ///
@@ -57,10 +59,16 @@ class BalootGameController implements IBalootController {
   /// Result of the most recently scored round (for UI overlay).
   RoundScoreResult? _lastRoundScoreResult;
 
+  /// Set when the round ends via in-play **Sawa** (master cards), not trick 8 played out.
+  int? _lastPlaySawaClaimSeat;
+
   BalootGameController({Random? random}) : _rng = random ?? Random();
 
   /// Points and flags from the last completed round (cleared on new round).
   RoundScoreResult? get lastRoundScoreResult => _lastRoundScoreResult;
+
+  /// Seat that claimed in-play Sawa for the last scored round; null otherwise.
+  int? get lastPlaySawaClaimSeat => _lastPlaySawaClaimSeat;
 
   /// Cards from the last completed trick, indexed by seat 0–3 (for mini history UI).
   /// Only non-null while a [TurnManager] exists with at least one finished trick.
@@ -120,6 +128,7 @@ class BalootGameController implements IBalootController {
     logger.log('--- NEW ROUND ---');
     logger.log('Score: Team A $_teamAScore - $_teamBScore Team B');
     _lastRoundScoreResult = null;
+    _lastPlaySawaClaimSeat = null;
     _deckManager = DeckManager(random: _rng);
     _deckManager.createDeck();
     _deckManager.shuffle();
@@ -235,9 +244,19 @@ class BalootGameController implements IBalootController {
         return;
       }
 
-      logger.log('Bidding Complete. Mode: ${bidResult.mode.name}, Buyer: Seat ${bidResult.buyerIndex}, Trump: ${bidResult.trumpSuit?.name}, Ashkal: ${bidResult.isAshkal}');
+      // Ashkal (§4.6): bidder does not take the buyer card — teammate does. Stored
+      // [RoundState.buyerIndex] must be that teammate for scoring / UI (Kammelna).
+      final effectiveBuyerIndex = bidResult.isAshkal
+          ? (bidResult.buyerIndex + 2) % 4
+          : bidResult.buyerIndex;
 
-      // Complete the deal
+      logger.log(
+        'Bidding Complete. Mode: ${bidResult.mode.name}, Buyer: Seat $effectiveBuyerIndex'
+        '${bidResult.isAshkal ? " (Ashkal bid by Seat ${bidResult.buyerIndex})" : ""}, '
+        'Trump: ${bidResult.trumpSuit?.name}, Ashkal: ${bidResult.isAshkal}',
+      );
+
+      // Complete the deal ([dealRemainder] still takes the bidder index when Ashkal)
       _deckManager.dealRemainder(
         bidResult.buyerIndex,
         isAshkal: bidResult.isAshkal,
@@ -260,9 +279,11 @@ class BalootGameController implements IBalootController {
         biddingPhase: BiddingPhase.completed,
         activeMode: bidResult.mode,
         trumpSuit: bidResult.trumpSuit,
-        buyerIndex: bidResult.buyerIndex,
+        buyerIndex: effectiveBuyerIndex,
         isAshkal: bidResult.isAshkal,
-        currentPlayerIndex: (bidResult.buyerIndex + 1) % 4, // next player clockwise
+        // Double-window turn order stays anchored to bidding seat order (Ashkal bidder,
+        // not teammate). Trick 1 lead is [_dealerIndex + 1] in [_startPlayPhase].
+        currentPlayerIndex: (bidResult.buyerIndex + 1) % 4,
         isDoubleWindowOpen: true,
       );
 
@@ -374,6 +395,12 @@ class BalootGameController implements IBalootController {
     }
     _escalationDefenderSeat = null;
     _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
+    _gamePhase = GamePhase.projectDeclaration;
+  }
+
+  /// Transition from project declaration to actual card play.
+  void advanceFromProjects() {
+    if (_gamePhase != GamePhase.projectDeclaration) return;
     _gamePhase = GamePhase.playing;
     _startPlayPhase();
   }
@@ -460,6 +487,11 @@ class BalootGameController implements IBalootController {
         teamBAbnat: _turnManager!.teamBAbnat,
       );
 
+      // Check if Trick 1 just completed to filter losing projects (Kammelna rule)
+      if (_turnManager!.trickNumber == 2 && _activeDeclaredProjects.isNotEmpty) {
+        _filterLosingProjects();
+      }
+
       // Check if round is complete (all 8 tricks played)
       if (_turnManager!.isRoundComplete) {
         _scoreRound();
@@ -469,12 +501,13 @@ class BalootGameController implements IBalootController {
 
   @override
   void declareProject(int seatIndex, int projectIndex) {
-    if (_gamePhase != GamePhase.playing) {
-      throw const InvalidMoveException('Not in play phase.');
-    }
-    if (_turnManager!.trickNumber > 1) {
+    final inProjectPhase = _gamePhase == GamePhase.projectDeclaration;
+    final inPlayingTrick1 = _gamePhase == GamePhase.playing &&
+        _turnManager != null &&
+        _turnManager!.trickNumber <= 1;
+    if (!inProjectPhase && !inPlayingTrick1) {
       throw const InvalidMoveException(
-        'Projects can only be declared during trick 1.',
+        'Projects can only be declared during project declaration or trick 1.',
       );
     }
 
@@ -510,7 +543,11 @@ class BalootGameController implements IBalootController {
   }
 
   void undeclareProject(int seatIndex, ProjectType type) {
-    if (_gamePhase != GamePhase.playing || _turnManager!.trickNumber > 1) {
+    final inProjectPhase = _gamePhase == GamePhase.projectDeclaration;
+    final inPlayingTrick1 = _gamePhase == GamePhase.playing &&
+        _turnManager != null &&
+        _turnManager!.trickNumber <= 1;
+    if (!inProjectPhase && !inPlayingTrick1) {
       return; // Silently ignore invalid un-declares
     }
 
@@ -523,13 +560,104 @@ class BalootGameController implements IBalootController {
     }
   }
 
-  void _scoreRound() {
-    _gamePhase = GamePhase.scoring;
+  bool canSawa(int seatIndex) {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
+    
+    // Only allow Sawa if it's the player's turn to lead a trick
+    // (If they are in the middle of a trick, wait until next trick to claim)
+    if (_turnManager!.currentPlayerIndex != seatIndex || _turnManager!.currentTrick.isNotEmpty) {
+      return false;
+    }
 
-    final mode = _roundState.activeMode!;
-    final buyerIndex = _roundState.buyerIndex!;
-    final buyerTeam = buyerIndex % 2 == 0 ? 'A' : 'B';
+    final playedCards = _turnManager!.trickHistory
+        .expand((trick) => trick.cards)
+        .map((play) => play.card)
+        .toList();
 
+    return SawaProbabilityEngine.canSawaYad(
+      playerSeat: seatIndex,
+      playerHand: _hands[seatIndex],
+      playedCards: playedCards,
+      mode: _roundState.activeMode!,
+      trumpSuit: _roundState.trumpSuit,
+      allHands: _hands,
+    );
+  }
+
+  void claimSawa(int seatIndex) {
+    if (!canSawa(seatIndex)) {
+      throw const InvalidMoveException('Sawa is not currently valid (you do not hold all Master Cards).');
+    }
+
+    logger.log('--- SAWA CLAIMED by Seat $seatIndex ---');
+    _lastPlaySawaClaimSeat = seatIndex;
+
+    final tm = _turnManager!;
+    final teamIndex = seatIndex % 2;
+
+    // Award point value of all cards still held (remaining tricks folded into one tally).
+    int remainingAbnat = 0;
+    for (int s = 0; s < 4; s++) {
+      for (final card in _hands[s]) {
+        remainingAbnat += card.getPointValue(
+          mode: _roundState.activeMode!,
+          trumpSuit: _roundState.trumpSuit,
+        );
+      }
+      _hands[s].clear();
+    }
+
+    final claimantWonTeamA = teamIndex == 0;
+
+    if (claimantWonTeamA) {
+      tm.teamAAbnat += remainingAbnat;
+    } else {
+      tm.teamBAbnat += remainingAbnat;
+    }
+
+    // Assign each not-yet-played trick index to the claimant's team (skip duplicates).
+    for (int trickIdx = tm.trickNumber; trickIdx <= 8; trickIdx++) {
+      final already =
+          tm.teamATricksWon.contains(trickIdx) || tm.teamBTricksWon.contains(trickIdx);
+      if (already) continue;
+      if (claimantWonTeamA) {
+        tm.teamATricksWon.add(trickIdx);
+      } else {
+        tm.teamBTricksWon.add(trickIdx);
+      }
+    }
+
+    // Single +10 ground for the final trick of the round (same as normal trick 8).
+    if (claimantWonTeamA) {
+      tm.teamAAbnat += 10;
+    } else {
+      tm.teamBAbnat += 10;
+    }
+
+    tm.trickHistory.add(TrickResult(
+      winnerIndex: seatIndex,
+      cards: const <CardPlayModel>[],
+      abnat: remainingAbnat,
+      isLastTrick: true,
+      lastTrickBonus: 10,
+    ));
+
+    tm.markRoundSealedAfterPlayClaimSawa();
+
+    _roundState = _roundState.copyWith(
+      trickNumber: 9,
+      currentTrick: const [],
+      currentPlayerIndex: seatIndex,
+      teamATricksWon: List.from(tm.teamATricksWon),
+      teamBTricksWon: List.from(tm.teamBTricksWon),
+      teamAAbnat: tm.teamAAbnat,
+      teamBAbnat: tm.teamBAbnat,
+    );
+
+    _scoreRound();
+  }
+
+  void _filterLosingProjects() {
     // Separate projects by team
     final teamAProjects = _activeDeclaredProjects
         .where((p) => p.playerIndex % 2 == 0)
@@ -538,7 +666,44 @@ class BalootGameController implements IBalootController {
         .where((p) => p.playerIndex % 2 != 0)
         .toList();
 
-    // Resolve project priority (Rule 14.1)
+    if (teamAProjects.isEmpty && teamBProjects.isEmpty) return;
+
+    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
+    final projectWinner = _projectDetector.resolveProjectPriority(
+      teamAProjects,
+      teamBProjects,
+      _roundState.activeMode!,
+      _roundState.trumpSuit,
+      firstLeaderIndex,
+    );
+
+    if (projectWinner == 'A') {
+      // Team A won, delete Team B's projects (except Baloot, which is handled later)
+      _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 != 0 && p.type != ProjectType.baloot);
+      logger.log('Team A won project priority. Team B projects nullified.');
+    } else if (projectWinner == 'B') {
+      // Team B won, delete Team A's projects
+      _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 == 0 && p.type != ProjectType.baloot);
+      logger.log('Team B won project priority. Team A projects nullified.');
+    }
+  }
+
+  void _scoreRound() {
+    _gamePhase = GamePhase.scoring;
+
+    final mode = _roundState.activeMode!;
+    final buyerIndex = _roundState.buyerIndex!;
+    final buyerTeam = buyerIndex % 2 == 0 ? 'A' : 'B';
+
+    // Separate remaining winning projects by team
+    final teamAProjects = _activeDeclaredProjects
+        .where((p) => p.playerIndex % 2 == 0)
+        .toList();
+    final teamBProjects = _activeDeclaredProjects
+        .where((p) => p.playerIndex % 2 != 0)
+        .toList();
+
+    // Resolve project priority (Rule 14.1) - Just to get the winning team string for the scoring engine
     final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
     final projectWinner = _projectDetector.resolveProjectPriority(
       teamAProjects,
@@ -619,6 +784,10 @@ class BalootGameController implements IBalootController {
     logger.log('  Buyer: Seat ${_roundState.buyerIndex} (Team $buyerTeam)');
     logger.log('  Mode: ${scoreResult.mode.name.toUpperCase()}, Double: ${scoreResult.doubleStatus.name}');
     logger.log('  Outcome Reason: ${scoreResult.reason ?? "Normal"}');
+    if (_lastPlaySawaClaimSeat != null) {
+      logger.log(
+          '  In-play Sawa: Seat $_lastPlaySawaClaimSeat claimed remaining tricks');
+    }
     logger.log('  Trick Abnat (Cards): A=${scoreResult.teamATrickAbnat}, B=${scoreResult.teamBTrickAbnat}');
     if (lastTrickTeam != null) {
       logger.log('  Ground Bonus (+10): Team $lastTrickTeam');
@@ -672,6 +841,12 @@ class BalootGameController implements IBalootController {
           seatIndex: seatIndex,
           dealerIndex: _dealerIndex,
           round2PendingBid: bm.hasRound2PendingBid,
+          round2PendingBuyerSeat:
+              bm.hasRound2PendingBid ? bm.activeRound2PendingBuyerSeat : null,
+          round2PendingMode:
+              bm.hasRound2PendingBid ? bm.activeRound2PendingMode : null,
+          round2PendingTrump:
+              bm.hasRound2PendingBid ? bm.activeRound2PendingTrump : null,
           round1HakamBidderSeat:
               bm.phase == BiddingPhase.round1 && bm.hasActiveHakamBid
                   ? bm.activeRound1HakamSeat
@@ -698,12 +873,11 @@ class BalootGameController implements IBalootController {
         }
         skipDoubleWindow();
 
-      case GamePhase.playing:
-        // Auto-declare projects during trick 1
-        if (_turnManager!.trickNumber == 1) {
-          _botDeclareProjects(seatIndex);
-        }
+      case GamePhase.projectDeclaration:
+        _botDeclareProjects(seatIndex);
+        break;
 
+      case GamePhase.playing:
         final card = _botEngine.decidePlay(
           hand: _hands[seatIndex],
           currentTrick: _turnManager!.currentTrick,
@@ -773,6 +947,12 @@ class BalootGameController implements IBalootController {
   int? get activeRound2PendingBuyerSeat =>
       _biddingManager?.activeRound2PendingBuyerSeat;
 
+  GameMode? get activeRound2PendingMode =>
+      _biddingManager?.activeRound2PendingMode;
+
+  Suit? get activeRound2PendingTrump =>
+      _biddingManager?.activeRound2PendingTrump;
+
   /// Returns the list of legally playable cards for [seatIndex].
   List<CardModel> getValidCards(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return [];
@@ -811,6 +991,31 @@ class BalootGameController implements IBalootController {
       _roundState.trumpSuit,
       firstLeaderIndex,
     );
+  }
+
+  /// UI only: one entry — winning team's strongest non-Baloot project, or Baloot if that's all.
+  /// Scoring still uses full [_activeDeclaredProjects]; this does not change rules.
+  List<DeclaredProject> get winningTeamBestProjectsForReveal {
+    final winner = projectWinningTeam;
+    if (winner == null || _roundState.activeMode == null) return [];
+    final ours = _activeDeclaredProjects.where((p) {
+      final teamA = p.playerIndex % 2 == 0;
+      return winner == 'A' ? teamA : !teamA;
+    }).toList();
+    if (ours.isEmpty) return [];
+
+    final regular = ours.where((p) => p.type != ProjectType.baloot).toList();
+    if (regular.isNotEmpty) {
+      regular.sort((a, b) {
+        final cmp = b.priorityRank.compareTo(a.priorityRank);
+        if (cmp != 0) return cmp;
+        return b.highestCardStrength.compareTo(a.highestCardStrength);
+      });
+      return [regular.first];
+    }
+    final baloot = ours.where((p) => p.type == ProjectType.baloot).toList();
+    if (baloot.isNotEmpty) return [baloot.first];
+    return [];
   }
 
   @override

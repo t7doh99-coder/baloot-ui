@@ -76,12 +76,17 @@ class _GameTableScreenState extends State<GameTableScreen> {
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
-    final humanProjectCards = game.showProjectReveal
-        ? game.allDeclaredProjects
-            .where((p) => p.playerIndex == 0)
-            .expand((p) => p.cards)
-            .toList()
+    final sawaBottom = game.isSawaRevealPlaying
+        ? game.sawaRevealCardsForSeat(0)
         : const <CardModel>[];
+    final humanProjectCards = sawaBottom.isNotEmpty
+        ? sawaBottom
+        : (game.showProjectReveal
+            ? game.winningTeamBestProjectsForReveal
+                .where((p) => p.playerIndex == 0)
+                .expand((p) => p.cards)
+                .toList()
+            : const <CardModel>[]);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -166,6 +171,15 @@ class _GameTableScreenState extends State<GameTableScreen> {
               top: topInset + 6,
               right: 10,
               child: const LastTrickMiniWidget(),
+            ),
+          // Kammelna-style: persistent Double/Triple/Four badge during play
+          if (game.doubleStatus != DoubleStatus.none &&
+              (game.phase == GamePhase.playing || game.phase == GamePhase.scoring))
+            Positioned(
+              top: topInset + 60,
+              left: 0,
+              right: 0,
+              child: Center(child: _DoubleBadge(status: game.doubleStatus)),
             ),
           // Show overlay whenever a round result exists
           // (engine goes scoring→dealing in one step, so we match on result != null)
@@ -432,24 +446,77 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   DoubleStatus? _pendingDouble;
   final Set<int> _selectedProjects = {};
 
+  bool _didAutoOpenProjects = false;
+
+  /// [GameProvider] is a single instance; `didUpdateWidget`'s `oldWidget.game` is that
+  /// same object, so comparing `old.game.phase` to `widget.game.phase` never detects
+  /// engine updates. Track the last values we saw from a build instead.
+  late GamePhase _trackedPhase;
+  late int _trackedTrickNumber;
+  late BiddingPhase _trackedBiddingPhase;
+  late DoubleStatus _trackedDoubleStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTrackedEngineFields(widget.game);
+  }
+
+  void _syncTrackedEngineFields(GameProvider g) {
+    _trackedPhase = g.phase;
+    _trackedTrickNumber = g.trickNumber;
+    _trackedBiddingPhase = g.biddingPhase;
+    _trackedDoubleStatus = g.doubleStatus;
+  }
+
+  /// Expanded tier row is only valid during project declaration or trick 1.
+  static bool _projectsPickerMayShow(GameProvider g) {
+    return g.phase == GamePhase.projectDeclaration ||
+        (g.phase == GamePhase.playing && g.trickNumber == 1);
+  }
+
   @override
   void didUpdateWidget(_HumanDashboardWidget old) {
     super.didUpdateWidget(old);
 
-    // Project reveal relies on the Radial Fan, not the dashboard picker menu.
+    final g = widget.game;
+    final progressed = g.phase != _trackedPhase ||
+        g.trickNumber != _trackedTrickNumber ||
+        g.biddingPhase != _trackedBiddingPhase ||
+        g.doubleStatus != _trackedDoubleStatus;
 
-    // Reset picker state if the main game phase or bidding sub-phase actually advances.
-    // Also reset if double mode changes (escalation/cancellation) or trick advances to 2.
-    if (widget.game.phase != old.game.phase || 
-        widget.game.biddingPhase != old.game.biddingPhase ||
-        old.game.doubleStatus != widget.game.doubleStatus ||
-        widget.game.trickNumber != old.game.trickNumber) {
+    if (progressed) {
       if (_activePicker != _DashboardPicker.none) {
         setState(() {
           _activePicker = _DashboardPicker.none;
           _pendingDouble = null;
+          _selectedProjects.clear();
+        });
+      } else {
+        _selectedProjects.clear();
+      }
+      _syncTrackedEngineFields(g);
+    }
+
+    // Auto-open project picker during the dedicated Project Declaration phase (Kammelna UX)
+    if (widget.game.phase == GamePhase.projectDeclaration &&
+        !_didAutoOpenProjects) {
+      final detected = widget.game.playerProjects
+          .where((p) => p.type != ProjectType.baloot)
+          .toList();
+      if (detected.isNotEmpty) {
+        _didAutoOpenProjects = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => _activePicker = _DashboardPicker.projects);
+          }
         });
       }
+    }
+
+    // Reset the flag when phase leaves projectDeclaration
+    if (widget.game.phase != GamePhase.projectDeclaration) {
+      _didAutoOpenProjects = false;
     }
   }
 
@@ -461,7 +528,8 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       mainAxisSize: MainAxisSize.min,
       // The hierarchy: Top (Projects expanded), Middle (Profile), Bottom (Actions)
       children: [
-        if (_activePicker == _DashboardPicker.projects)
+        if (_activePicker == _DashboardPicker.projects &&
+            _projectsPickerMayShow(game))
           _buildProjectPickerExpanded(context, GameL10n.of(context)),
         if (_showHand(game.phase))
           const HumanPlayerMajlisBar(),
@@ -494,6 +562,22 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           (game.isHumanDefender || game.isHumanBuyer)) {
         buttons = _doubleButtons(context, loc);
       }
+    } else if (phase == GamePhase.projectDeclaration) {
+      // 6s countdown is on HumanPlayerMajlisBar. Keep this pill dark (no gold).
+      final expanded = _activePicker == _DashboardPicker.projects;
+      buttons = [
+        _GameBtn(
+          label: loc.projects,
+          forceDarkStyle: true,
+          onTap: () {
+             setState(() {
+               _activePicker = expanded
+                   ? _DashboardPicker.none
+                   : _DashboardPicker.projects;
+             });
+          },
+        ),
+      ];
     } else if (phase == GamePhase.playing) {
       buttons = _playingButtons(context, loc);
     }
@@ -526,16 +610,16 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final sane   = (dealer + 3) % 4; // player to dealer's left (CCW)
       final canAshkal = (0 == dealer || 0 == sane);
 
-      // Kammelna-style row: صن · حكم · أشكال · بس (+ سوى when defending after a Hakam)
+      // Kammelna-style row: صن · حكم · أشكال · سوى(defenders vs Hakam) · بس
       return [
         _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
         if (!gp.hasActiveHakamBid)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
-        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
-        if (_humanCanSawaRound1(gp))
+        if (gp.canHumanBidSawa)
           _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
+        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
 
@@ -546,12 +630,12 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       ];
     }
 
-    // Round 2 — after Sun / Second Hakam, apps show Pass + Sawa only (Kammelna/Jawaker).
+    // Round 2 — Pass or Sawa (defenders lock the pending bid) — Kammelna/Jawaker.
     if (widget.game.hasRound2PendingBid) {
       return [
-        _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
-        if (_humanCanSawaRound2(gp))
+        if (gp.canHumanBidSawa)
           _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
+        _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
 
@@ -568,19 +652,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   static const int _humanSeat = 0;
 
-  bool _humanCanSawaRound1(GameProvider gp) {
-    if (!gp.hasActiveHakamBid) return false;
-    final h = gp.activeRound1HakamSeat;
-    if (h == null) return false;
-    return (_humanSeat % 2) != (h % 2);
-  }
 
-  bool _humanCanSawaRound2(GameProvider gp) {
-    if (!gp.hasRound2PendingBid) return false;
-    final p = gp.activeRound2PendingBuyerSeat;
-    if (p == null) return false;
-    return (_humanSeat % 2) != (p % 2);
-  }
 
   List<Widget> _doubleButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
@@ -643,28 +715,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   }
 
   List<Widget> _playingButtons(BuildContext ctx, GameL10n loc) {
-    final gp = ctx.read<GameProvider>();
-    if (gp.trickNumber > 1) return [];
-    final detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
-    
-    return [
-      Badge(
-        isLabelVisible: detected.isNotEmpty,
-        label: Text('${detected.length}'),
-        offset: const Offset(-4, -4),
-        child: _GameBtn(
-          label: loc.projects,
-          isActive: _activePicker == _DashboardPicker.projects,
-          onTap: () {
-            setState(() {
-              _activePicker = _activePicker == _DashboardPicker.projects
-                  ? _DashboardPicker.none
-                  : _DashboardPicker.projects;
-            });
-          },
-        ),
-      ),
-    ];
+    // Kammelna Rule: Projects are declared in the dedicated 6s phase before playing.
+    // Baloot (K&Q) is auto-declared when playing, so no button needed here.
+    return [];
   }
 
   List<Widget> _buildSuitPickerButtons(BuildContext ctx, GameL10n loc) {
@@ -698,7 +751,8 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   Widget _buildProjectPickerExpanded(BuildContext context, GameL10n loc) {
     final gp = context.read<GameProvider>();
-    final canEditProjects = gp.trickNumber == 1;
+    final canEditProjects = gp.phase == GamePhase.projectDeclaration ||
+        (gp.phase == GamePhase.playing && gp.trickNumber == 1);
     var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
     final declared = gp.humanDeclaredProjects;
@@ -735,17 +789,30 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
               padding: EdgeInsets.only(right: idx < 3 ? 8.0 : 0.0),
               child: _GameBtn(
                 leading: Container(
-                  width: 18, height: 18,
+                  width: 18,
+                  height: 18,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.15),
+                    color: isActive
+                        ? Colors.white
+                        : const Color(0xFF2A2A2A),
                     borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isActive
+                          ? const Color(0xFFD4AF37).withValues(alpha: 0.65)
+                          : Colors.white.withValues(alpha: 0.12),
+                    ),
                   ),
-                  child: Text(countVal.toString(), 
+                  child: Text(
+                    countVal.toString(),
                     style: TextStyle(
-                      color: isActive ? Colors.black : Colors.white, 
-                      fontSize: 11, fontWeight: FontWeight.bold, height: 1
-                    )
+                      color: isActive
+                          ? Colors.black
+                          : Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      height: 1,
+                    ),
                   ),
                 ),
                 label: loc.projectType(t),
@@ -787,11 +854,14 @@ class _GameBtn extends StatefulWidget {
   final String label;
   final Widget? leading;
   final bool isActive;
+  /// When true, never use the gold highlight (only grey tones, including press).
+  final bool forceDarkStyle;
   final VoidCallback onTap;
   const _GameBtn({
     required this.label,
     this.leading,
     this.isActive = false,
+    this.forceDarkStyle = false,
     required this.onTap,
   });
 
@@ -869,9 +939,36 @@ class _GameBtnState extends State<_GameBtn>
     }
   }
 
+  /// Grey-only pills (no gold), with a slightly darker press state.
+  static (LinearGradient, Color, Color) _darkOnlyStyle(bool isPressed) {
+    if (isPressed) {
+      return (
+        const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF4A4A4A), Color(0xFF2A2A2A)],
+        ),
+        Colors.white.withValues(alpha: 0.22),
+        Colors.white,
+      );
+    }
+    return (
+      const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF5A5A5A), Color(0xFF2D2D2D)],
+      ),
+      Colors.white.withValues(alpha: 0.12),
+      Colors.white,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final (gradient, borderColor, txtCol) = _style(_isPressed || widget.isActive);
+    final pressedOrActive = _isPressed || widget.isActive;
+    final (gradient, borderColor, txtCol) = widget.forceDarkStyle
+        ? _darkOnlyStyle(_isPressed)
+        : _style(pressedOrActive);
     final scale = GameTableLayout.scale(context);
     final baseFs = widget.label.length > 12 ? 12.0 : 14.0;
     final textStyle = TextStyle(
@@ -1048,4 +1145,97 @@ class _QaidViolationBannerState extends State<_QaidViolationBanner>
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// DOUBLE STATUS BADGE (Kammelna-style)
+//
+// Persistent floating pill shown on the table during play when a
+// Double/Triple/Four is active. Includes a subtle pulse animation.
+// ══════════════════════════════════════════════════════════════════
 
+class _DoubleBadge extends StatefulWidget {
+  final DoubleStatus status;
+  const _DoubleBadge({required this.status});
+
+  @override
+  State<_DoubleBadge> createState() => _DoubleBadgeState();
+}
+
+class _DoubleBadgeState extends State<_DoubleBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, multiplier, color) = switch (widget.status) {
+      DoubleStatus.doubled => ('دبل', '×2', const Color(0xFFE63946)),
+      DoubleStatus.tripled => ('تربل', '×3', const Color(0xFFFF6B00)),
+      DoubleStatus.four    => ('فور', '×4', const Color(0xFFD4AF37)),
+      DoubleStatus.gahwa   => ('قهوة', '☕', const Color(0xFF8B4513)),
+      _                    => ('', '', Colors.transparent),
+    };
+
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) {
+        final glowOpacity = 0.3 + (_pulse.value * 0.4);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: color.withValues(alpha: 0.7),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: glowOpacity),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                multiplier,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Tajawal',
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Tajawal',
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

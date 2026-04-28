@@ -50,9 +50,32 @@ void main() {
       expect(ctrl.gamePhase, GamePhase.doubleWindow);
       expect(ctrl.roundState.activeMode, GameMode.hakam);
 
-      // Skip double
       ctrl.skipDoubleWindow();
+      expect(ctrl.gamePhase, GamePhase.projectDeclaration);
+      ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
+    });
+
+    test('Ashkal: stored buyer seat is teammate (buyer card holder), not bidder', () {
+      BalootGameController? ctrl;
+      for (var seed = 0; seed < 200; seed++) {
+        final c = BalootGameController(random: Random(seed));
+        c.startNewGame(['A', 'B', 'C', 'D']);
+        if (c.roundState.dealerIndex == 0) {
+          ctrl = c;
+          break;
+        }
+      }
+      expect(ctrl, isNotNull);
+
+      // Dealer 0 → first bids 1; pass around until 0 can Ashkal.
+      ctrl!.placeBid(1, BidAction.pass);
+      ctrl.placeBid(2, BidAction.pass);
+      ctrl.placeBid(3, BidAction.pass);
+      ctrl.placeBid(0, BidAction.ashkal);
+
+      expect(ctrl.roundState.isAshkal, true);
+      expect(ctrl.roundState.buyerIndex, 2); // teammate of bidder 0 holds buyer card
     });
 
     test('all pass both rounds → new round with advanced dealer', () {
@@ -95,8 +118,9 @@ void main() {
         }
       }
 
-      // Skip double
       ctrl.skipDoubleWindow();
+      expect(ctrl.gamePhase, GamePhase.projectDeclaration);
+      ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
 
       // All players have 8 cards
@@ -263,9 +287,11 @@ void main() {
           }
         }
 
-        // Skip double
         if (ctrl.gamePhase == GamePhase.doubleWindow) {
           ctrl.skipDoubleWindow();
+        }
+        if (ctrl.gamePhase == GamePhase.projectDeclaration) {
+          ctrl.advanceFromProjects();
         }
 
         // Play round with bot

@@ -53,19 +53,27 @@ class PlayerSeatWidget extends StatelessWidget {
         ? const Color(0xFF28802E)
         : const Color(0xFFE63946);
 
-    // Project cards for this seat to show face-up behind the card fan
-    final projectCards = game.showProjectReveal
-        ? game.allDeclaredProjects
-            .where((p) => p.playerIndex == seat)
-            .expand((p) => p.cards)
-            .toList()
+    final sawaCards = game.isSawaRevealPlaying
+        ? game.sawaRevealCardsForSeat(seat)
         : const <CardModel>[];
+    final sawaRevealHere = sawaCards.isNotEmpty;
+
+    final projectCards = sawaRevealHere
+        ? sawaCards
+        : (game.showProjectReveal
+            ? game.winningTeamBestProjectsForReveal
+                .where((p) => p.playerIndex == seat)
+                .expand((p) => p.cards)
+                .toList()
+            : const <CardModel>[]);
+
+    final cardCountFan = sawaRevealHere ? 0 : cardCount;
 
     if (orientation == SeatOrientation.left ||
         orientation == SeatOrientation.right) {
       return _SideSeat(
         seat: seat,
-        cardCount: cardCount,
+        cardCount: cardCountFan,
         name: name,
         isActive: isActive,
         isDealer: isDealer,
@@ -79,7 +87,7 @@ class PlayerSeatWidget extends StatelessWidget {
 
     return _TopSeat(
       seat: seat,
-      cardCount: cardCount,
+      cardCount: cardCountFan,
       name: name,
       isActive: isActive,
       isDealer: isDealer,
@@ -331,6 +339,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
         return loc.bidRound1Short;
       case GamePhase.doubleWindow:
         return loc.doubleShort;
+      case GamePhase.projectDeclaration:
       case GamePhase.playing:
       case GamePhase.scoring:
         final mode = game.roundState.activeMode;
@@ -430,9 +439,27 @@ class _SeatPlayerInfoBox extends StatelessWidget {
         ? SizedBox(width: designerNarrowWidth, child: chip)
         : chip;
 
+    // ── Kammelna Sawa drawer (during hand-reveal animation) ─────────────
+    Widget? sawaBadge;
+    final sawaClaimSeat = game.sawaRevealClaimSeat;
+    final showSawaDrawer =
+        game.isSawaRevealPlaying && sawaClaimSeat == seatIndex;
+    if (showSawaDrawer) {
+      sawaBadge = _KamelnaBidBadge(
+        label: loc.sawa,
+        suit: null,
+        backgroundColor: const Color(0xFFC8E6C9).withValues(alpha: 0.95),
+        borderColor: const Color(0xFF2E7D32),
+        isHighlighted: true,
+        textColorOverride: const Color(0xFF1B5E20),
+      );
+    }
+
     // ── Kamelna-style "Drawer" Bid Badge ─────────────
     Widget? bidBadge;
-    if (seatIndex == game.buyerIndex && modeText.isNotEmpty) {
+    if (!showSawaDrawer &&
+        seatIndex == game.buyerIndex &&
+        modeText.isNotEmpty) {
       final label = game.gameModeLabel == '—' ? modeText : game.gameModeLabel;
       final suit = game.trumpSuit; 
       
@@ -450,7 +477,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
     }
 
     Widget? dealerBadge;
-    if (seatIndex == game.dealerIndex) {
+    if (!showSawaDrawer && seatIndex == game.dealerIndex) {
       dealerBadge = _KamelnaBidBadge(
         label: loc.dealer,
         suit: null,
@@ -474,14 +501,19 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       alignment: Alignment.topCenter,
       children: [
         // Draw badges FIRST so their flat tops are hidden behind the chipFrame
+        if (sawaBadge != null)
+          Positioned(
+            bottom: -15,
+            child: sawaBadge,
+          ),
         if (dealerBadge != null)
           Positioned(
-            bottom: bidBadge != null ? -28 : -15, // Stack lower if bidBadge is also present
+            bottom: bidBadge != null ? -28 : -15,
             child: dealerBadge,
           ),
         if (bidBadge != null)
           Positioned(
-            bottom: -15, // Tucked under the box
+            bottom: -15,
             child: bidBadge,
           ),
         // Draw the main player box on top
@@ -718,6 +750,44 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
                   avatarImagePath: avatarImagePath,
                 ),
               ),
+
+              // ── Dealer Marker (Kammelna/Jawaker style) ───────────
+              if (widget.isDealer)
+                Positioned(
+                  top: ringT,
+                  left: ringT,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4A017),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'D',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Tajawal',
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               if (widget.showOverlayNameTag)
                 Positioned(

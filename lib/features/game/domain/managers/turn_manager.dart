@@ -56,8 +56,17 @@ class TurnManager {
   bool get isRoundComplete => _trickNumber > 8;
 
   /// Whether one team won all 8 tricks.
+  ///
+  /// Do not require [isRoundComplete]: a play-phase **Sawa** claim awards the
+  /// remaining tricks without advancing [_trickNumber] to 9 the normal way.
   bool get isKabout =>
-      isRoundComplete && (teamATricksWon.length == 8 || teamBTricksWon.length == 8);
+      teamATricksWon.length == 8 || teamBTricksWon.length == 8;
+
+  /// After [claimSawa] in the engine: round is over; align trick counter for UI/tests.
+  void markRoundSealedAfterPlayClaimSawa() {
+    _trickNumber = 9;
+    _currentTrick.clear();
+  }
 
   /// Which team achieved Kabout (null if none).
   String? get kaboutTeam {

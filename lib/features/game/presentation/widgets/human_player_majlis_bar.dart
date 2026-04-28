@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
+import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,
@@ -34,10 +35,11 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     super.dispose();
   }
 
-  void _syncRingTicker(bool humanTurn) {
-    if (humanTurn == _humanTurn) return;
-    _humanTurn = humanTurn;
-    if (humanTurn) {
+  void _syncRingTicker({required bool humanTurn, required bool projectDeclaration}) {
+    final needTicker = humanTurn || projectDeclaration;
+    if (needTicker == _humanTurn) return;
+    _humanTurn = needTicker;
+    if (needTicker) {
       _ringTicker?.dispose();
       _ringTicker = null;
       _ringTicker = createTicker((_) {
@@ -51,8 +53,17 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
 
   static String _leftBadgeLabel(GameProvider game, GameL10n loc) {
     final mode = game.gameModeLabel;
+    if (game.isSawaRevealPlaying && game.sawaRevealClaimSeat == 0) {
+      if (mode != '—') return '${loc.modeLabel(mode)} · ${loc.sawa}';
+      return loc.sawa;
+    }
+    final humanDealer = game.dealerIndex == 0;
+    // During play we still show Sun/Hakam etc.; pair with Dealer so seat 0 is never ambiguous.
+    if (humanDealer && mode != '—') {
+      return '${loc.modeLabel(mode)} · ${loc.dealer}';
+    }
     if (mode != '—') return loc.modeLabel(mode);
-    if (game.dealerIndex == 0) return loc.dealer;
+    if (humanDealer) return loc.dealer;
     if (game.buyerIndex == 0) return loc.buyer;
     return loc.us;
   }
@@ -62,15 +73,34 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     context.watch<LocaleProvider>();
     final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
-    _syncRingTicker(game.isHumanTurn);
+    final inProjectDeclaration = game.phase == GamePhase.projectDeclaration;
+    _syncRingTicker(
+      humanTurn: game.isHumanTurn,
+      projectDeclaration: inProjectDeclaration,
+    );
 
     final name = game.playerName(0);
     final avatarPath = AppAssets.playerAvatarPath(0);
     final badge = _leftBadgeLabel(game, loc);
     final secs = game.turnTimerSeconds;
-    final rawProgress =
-        game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
-    final progress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
+    final totalProj = game.projectPhaseDurationSeconds.clamp(1, 99);
+    final projSecs = game.projectTimerSeconds.clamp(0, totalProj);
+
+    final String ringSecondsText;
+    final double ringProgress;
+    final bool ringActive;
+    if (inProjectDeclaration) {
+      ringSecondsText = '$projSecs';
+      ringProgress = (projSecs / totalProj).clamp(0.001, 1.0);
+      ringActive = true;
+    } else {
+      ringActive = game.isHumanTurn;
+      ringSecondsText =
+          game.isHumanTurn ? '${secs ?? 0}' : '—';
+      final rawProgress =
+          game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
+      ringProgress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
@@ -112,7 +142,11 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 ),
                 child: Row(
                   children: [
-                    _MiniAvatar(path: avatarPath, active: game.isHumanTurn),
+                    _MiniAvatar(
+                      path: avatarPath,
+                      active: game.isHumanTurn,
+                      isDealer: game.dealerIndex == 0,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -133,9 +167,14 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
             ),
             const SizedBox(width: 10),
             _CountdownRing(
-              isActive: game.isHumanTurn,
-              progress: progress,
-              secondsText: game.isHumanTurn ? '${secs ?? 0}' : '—',
+              isActive: ringActive,
+              progress: ringProgress,
+              secondsText: ringSecondsText,
+            ),
+            const SizedBox(width: 10),
+            _SawaButton(
+              isActive: game.canSawa && !game.isSawaRevealPlaying,
+              onTap: () => game.humanClaimSawa(),
             ),
           ],
         ),
@@ -187,43 +226,93 @@ class _RankChip extends StatelessWidget {
 }
 
 class _MiniAvatar extends StatelessWidget {
-  const _MiniAvatar({required this.path, required this.active});
+  const _MiniAvatar({
+    required this.path,
+    required this.active,
+    this.isDealer = false,
+  });
 
   final String path;
   final bool active;
+  final bool isDealer;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 30,
       height: 30,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Opacity(
-          opacity: active ? 1.0 : 0.65,
-          child: Image.asset(
-            path,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => ColoredBox(
-              color: const Color(0xFF3A3A3A),
-              child: Icon(
-                Icons.person_rounded,
-                size: 17,
-                color: Colors.white.withValues(alpha: 0.85),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Opacity(
+                opacity: active ? 1.0 : 0.65,
+                child: Image.asset(
+                  path,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => ColoredBox(
+                    color: const Color(0xFF3A3A3A),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 17,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+          if (isDealer)
+            Positioned(
+              top: -2,
+              left: -2,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD4A017),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Text(
+                    'D',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Tajawal',
+                      height: 1.05,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -285,6 +374,62 @@ class _CountdownRing extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SawaButton extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _SawaButton({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isActive ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive
+                ? const Color(0xFFD4AF37).withValues(alpha: 0.9) // Gold when active
+                : Colors.white.withValues(alpha: 0.05), // Greyed out when disabled
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive
+                  ? const Color(0xFFFFDF73)
+                  : Colors.white.withValues(alpha: 0.1),
+              width: 1.5,
+            ),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    )
+                  ]
+                : [],
+          ),
+          child: Text(
+            'سوا',
+            style: TextStyle(
+              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.3),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Tajawal',
+              height: 1.1,
+            ),
+          ),
+        ),
       ),
     );
   }

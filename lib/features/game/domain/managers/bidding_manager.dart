@@ -4,7 +4,7 @@ import '../../../../data/models/round_state_model.dart';
 
 /// The action a player can take during bidding.
 /// [confirmHakam] is used only during the [BiddingPhase.hakamConfirmation] step.
-enum BidAction { hakam, sun, secondHakam, ashkal, pass, sawa, confirmHakam }
+enum BidAction { hakam, sun, secondHakam, ashkal, sawa, pass, confirmHakam }
 
 /// Manages the Mzad (bidding) phase per BALOOT_RULES.md Section 4.
 ///
@@ -69,6 +69,12 @@ class BiddingManager {
   /// Seat that bid Sun / Second Hakam while others react (Round 2).
   int? get activeRound2PendingBuyerSeat => _round2PendingBuyer;
 
+  /// Mode of the pending Round 2 bid (Sun / Second Hakam) — for bot/UI.
+  GameMode? get activeRound2PendingMode => _round2PendingMode;
+
+  /// Trump for pending Second Hakam only; null if pending Sun.
+  Suit? get activeRound2PendingTrump => _round2PendingTrump;
+
   static bool _opposingTeams(int seatA, int seatB) => (seatA % 2) != (seatB % 2);
 
   /// The Sane (صانع) is the player to the dealer's LEFT.
@@ -128,30 +134,6 @@ class BiddingManager {
         _phase = BiddingPhase.completed;
         _isFinished = true;
 
-      case BidAction.sawa:
-        if (_round1HakamBidder != null) {
-          if (!_opposingTeams(seatIndex, _round1HakamBidder!)) {
-            throw InvalidBidException(
-              playerIndex: seatIndex,
-              message:
-                  'Sawa is only for the defending team — not your partner (Jawaker/Kammelna).',
-            );
-          }
-          // Sawa: defenders accept Hakam; original Hakam bidder remains buyer.
-          _result = BidResult(
-            mode: GameMode.hakam,
-            buyerIndex: _round1HakamBidder!,
-            trumpSuit: buyerCard.suit,
-          );
-          _phase = BiddingPhase.completed;
-          _isFinished = true;
-        } else {
-          throw InvalidBidException(
-            playerIndex: seatIndex,
-            message: 'Cannot Sawa without an active bid.',
-          );
-        }
-
       case BidAction.pass:
         _passCount++;
         if (_round1HakamBidder != null) {
@@ -196,6 +178,28 @@ class BiddingManager {
           mode: GameMode.sun,
           buyerIndex: seatIndex,
           isAshkal: true,
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+
+      case BidAction.sawa:
+        // BALOOT_RULES §4.4 — only defenders may Sawa; locks active Hakam immediately.
+        if (_round1HakamBidder == null) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Sawa requires an active Hakam bid.',
+          );
+        }
+        if (!_opposingTeams(seatIndex, _round1HakamBidder!)) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Only defenders may call Sawa (Kammelna).',
+          );
+        }
+        _result = BidResult(
+          mode: GameMode.hakam,
+          buyerIndex: _round1HakamBidder!,
+          trumpSuit: buyerCard.suit,
         );
         _phase = BiddingPhase.completed;
         _isFinished = true;
@@ -315,25 +319,29 @@ class BiddingManager {
         );
 
       case BidAction.sawa:
-        if (_round2PendingBuyer == null ||
-            _round2PendingMode == null) {
+        // §4.4 — defenders match pending Sun or Second Hakam; bidding ends immediately.
+        if (_round2PendingBuyer == null || _round2PendingMode == null) {
           throw InvalidBidException(
             playerIndex: seatIndex,
-            message: 'Cannot Sawa in Round 2 without an active Sun or Hakam bid.',
+            message: 'Sawa requires a pending Sun or Second Hakam bid.',
           );
         }
         if (!_opposingTeams(seatIndex, _round2PendingBuyer!)) {
           throw InvalidBidException(
             playerIndex: seatIndex,
-            message:
-                'Sawa is only for the defending team — not your partner (Jawaker/Kammelna).',
+            message: 'Only defenders may call Sawa (Kammelna).',
           );
         }
         _result = BidResult(
           mode: _round2PendingMode!,
           buyerIndex: _round2PendingBuyer!,
-          trumpSuit: _round2PendingTrump,
+          trumpSuit:
+              _round2PendingMode == GameMode.hakam ? _round2PendingTrump : null,
         );
+        _round2PendingBuyer = null;
+        _round2PendingMode = null;
+        _round2PendingTrump = null;
+        _passCount = 0;
         _phase = BiddingPhase.completed;
         _isFinished = true;
         break;

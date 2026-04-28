@@ -225,6 +225,19 @@ void main() {
       );
     });
 
+    test('Round 2 Second Hakam — Sawa locks immediately (buyer unchanged)', () {
+      final bm = toRound2();
+
+      bm.placeBid(1, BidAction.secondHakam, secondHakamSuit: Suit.spades);
+      expect(bm.currentBidder, 2);
+      bm.placeBid(2, BidAction.sawa);
+
+      expect(bm.isFinished, true);
+      expect(bm.result!.mode, GameMode.hakam);
+      expect(bm.result!.buyerIndex, 1);
+      expect(bm.result!.trumpSuit, Suit.spades);
+    });
+
     test('Round 2 Second Hakam — 3 passes → hakamConfirmation', () {
       final bm = toRound2();
 

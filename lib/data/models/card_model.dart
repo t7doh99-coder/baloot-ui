@@ -46,23 +46,22 @@ class CardModel {
   @override
   int get hashCode => Object.hash(suit, rank);
 
-  /// Sorts cards by Suit and then by Rank descending.
+  /// Sorts cards by Suit and then by Rank ascending (low to high).
   int compareTo(CardModel other) {
-    // Suit sorting order as requested: Hearts, Diamonds, Spades, Clubs
-    // (Note: This groups Red/Red and Black/Black suits together)
+    // Suit sorting order as requested: Hearts, Spades, Diamonds, Clubs
+    // (Note: This interleaves Red and Black suits: Red-Black-Red-Black)
     const suitOrder = {
       Suit.hearts: 0,
-      Suit.diamonds: 1,
-      Suit.spades: 2,
+      Suit.spades: 1,
+      Suit.diamonds: 2,
       Suit.clubs: 3,
     };
     
     int suitCmp = suitOrder[suit]!.compareTo(suitOrder[other.suit]!);
     if (suitCmp != 0) return suitCmp;
 
-    // Rank order for projects (A, K, Q, J, 10, 9, 8, 7)
-    // This ensures that sequences like A-K-Q-J-10 (100 project) are always contiguous.
-    return other.rank.index.compareTo(rank.index);
+    // Rank order sorted from low to high (7, 8, 9, 10, J, Q, K, A)
+    return rank.index.compareTo(other.rank.index);
   }
 
   // ── Lookup tables (from BALOOT_RULES.md Section 3) ──

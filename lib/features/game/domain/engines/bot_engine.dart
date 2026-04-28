@@ -26,6 +26,9 @@ class BotEngine {
     required int dealerIndex,
     bool round2PendingBid = false,
     int? round1HakamBidderSeat,
+    int? round2PendingBuyerSeat,
+    GameMode? round2PendingMode,
+    Suit? round2PendingTrump,
   }) {
     if (phase == BiddingPhase.round1) {
       if (round1HakamBidderSeat != null) {
@@ -48,6 +51,9 @@ class BotEngine {
       seatIndex,
       dealerIndex,
       round2PendingBid: round2PendingBid,
+      round2PendingBuyerSeat: round2PendingBuyerSeat,
+      round2PendingMode: round2PendingMode,
+      round2PendingTrump: round2PendingTrump,
     );
   }
 
@@ -77,10 +83,10 @@ class BotEngine {
       return const BotBidDecision(action: BidAction.sun);
     }
     final vsTheirTrump = _evaluateHakamHand(hand, buyerCard.suit);
-    if (vsTheirTrump < 28) {
-      return const BotBidDecision(action: BidAction.sawa);
+    if (vsTheirTrump < 26) {
+      return const BotBidDecision(action: BidAction.pass);
     }
-    return const BotBidDecision(action: BidAction.pass);
+    return const BotBidDecision(action: BidAction.sawa);
   }
 
   BotBidDecision _decideRound2(
@@ -89,8 +95,31 @@ class BotEngine {
     int seatIndex,
     int dealerIndex, {
     required bool round2PendingBid,
+    int? round2PendingBuyerSeat,
+    GameMode? round2PendingMode,
+    Suit? round2PendingTrump,
   }) {
     // Others must react with Pass or Sawa (no new Sun/Hakam).
+    if (round2PendingBid &&
+        round2PendingBuyerSeat != null &&
+        round2PendingMode != null) {
+      if ((seatIndex % 2) == (round2PendingBuyerSeat % 2)) {
+        return const BotBidDecision(action: BidAction.pass);
+      }
+      if (round2PendingMode == GameMode.sun) {
+        final s = _evaluateSunHand(hand);
+        return s >= 38
+            ? const BotBidDecision(action: BidAction.pass)
+            : const BotBidDecision(action: BidAction.sawa);
+      }
+      if (round2PendingMode == GameMode.hakam && round2PendingTrump != null) {
+        final h = _evaluateHakamHand(hand, round2PendingTrump);
+        return h >= 36
+            ? const BotBidDecision(action: BidAction.pass)
+            : const BotBidDecision(action: BidAction.sawa);
+      }
+    }
+
     if (round2PendingBid) {
       return const BotBidDecision(action: BidAction.pass);
     }

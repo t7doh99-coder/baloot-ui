@@ -60,6 +60,13 @@ class ScoringEngine {
   /// Hakam: round(abnat / 10) with Jawaker rounding
   int abnatToScoreboard(int abnat, GameMode mode) {
     if (mode == GameMode.sun) {
+      // Kammelna "5 Rule" for Sun:
+      // If last digit is < 5: round down (64 -> 12)
+      // If last digit is > 5: round up (66 -> 14)
+      // If last digit is exactly 5: exact half (65 -> 13)
+      if (abnat % 10 == 5) {
+        return (abnat ~/ 10) * 2 + 1;
+      }
       return (abnat / 10).round() * 2;
     }
     // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
