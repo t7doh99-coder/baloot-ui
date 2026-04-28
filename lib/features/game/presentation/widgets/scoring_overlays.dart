@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
-import '../../../../data/models/card_model.dart' show Suit;
+import '../../../../data/models/card_model.dart' show GameMode, Suit;
 import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../game_provider.dart';
 
@@ -30,7 +29,11 @@ class _RoundScoreStrings {
   String get tricks => ar ? 'الأكلات' : 'Tricks';
   String get ground => ar ? 'الأرض' : 'Ground';
   String get projects => ar ? 'المشاريع' : 'Projects';
+  /// Trick card points only (threshold 65/81); excludes project lines.
+  String get trickPoints => ar ? 'أبناط الورق (الأكل)' : 'Trick pts (cards)';
   String get points => ar ? 'الأبناط' : 'Points';
+  String get khamsProjectsNote =>
+      ar ? 'مشاريع المشتري إلى المدافعين' : 'Buyer projects to defenders';
   String get result => ar ? 'النتيجة' : 'Result';
   String get them => ar ? 'لهم' : 'Them';
   String get us => ar ? 'لنا' : 'Us';
@@ -40,19 +43,42 @@ class _RoundScoreStrings {
   String get exitGame => ar ? 'خروج' : 'Exit game';
   String get playAgain => ar ? 'العب مرة أخرى' : 'Play again';
 
-  String get labelKabout => ar ? 'النتيجة: كبوت' : 'Outcome: Kabout';
   String get labelKhams =>
-      ar ? 'نتيجة الشراء: خسرانة · كهمس' : 'Purchase result: Lost · Khams';
+      ar ? 'نتيجة الشراء: خسرانة (كهمس)' : 'Purchase result: Lost (Khams)';
   String get labelWon => ar ? 'نتيجة الشراء: فائزة' : 'Purchase result: Won';
-  String get labelLost => ar ? 'نتيجة الشراء: خسرانة' : 'Purchase result: Lost';
+  String get labelViolationPenalty => ar ? 'غرامة قيد — خسارة دور' : 'Qaid violation — round lost';
 
-  /// In-play master-card Sawa (Kammelna) — distinct from bidding Sawa.
-  String get playSawaEndNote =>
-      ar ? 'انتهى الجول بالسوا (يد)' : 'Round ended with Sawa (hands)';
+  /// When buyer’s side took all tricks (successful purchase sweep).
+  String get labelWonKabout =>
+      ar ? 'نتيجة الشراء: فائزة (كبوت)' : 'Purchase result: Won (Kabout sweep)';
+
+  /// When defenders took all tricks (Khams-equivalent headline; counted as Kabout in scoring).
+  String get labelLostOppKabout =>
+      ar ? 'نتيجة الشراء: خسرانة (كبوت للمدافعين)' :
+      'Purchase result: Lost (defenders took Kabout)';
+
+  /// One line: threshold is trick Abnat only (no projects in the comparison).
+  String khamsThresholdShort(bool sunMode) => sunMode
+      ? (ar ? 'أبناط الورق فقط: الصن يحتاج فوق 65' : 'Cards only: Sun needs above 65')
+      : (ar ? 'أبناط الورق فقط: الحكم يحتاج فوق 81' : 'Cards only: Hakam needs above 81');
+
+  TextStyle footnoteStyle(
+    TextStyle Function({double size, FontWeight w, Color? color}) taj,
+  ) =>
+      taj(size: 10, w: FontWeight.w500, color: Colors.white.withValues(alpha: 0.5));
+
+  /// In-play Sawa — one short line (claimant gets remaining card points + ground).
+  String playSawaShortLine(int claimSeat, String buyerTeam) {
+    final claimTeam = claimSeat.isEven ? 'A' : 'B';
+    if (claimTeam == buyerTeam) {
+      return ar ? 'سوَا يد: الباقي لفريق المشتري' : 'Sawa: remainder to buyer';
+    }
+    return ar ? 'سوَا يد: الباقي للمدافعين' : 'Sawa: remainder to defenders';
+  }
 
   String matchCaption(int teamA, int teamB) => ar
-      ? 'المباراة: لنا $teamA · لهم $teamB'
-      : 'Match: Us $teamA · Them $teamB';
+      ? 'المباراة: لنا $teamA، لهم $teamB'
+      : 'Match: Us $teamA, Them $teamB';
 }
 
 class RoundScoreOverlay extends StatelessWidget {
@@ -76,15 +102,26 @@ class RoundScoreOverlay extends StatelessWidget {
     final total = game.gameScore;
     if (r == null) return const SizedBox.shrink();
 
-    final buyerWon = r.winningTeam == r.buyerTeam;
     final buyerSide = r.buyerTeam == 'A' ? s.ourTeam : s.theirTeam;
 
-    final (contractText, contractColor) = switch ((r.isKabout, r.isKhams, buyerWon)) {
-      (true, _, _) => (s.labelKabout, _titleGold),
-      (_, true, _) => (s.labelKhams, _lossRed),
-      (_, _, true) => (s.labelWon, const Color(0xFF69F0AE)),
-      _ => (s.labelLost, _lossRed),
-    };
+    // Headlines follow engine semantics (Khams/Kabout/normal).
+    // Khams thresholds use trick Abnat only; projects are scored separately on the board.
+    final (contractText, contractColor) = () {
+      if (r.reason == 'qaid_penalty') {
+        return (s.labelViolationPenalty, _lossRed);
+      }
+      if (r.isKhams) {
+        return (s.labelKhams, _lossRed);
+      }
+      if (r.isKabout) {
+        final buyerSwept = r.winningTeam == r.buyerTeam;
+        if (buyerSwept) {
+          return (s.labelWonKabout, const Color(0xFF69F0AE));
+        }
+        return (s.labelLostOppKabout, _lossRed);
+      }
+      return (s.labelWon, const Color(0xFF69F0AE));
+    }();
 
     final groundA = r.lastTrickBonusTeam == 'A' ? 10 : 0;
     final groundB = r.lastTrickBonusTeam == 'B' ? 10 : 0;
@@ -166,13 +203,16 @@ class RoundScoreOverlay extends StatelessWidget {
                             const SizedBox(height: 10),
                             if (r.playSawaClaimSeat != null) ...[
                               Text(
-                                s.playSawaEndNote,
+                                s.playSawaShortLine(
+                                  r.playSawaClaimSeat!,
+                                  r.buyerTeam,
+                                ),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.readexPro(
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
-                                  color: _titleGold.withValues(alpha: 0.9),
-                                  height: 1.3,
+                                  color: _titleGold.withValues(alpha: 0.85),
+                                  height: 1.25,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -222,6 +262,13 @@ class RoundScoreOverlay extends StatelessWidget {
                                       color: contractColor,
                                     ),
                                   ),
+                                  if (r.isKhams) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      s.khamsThresholdShort(r.mode == GameMode.sun),
+                                      style: s.footnoteStyle(taj),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -263,9 +310,22 @@ class RoundScoreOverlay extends StatelessWidget {
                                     r.teamAProjectAbnat,
                                     taj,
                                   ),
+                                  if (r.isKhams) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      s.khamsProjectsNote,
+                                      textAlign: TextAlign.center,
+                                      style: taj(
+                                        size: 10,
+                                        w: FontWeight.w500,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                  ],
                                   _thinRule(),
                                   _ScoreTableRow.data(
-                                    s.points,
+                                    s.trickPoints,
                                     r.teamBTrickAbnat,
                                     r.teamATrickAbnat,
                                     taj,
@@ -297,7 +357,7 @@ class RoundScoreOverlay extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Text(
                               s.matchCaption(total.teamA, total.teamB),
                               style: taj(

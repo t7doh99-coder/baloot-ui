@@ -193,6 +193,12 @@ class _GameTableScreenState extends State<GameTableScreen> {
               message: game.qaidViolationMessage!,
               onDismiss: () => context.read<GameProvider>().clearQaidViolation(),
             ),
+          // Qaid Claim Result Banner — Kammelna manual flag result
+          if (game.qaidClaimResult != null)
+            _QaidClaimResultBanner(
+              isCorrect: game.qaidClaimResult == 'correct',
+              onDismiss: () => context.read<GameProvider>().clearQaidClaimResult(),
+            ),
         ],
       ),
     );
@@ -469,10 +475,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     _trackedDoubleStatus = g.doubleStatus;
   }
 
-  /// Expanded tier row is only valid during project declaration or trick 1.
+  /// Expanded tier row is only valid during the project declaration phase.
   static bool _projectsPickerMayShow(GameProvider g) {
-    return g.phase == GamePhase.projectDeclaration ||
-        (g.phase == GamePhase.playing && g.trickNumber == 1);
+    return g.phase == GamePhase.projectDeclaration;
   }
 
   @override
@@ -618,7 +623,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
         if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
         if (gp.canHumanBidSawa)
-          _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
+          _GameBtn(label: loc.sawaBidShort, onTap: () => gp.humanBid(BidAction.sawa)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -634,7 +639,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     if (widget.game.hasRound2PendingBid) {
       return [
         if (gp.canHumanBidSawa)
-          _GameBtn(label: loc.sawa, onTap: () => gp.humanBid(BidAction.sawa)),
+          _GameBtn(label: loc.sawaBidShort, onTap: () => gp.humanBid(BidAction.sawa)),
         _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -751,8 +756,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   Widget _buildProjectPickerExpanded(BuildContext context, GameL10n loc) {
     final gp = context.read<GameProvider>();
-    final canEditProjects = gp.phase == GamePhase.projectDeclaration ||
-        (gp.phase == GamePhase.playing && gp.trickNumber == 1);
+    final canEditProjects = gp.phase == GamePhase.projectDeclaration;
     var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
     final declared = gp.humanDeclaredProjects;
@@ -1133,6 +1137,114 @@ class _QaidViolationBannerState extends State<_QaidViolationBanner>
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------------------------
+//  QAID CLAIM RESULT BANNER — Kammelna manual flag result
+//  Shows whether the Qaid claim was correct or false.
+// -------------------------------------------------------------------------
+
+class _QaidClaimResultBanner extends StatefulWidget {
+  final bool isCorrect;
+  final VoidCallback onDismiss;
+  const _QaidClaimResultBanner({required this.isCorrect, required this.onDismiss});
+
+  @override
+  State<_QaidClaimResultBanner> createState() => _QaidClaimResultBannerState();
+}
+
+class _QaidClaimResultBannerState extends State<_QaidClaimResultBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -0.4),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+    // Auto-dismiss after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) {
+        _ctrl.reverse().then((_) => widget.onDismiss());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    final isCorrect = widget.isCorrect;
+    final gradientColors = isCorrect
+        ? [const Color(0xFF2E7D32), const Color(0xFF1B5E20)] // Green for correct
+        : [const Color(0xFFB71C1C), const Color(0xFF7F0000)]; // Red for false
+    final icon = isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded;
+    final title = isCorrect ? loc.correctQaidMessage : loc.falseQaidMessage;
+
+    return Positioned(
+      top: 80,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: gradientColors),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isCorrect ? Colors.green : Colors.red).withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+                border: Border.all(
+                  color: (isCorrect ? Colors.green.shade300 : Colors.red.shade300).withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ],

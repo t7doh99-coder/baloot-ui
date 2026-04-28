@@ -16,8 +16,7 @@ void main() {
         expect(engine.abnatToScoreboard(42, GameMode.sun), 8);
       });
 
-      test('65 Abnat → 14 pts', () {
-        // 65/10 = 6.5 → rounds to 7 → 7*2 = 14
+      test('65 Abnat → 14 pts (round(6.5)→7 → ×2)', () {
         expect(engine.abnatToScoreboard(65, GameMode.sun), 14);
       });
 

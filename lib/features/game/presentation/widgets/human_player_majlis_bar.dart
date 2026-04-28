@@ -51,21 +51,26 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     }
   }
 
-  static String _leftBadgeLabel(GameProvider game, GameL10n loc) {
+  /// Two stacked lines narrows horizontal width vs "Sun · Dealer" (fixes bar overflow).
+  static ({String primary, String? secondary}) _badgeParts(
+    GameProvider game,
+    GameL10n loc,
+  ) {
     final mode = game.gameModeLabel;
     if (game.isSawaRevealPlaying && game.sawaRevealClaimSeat == 0) {
-      if (mode != '—') return '${loc.modeLabel(mode)} · ${loc.sawa}';
-      return loc.sawa;
+      if (mode != '—') {
+        return (primary: loc.modeLabel(mode), secondary: loc.sawa);
+      }
+      return (primary: loc.sawa, secondary: null);
     }
     final humanDealer = game.dealerIndex == 0;
-    // During play we still show Sun/Hakam etc.; pair with Dealer so seat 0 is never ambiguous.
     if (humanDealer && mode != '—') {
-      return '${loc.modeLabel(mode)} · ${loc.dealer}';
+      return (primary: loc.modeLabel(mode), secondary: loc.dealer);
     }
-    if (mode != '—') return loc.modeLabel(mode);
-    if (humanDealer) return loc.dealer;
-    if (game.buyerIndex == 0) return loc.buyer;
-    return loc.us;
+    if (mode != '—') return (primary: loc.modeLabel(mode), secondary: null);
+    if (humanDealer) return (primary: loc.dealer, secondary: null);
+    if (game.buyerIndex == 0) return (primary: loc.buyer, secondary: null);
+    return (primary: loc.us, secondary: null);
   }
 
   @override
@@ -81,7 +86,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
 
     final name = game.playerName(0);
     final avatarPath = AppAssets.playerAvatarPath(0);
-    final badge = _leftBadgeLabel(game, loc);
+    final badge = _badgeParts(game, loc);
     final secs = game.turnTimerSeconds;
     final totalProj = game.projectPhaseDurationSeconds.clamp(1, 99);
     final projSecs = game.projectTimerSeconds.clamp(0, totalProj);
@@ -127,7 +132,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
         ),
         child: Row(
           children: [
-            _RankChip(label: badge),
+            _RankChip(primary: badge.primary, secondary: badge.secondary),
             const SizedBox(width: 10),
             Expanded(
               child: Container(
@@ -176,6 +181,11 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
               isActive: game.canSawa && !game.isSawaRevealPlaying,
               onTap: () => game.humanClaimSawa(),
             ),
+            const SizedBox(width: 6),
+            _QaidButton(
+              isActive: game.canClaimQaid,
+              onTap: () => game.humanClaimQaid(),
+            ),
           ],
         ),
       ),
@@ -184,15 +194,38 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
 }
 
 class _RankChip extends StatelessWidget {
-  const _RankChip({required this.label});
+  const _RankChip({
+    required this.primary,
+    this.secondary,
+  });
 
-  final String label;
+  final String primary;
+  final String? secondary;
 
   @override
   Widget build(BuildContext context) {
+    final ar = context.read<LocaleProvider>().isArabic;
+    final textStylePrimary = TextStyle(
+      color: Colors.white.withValues(alpha: 0.96),
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      height: secondary != null ? 1.05 : 1.1,
+      letterSpacing: ar ? 0 : 0.15,
+    );
+    final textStyleSecondary = TextStyle(
+      color: Colors.white.withValues(alpha: 0.78),
+      fontSize: 9,
+      fontWeight: FontWeight.w600,
+      height: 1.0,
+      letterSpacing: ar ? 0 : 0.1,
+    );
+
     return Container(
-      constraints: const BoxConstraints(minWidth: 40),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      constraints: BoxConstraints(minWidth: secondary != null ? 34 : 40),
+      padding: EdgeInsets.symmetric(
+        horizontal: secondary != null ? 8 : 10,
+        vertical: secondary != null ? 5 : 6,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
@@ -210,17 +243,35 @@ class _RankChip extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.94),
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.2,
-        ),
-      ),
+      child: secondary == null
+          ? Text(
+              primary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textStylePrimary,
+              textAlign: TextAlign.center,
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  primary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStylePrimary,
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  secondary!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyleSecondary,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
     );
   }
 }
@@ -390,6 +441,75 @@ class _SawaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    final ar = context.watch<LocaleProvider>().isArabic;
+    const gold = Color(0xFFD4AF37);
+
+    Widget btn = InkWell(
+      onTap: isActive ? onTap : null,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? gold.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                isActive ? const Color(0xFFFFDF73) : Colors.white.withValues(alpha: 0.1),
+            width: 1.5,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: gold.withValues(alpha: 0.5),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          loc.sawa,
+          style: TextStyle(
+            color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.3),
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            fontFamily: ar ? 'Tajawal' : null,
+            height: 1.1,
+          ),
+        ),
+      ),
+    );
+
+    btn = Tooltip(
+      message: loc.sawaHandsTooltip,
+      preferBelow: false,
+      child: btn,
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: btn,
+    );
+  }
+}
+
+/// Kammelna-style Qaid (قيدها) button — red accent for danger/risk.
+/// Placed right of the Sawa button in the human player bar.
+/// Per BALOOT_RULES.md §14.5: manual violation flagging.
+class _QaidButton extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _QaidButton({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -397,22 +517,22 @@ class _SawaButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: isActive
-                ? const Color(0xFFD4AF37).withValues(alpha: 0.9) // Gold when active
+                ? const Color(0xFFE63946).withValues(alpha: 0.9) // Red when active
                 : Colors.white.withValues(alpha: 0.05), // Greyed out when disabled
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isActive
-                  ? const Color(0xFFFFDF73)
+                  ? const Color(0xFFFF6B6B)
                   : Colors.white.withValues(alpha: 0.1),
               width: 1.5,
             ),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                      color: const Color(0xFFE63946).withValues(alpha: 0.5),
                       blurRadius: 10,
                       spreadRadius: 1,
                     )
@@ -420,9 +540,9 @@ class _SawaButton extends StatelessWidget {
                 : [],
           ),
           child: Text(
-            'سوا',
+            loc.qaid,
             style: TextStyle(
-              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.3),
+              color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
               fontSize: 14,
               fontWeight: FontWeight.w900,
               fontFamily: 'Tajawal',

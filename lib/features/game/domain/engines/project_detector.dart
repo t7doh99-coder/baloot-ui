@@ -253,20 +253,18 @@ class ProjectDetector {
   }
 
   /// Compare two teams' projects and determine which team's projects count.
-  /// Returns 'A', 'B', or null (if no projects declared).
+  /// Returns 'A', 'B', or null if no competing projects OR **project Sawa** (perfect tie).
   ///
-  /// Per BALOOT_RULES.md Section 6.3 & 14.1:
+  /// Per BALOOT_RULES.md §6.3 / client rulebook (Kammelna-style):
   /// Both teams compare highest project. Superior project wins.
   /// If tied rank → highest card in sequence wins.
-  /// If STILL tied (Rule 14.1):
-  ///   - Trump sequence wins over non-trump.
-  ///   - Otherwise, turn order (closest to firstLeaderIndex clockwise).
+  /// In Hakam, trump sequence beats non-trump.
+  /// If nothing splits the tie → **project Sawa** ([null]): neither team scores project points.
   String? resolveProjectPriority(
     List<DeclaredProject> teamAProjects,
     List<DeclaredProject> teamBProjects,
     GameMode mode,
     Suit? trumpSuit,
-    int firstLeaderIndex,
   ) {
     // Filter out Baloot (doesn't participate in priority)
     final aRegular = teamAProjects.where((p) => p.type != ProjectType.baloot).toList();
@@ -300,14 +298,8 @@ class ProjectDetector {
       if (bIsTrump && !aIsTrump) return 'B';
     }
 
-    // 4. Turn Order Tie-Breaker (Rule 14.1)
-    // "Closest to the first leader wins" (clockwise on screen: 0->1->2->3)
-    // firstLeaderIndex is the starter (e.g. seat 1).
-    // Proximity = (playerIndex - firstLeaderIndex) % 4
-    final aProximity = (aBest.playerIndex - firstLeaderIndex) % 4;
-    final bProximity = (bBest.playerIndex - firstLeaderIndex) % 4;
-
-    return aProximity <= bProximity ? 'A' : 'B';
+    // 4. Perfect tie → project Sawa (neither team's sequence counts)
+    return null;
   }
 
   void _sortProjects(List<DeclaredProject> list) {

@@ -215,7 +215,7 @@ void main() {
         ),
       ];
 
-      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null);
       expect(winner, 'A');
     });
 
@@ -243,7 +243,7 @@ void main() {
         ),
       ];
 
-      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null);
       expect(winner, 'B'); // Q,K,A has higher card than 7,8,9
     });
 
@@ -272,11 +272,11 @@ void main() {
       ];
 
       // In Hakam mode where Spades is Trump, Team B wins the tie
-      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.hakam, Suit.spades, 0);
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.hakam, Suit.spades);
       expect(winner, 'B');
     });
 
-    test('exact tie (rank & card & no trump) → Turn order wins (Rule 14.1)', () {
+    test('exact tie (rank & card & no trump) → project Sawa (null)', () {
       final teamA = [
         DeclaredProject(
           type: ProjectType.sera,
@@ -300,10 +300,8 @@ void main() {
         ),
       ];
 
-      // First leader is 0. Players are 1 and 2.
-      // Proximity: 1 is closer to 0 than 2 is. So Player 1 (Team B) wins.
-      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null, 0);
-      expect(winner, 'B');
+      final winner = detector.resolveProjectPriority(teamA, teamB, GameMode.sun, null);
+      expect(winner, isNull);
     });
   });
 

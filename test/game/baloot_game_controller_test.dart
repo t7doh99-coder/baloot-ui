@@ -51,6 +51,10 @@ void main() {
       expect(ctrl.roundState.activeMode, GameMode.hakam);
 
       ctrl.skipDoubleWindow();
+      expect(ctrl.gamePhase, GamePhase.playing);
+
+      final lead = ctrl.roundState.currentPlayerIndex;
+      ctrl.playCard(lead, ctrl.getHand(lead).first);
       expect(ctrl.gamePhase, GamePhase.projectDeclaration);
       ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
@@ -119,13 +123,17 @@ void main() {
       }
 
       ctrl.skipDoubleWindow();
+      expect(ctrl.gamePhase, GamePhase.playing);
+
+      final lead = ctrl.roundState.currentPlayerIndex;
+      ctrl.playCard(lead, ctrl.getHand(lead).first);
       expect(ctrl.gamePhase, GamePhase.projectDeclaration);
       ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
 
-      // All players have 8 cards
+      // Opener already led one card; others still have full hands
       for (int i = 0; i < 4; i++) {
-        expect(ctrl.getHand(i).length, 8);
+        expect(ctrl.getHand(i).length, i == lead ? 7 : 8);
       }
 
       // Play all 8 tricks using bot logic

@@ -160,16 +160,16 @@ class GameTableMajlisHud extends StatelessWidget {
             ),
           ),
           ),
-          SizedBox(
-            width: 150,
-            child: _MajlisScoreHud(
-              leftLabel: loc.them,
-              leftScore: score.teamB,
-              rightLabel: loc.us,
-              rightScore: score.teamA,
+            SizedBox(
+              width: 150,
+              child: _MajlisScoreHud(
+                leftLabel: loc.them,
+                leftScore: score.teamB,
+                rightLabel: loc.us,
+                rightScore: score.teamA,
+              ),
             ),
-          ),
-        ],
+          ],
       ),
       ),
     );

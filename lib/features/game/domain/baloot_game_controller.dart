@@ -53,6 +53,9 @@ class BalootGameController implements IBalootController {
   // Track if Baloot has been declared (auto, on 2nd card of K-Q pair)
   final Set<int> _balootDeclaredBy = {};
 
+  /// Kammelna: declarations only after trick 1 lead card; open window once.
+  bool _trick1ProjectWindowOpenedAfterLeadCard = false;
+
   /// Seat that last called Double or Four (defender); buyer Triple / Gahwa return here.
   int? _escalationDefenderSeat;
 
@@ -136,8 +139,9 @@ class BalootGameController implements IBalootController {
     _deckManager.dealInitial(_dealerIndex);
 
     _hands = _deckManager.hands.map((h) => List<CardModel>.from(h)).toList();
-    // Sort human hand (seat 0)
-    _hands[0].sort((a, b) => a.compareTo(b));
+    for (var i = 0; i < 4; i++) {
+      _hands[i].sort((a, b) => a.compareTo(b));
+    }
 
     _roundState = RoundStateModel(
       dealerIndex: _dealerIndex,
@@ -157,6 +161,7 @@ class BalootGameController implements IBalootController {
     _activeDeclaredProjects.clear();
     _balootDeclaredBy.clear();
     _escalationDefenderSeat = null;
+    _trick1ProjectWindowOpenedAfterLeadCard = false;
 
     _gamePhase = GamePhase.bidding;
   }
@@ -262,8 +267,9 @@ class BalootGameController implements IBalootController {
         isAshkal: bidResult.isAshkal,
       );
       _hands = _deckManager.hands.map((h) => List<CardModel>.from(h)).toList();
-      // Sort human hand again
-      _hands[0].sort((a, b) => a.compareTo(b));
+      for (var i = 0; i < 4; i++) {
+        _hands[i].sort((a, b) => a.compareTo(b));
+      }
 
       // Detect projects in all hands
       for (int i = 0; i < 4; i++) {
@@ -395,17 +401,20 @@ class BalootGameController implements IBalootController {
     }
     _escalationDefenderSeat = null;
     _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
-    _gamePhase = GamePhase.projectDeclaration;
-  }
-
-  /// Transition from project declaration to actual card play.
-  void advanceFromProjects() {
-    if (_gamePhase != GamePhase.projectDeclaration) return;
     _gamePhase = GamePhase.playing;
     _startPlayPhase();
   }
 
+  /// Transition from project declaration to actual card play.
+  /// Kammelna: declaration happens after trick 1's first card — we only resume [playing];
+  /// [TurnManager] state is preserved.
+  void advanceFromProjects() {
+    if (_gamePhase != GamePhase.projectDeclaration) return;
+    _gamePhase = GamePhase.playing;
+  }
+
   void _startPlayPhase() {
+    _trick1ProjectWindowOpenedAfterLeadCard = false;
     // Kammelna/Saudi rules: the player to the RIGHT of the dealer leads trick 1.
     final firstPlayer = (_dealerIndex + 1) % 4;
     _turnManager = TurnManager(
@@ -475,6 +484,18 @@ class BalootGameController implements IBalootController {
       currentPlayerIndex: _turnManager!.currentPlayerIndex,
     );
 
+    if (trickResult == null &&
+        _gamePhase == GamePhase.playing &&
+        _turnManager!.trickNumber == 1 &&
+        _turnManager!.currentTrick.length == 1 &&
+        !_trick1ProjectWindowOpenedAfterLeadCard) {
+      _trick1ProjectWindowOpenedAfterLeadCard = true;
+      _gamePhase = GamePhase.projectDeclaration;
+      logger.log(
+        'Project declaration window (after 1st card trick 1, before 2nd card — Kammelna)',
+      );
+    }
+
     if (trickResult != null) {
       // Trick complete
       logger.log('Trick completed. Winner: Seat ${trickResult.winnerIndex}');
@@ -502,12 +523,9 @@ class BalootGameController implements IBalootController {
   @override
   void declareProject(int seatIndex, int projectIndex) {
     final inProjectPhase = _gamePhase == GamePhase.projectDeclaration;
-    final inPlayingTrick1 = _gamePhase == GamePhase.playing &&
-        _turnManager != null &&
-        _turnManager!.trickNumber <= 1;
-    if (!inProjectPhase && !inPlayingTrick1) {
+    if (!inProjectPhase) {
       throw const InvalidMoveException(
-        'Projects can only be declared during project declaration or trick 1.',
+        'Projects can only be declared during the project declaration phase.',
       );
     }
 
@@ -543,11 +561,7 @@ class BalootGameController implements IBalootController {
   }
 
   void undeclareProject(int seatIndex, ProjectType type) {
-    final inProjectPhase = _gamePhase == GamePhase.projectDeclaration;
-    final inPlayingTrick1 = _gamePhase == GamePhase.playing &&
-        _turnManager != null &&
-        _turnManager!.trickNumber <= 1;
-    if (!inProjectPhase && !inPlayingTrick1) {
+    if (_gamePhase != GamePhase.projectDeclaration) {
       return; // Silently ignore invalid un-declares
     }
 
@@ -558,6 +572,92 @@ class BalootGameController implements IBalootController {
         declaredProjects: List.from(_activeDeclaredProjects),
       );
     }
+  }
+
+  /// Whether the human player (seat 0) can currently claim Qaid.
+  /// Per Kammelna: Qaid is available during play phase when it's NOT the human's turn
+  /// (an opponent has just played a card that might be a violation).
+  bool canClaimQaid(int seatIndex) {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
+    // Can only claim when it's NOT your turn (opponent just played)
+    if (_turnManager!.currentPlayerIndex == seatIndex) return false;
+    // Must have cards in the current trick (someone played)
+    if (_turnManager!.currentTrick.isEmpty) return false;
+    // The last card played must be by an opponent (different team)
+    final lastPlay = _turnManager!.currentTrick.last;
+    final sameTeam = (lastPlay.playerIndex % 2) == (seatIndex % 2);
+    if (sameTeam) return false;
+    return true;
+  }
+
+  /// Retrospectively check if the last card played by an opponent of [accuserSeat]
+  /// was a violation. Returns the violator's seat index if a violation is found,
+  /// or null if the play was legal (meaning it's a false Qaid claim).
+  int? checkLastPlayViolation(int accuserSeat) {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return null;
+    final trick = _turnManager!.currentTrick;
+    if (trick.isEmpty) return null;
+
+    // Find the most recent card played by an opponent
+    CardPlayModel? opponentPlay;
+    for (int i = trick.length - 1; i >= 0; i--) {
+      final play = trick[i];
+      final isOpponent = (play.playerIndex % 2) != (accuserSeat % 2);
+      if (isOpponent) {
+        opponentPlay = play;
+        break;
+      }
+    }
+    if (opponentPlay == null) return null;
+
+    final opponentSeat = opponentPlay.playerIndex;
+    final card = opponentPlay.card;
+
+    // Reconstruct the trick state at the time the opponent played
+    // (all cards played BEFORE the opponent's card)
+    final trickBeforePlay = <CardPlayModel>[];
+    for (final play in trick) {
+      if (play.playerIndex == opponentSeat && play.card == card) break;
+      trickBeforePlay.add(play);
+    }
+
+    // Reconstruct the opponent's hand at that time:
+    // current hand + all cards they've played since (including this one)
+    final opponentHandNow = _hands[opponentSeat];
+    final opponentPlayedCards = <CardModel>[];
+    // Cards played by this opponent in the current trick (including the one in question)
+    for (final play in trick) {
+      if (play.playerIndex == opponentSeat) {
+        opponentPlayedCards.add(play.card);
+      }
+    }
+    // Also include cards played in previous tricks by this opponent
+    for (final trickResult in _turnManager!.trickHistory) {
+      for (final play in trickResult.cards) {
+        if (play.playerIndex == opponentSeat) {
+          opponentPlayedCards.add(play.card);
+        }
+      }
+    }
+    // Hand at the time = current hand + all played cards
+    final opponentHandAtTime = [...opponentHandNow, ...opponentPlayedCards];
+
+    // Validate the play retrospectively
+    final validation = _playValidator.validate(
+      card: card,
+      hand: opponentHandAtTime,
+      currentTrick: trickBeforePlay,
+      mode: _roundState.activeMode!,
+      trumpSuit: _roundState.trumpSuit,
+      doubleStatus: _roundState.doubleStatus,
+      isOpenPlay: _roundState.isOpenPlay,
+      playerSeat: opponentSeat,
+    );
+
+    if (!validation.isValid) {
+      return opponentSeat; // Violation found!
+    }
+    return null; // Play was legal → false claim
   }
 
   bool canSawa(int seatIndex) {
@@ -594,6 +694,12 @@ class BalootGameController implements IBalootController {
 
     final tm = _turnManager!;
     final teamIndex = seatIndex % 2;
+
+    logger.log(
+        'Play Sawa: claimant Seat $seatIndex (Team ${teamIndex == 0 ? 'A' : 'B'}); '
+        'Buyer seat ${_roundState.buyerIndex} (Team ${_roundState.buyerIndex! % 2 == 0 ? 'A' : 'B'}) — '
+        '+remaining card Abnat + ground → claimant team tally.');
+
 
     // Award point value of all cards still held (remaining tricks folded into one tally).
     int remainingAbnat = 0;
@@ -668,13 +774,11 @@ class BalootGameController implements IBalootController {
 
     if (teamAProjects.isEmpty && teamBProjects.isEmpty) return;
 
-    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
     final projectWinner = _projectDetector.resolveProjectPriority(
       teamAProjects,
       teamBProjects,
       _roundState.activeMode!,
       _roundState.trumpSuit,
-      firstLeaderIndex,
     );
 
     if (projectWinner == 'A') {
@@ -685,6 +789,14 @@ class BalootGameController implements IBalootController {
       // Team B won, delete Team A's projects
       _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 == 0 && p.type != ProjectType.baloot);
       logger.log('Team B won project priority. Team A projects nullified.');
+    } else if (projectWinner == null &&
+        teamAProjects.isNotEmpty &&
+        teamBProjects.isNotEmpty) {
+      // Project Sawa (perfect tie): neither team scores sequence projects (Baloot kept).
+      _activeDeclaredProjects.removeWhere((p) => p.type != ProjectType.baloot);
+      logger.log(
+        'Project Sawa (tie): sequence projects discarded for scoring — neither team.',
+      );
     }
   }
 
@@ -703,14 +815,12 @@ class BalootGameController implements IBalootController {
         .where((p) => p.playerIndex % 2 != 0)
         .toList();
 
-    // Resolve project priority (Rule 14.1) - Just to get the winning team string for the scoring engine
-    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
+    // Resolve project priority — null = project Sawa (no sequence bonuses)
     final projectWinner = _projectDetector.resolveProjectPriority(
       teamAProjects,
       teamBProjects,
       mode,
       _roundState.trumpSuit,
-      firstLeaderIndex,
     );
 
     // Calculate project Abnat and scoreboard points
@@ -793,12 +903,20 @@ class BalootGameController implements IBalootController {
       logger.log('  Ground Bonus (+10): Team $lastTrickTeam');
     }
     
-    // Log explicit projects
+    // Log explicit projects (seat disambiguates two Sera / Fifty on same team)
     for (final p in teamAProjects) {
-      if (p.type != ProjectType.baloot) logger.log('  Project (Team A): ${p.type.name} (${p.getAbnat(mode)} Abnat)');
+      if (p.type != ProjectType.baloot) {
+        logger.log(
+          '  Project (Team A, seat ${p.playerIndex} ${_playerNames[p.playerIndex]}): ${p.type.name} (${p.getAbnat(mode)} Abnat)',
+        );
+      }
     }
     for (final p in teamBProjects) {
-      if (p.type != ProjectType.baloot) logger.log('  Project (Team B): ${p.type.name} (${p.getAbnat(mode)} Abnat)');
+      if (p.type != ProjectType.baloot) {
+        logger.log(
+          '  Project (Team B, seat ${p.playerIndex} ${_playerNames[p.playerIndex]}): ${p.type.name} (${p.getAbnat(mode)} Abnat)',
+        );
+      }
     }
     
     if (projectWinner != null) {
@@ -983,13 +1101,11 @@ class BalootGameController implements IBalootController {
     final teamBProjects = _activeDeclaredProjects
         .where((p) => p.playerIndex % 2 != 0)
         .toList();
-    final firstLeaderIndex = (_roundState.dealerIndex + 1) % 4;
     return _projectDetector.resolveProjectPriority(
       teamAProjects,
       teamBProjects,
       _roundState.activeMode!,
       _roundState.trumpSuit,
-      firstLeaderIndex,
     );
   }
 

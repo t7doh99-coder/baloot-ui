@@ -189,13 +189,11 @@ The player sitting to the **RIGHT of the dealer** leads the first trick in the r
 
 ## 6. Projects (مشاريع)
 
-### 6.1 Timing Rules (FINAL — Confirmed from meeting video 13-51-23.mp4 @ 01:16)
-- Projects are **announced in the FIRST trick** (declaration) via a **UI Button**.
-- Projects are **shown (revealed) in the SECOND trick** (confirmation).
-- Each player may announce a maximum of **2 projects**.
-- Project declaration is **MANUAL** — a button must appear during the first trick for the player to choose whether to declare or keep hidden as a tactical choice.
-- The **Baloot** project is the ONLY exception — it is added **automatically** by the engine (no player action required).
-- The button disappears permanently once the second trick starts.
+### 6.1 Timing Rules (Kammelna — FINAL)
+- **Sequence projects (Sera / 50 / 100 / 400):** The declaration window opens **immediately after the opening lead** (after the **first card of trick 1** is played), **before** the second card of that trick. Players declare via a **UI button** in that window; play is paused until declarations are confirmed.
+- Each player may announce a maximum of **2 projects** in that window.
+- **Baloot** (K+Q of trump in Hakam) remains **engine-detected** when the pair is completed (see §6.4); it is not chosen from the sequence-project declaration UI.
+- After trick 1 continues, **revealed** projects behave as in play (e.g. confirmation in later tricks for display) per table convention; the **mandatory declaration window** for sequences is only between the first and second card of trick 1.
 
 ### 6.2 Project Reference Table
 
@@ -212,9 +210,11 @@ The player sitting to the **RIGHT of the dealer** leads the first trick in the r
 > [!IMPORTANT] **Mia (100) Correction:** Requires 5 consecutive same-suit cards OR four 10/J/Q/K of same suit. Note: 100 IS available in Sun mode! Four Aces in Sun automatically upgrades to 400.
 
 ### 6.3 Project Priority Logic
-- Both teams compare their highest project.
-- Team with the **superior project** has their Abnat added (only winning team's project counts).
+- Both teams compare their highest eligible sequence project.
+- Team with the **superior project** has their Abnat added (only the winning team's sequence project counts).
 - If tied project rank → compare highest card in the sequence; higher wins.
+- If still tied (same rank and same high card, and neither side wins the trump split) → **project Sawa**: **neither** team receives sequence project points (no turn-order tiebreak).
+- **Baloot (K+Q):** evaluated separately per engine rules (see §6.5); sequence-project Sawa does not cancel Baloot except where Khams stealing rules apply (§14.4).
 
 ### 6.4 Project Multiplier Rule (Jawaker/Kamelna — VERIFIED)
 > [!IMPORTANT] When a Double/Triple/Four is active:
@@ -223,7 +223,7 @@ The player sitting to the **RIGHT of the dealer** leads the first trick in the r
 > - Example: Triple active + Sera (2 pts) = **2 × 2 = 4 pts** (NOT 2 × 3).
 > - **Exception: Baloot is ALWAYS exactly 2 pts — it is immune to ALL multipliers.**
 
-### 6.4 Baloot Declaration Timing
+### 6.5 Baloot Declaration Timing
 - NOT declared during the first trick.
 - Declared when the player plays the **SECOND card** of the K-Q pair.
 - Worth **2 Scoreboard Points** (not Abnat).
@@ -321,7 +321,8 @@ Alternative phrasing: Double the Abnat sum, divide by 10, round.
 **Confirmed Examples (from client):**
 - 88 Abnat → 88÷10=8.8 → rounds to 9 → 9×2 = **18 pts**
 - 42 Abnat → 42÷10=4.2 → rounds to 4 → 4×2 = **8 pts**
-- Round total without projects = **26 pts**
+- 65 Abnat → 6.5 → rounds to 7 → 7×2 = **14 pts**
+- Round total without projects = **26 pts** (opponent’s line is the complement so the two sides always sum to 26)
 
 #### Hakam Formula
 ```
@@ -424,7 +425,7 @@ All previously open questions have been resolved from client meeting video recor
 To ensure the game engine handles edge cases identically to professional GCC tournament standards (matching **Kammelna**), the following strict rules must be programmed:
 
 ### 14.1 Project Tie-Breakers & Overlaps
-- **Rank Ties:** If both teams hold a project of equal rank (e.g., both hold A-K-Q), the Hakam/Trump sequence always wins. If neither is Trump (or in Sun), the tie is broken by **Turn Order** (the player whose turn is closest to the first leader wins).
+- **Rank Ties:** If both teams hold a sequence project of equal rank (e.g., both hold A-K-Q), the Hakam/Trump sequence wins when one side holds trump-backed sequence and ordering rules dictate. After rank → high card → trump-split steps, **if still tied** → **project Sawa**: neither team earns sequence-project points (**no turn-order tiebreak**, matching Kammelna).
 - **Overlaps:** A single card **cannot** be double-dipped into two sequence projects. The engine must only permit declaring the highest valid sequence. Cards in a sequence, however, **can** be reused to declare a "Baloot" pair.
 
 ### 14.2 The "Empty Bidding" Loop

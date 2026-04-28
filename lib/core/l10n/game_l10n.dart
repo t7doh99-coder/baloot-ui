@@ -31,6 +31,11 @@ class GameL10n {
   String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
   String get sun => _ar ? 'صن' : 'Sun';
   String get sawa => _ar ? 'سوى' : 'Sawa';
+  /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
+  String get sawaBidShort => _ar ? 'سوى · مزاد' : 'Sawa · Bid';
+  /// Master-hand claim during tricks (سوى اليد).
+  String get sawaHandsTooltip =>
+      _ar ? 'سوى اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';
   String get ashkal => _ar ? 'أشكال' : 'Ashkal';
   String get confirmHakam => _ar ? 'تأكيد الحكم' : 'Confirm Hakam';
   String get switchToSun => _ar ? 'تحويل لصن' : 'Switch to Sun';
@@ -42,6 +47,9 @@ class GameL10n {
   String get triple => _ar ? 'تربل' : 'Triple';
   String get four => _ar ? 'أربعة' : 'Four';
   String get gahwa => _ar ? 'قهوة' : 'Gahwa';
+  String get qaid => _ar ? 'قيدها' : 'Qaid';
+  String get falseQaidMessage => _ar ? 'ادعاء قيد خاطئ! خسارة الجولة' : 'False Qaid claim! Round lost';
+  String get correctQaidMessage => _ar ? 'قيد صحيح! خصمك خسر الجولة' : 'Valid Qaid! Opponent lost the round';
   String get startGame => _ar ? 'ابدأ اللعب' : 'Start Game';
 
   // ── Top HUD menu ──
@@ -151,6 +159,7 @@ class GameL10n {
       'Triple' => 'تربل',
       'Four' => 'أربعة',
       'Gahwa' => 'قهوة',
+      'Qaid' => 'قيدها',
       _ => en,
     };
   }

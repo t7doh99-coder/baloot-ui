@@ -133,6 +133,10 @@ class GameProvider extends ChangeNotifier {
   String? _qaidViolationMessage;
   int? _qaidViolationSeat;
 
+  // ── Qaid Claim result (Kammelna manual flag button) ──
+  String? _qaidClaimResult; // 'correct' or 'false'
+  String? _qaidClaimMessage;
+
   // ── Project Reveal at Trick 2 ──
   bool _showProjectReveal = false;
 
@@ -442,11 +446,53 @@ class GameProvider extends ChangeNotifier {
   String? get qaidViolationMessage => _qaidViolationMessage;
   int? get qaidViolationSeat => _qaidViolationSeat;
 
+  /// Qaid claim result — null when no claim active.
+  String? get qaidClaimResult => _qaidClaimResult;
+  String? get qaidClaimMessage => _qaidClaimMessage;
+
+  /// Whether the human player can currently claim Qaid (Kammelna manual flag).
+  bool get canClaimQaid => _engine.canClaimQaid(0);
+
   /// Clear the Qaid notification (called after UI shows it).
   void clearQaidViolation() {
     _qaidViolationMessage = null;
     _qaidViolationSeat = null;
     notifyListeners();
+  }
+
+  /// Clear the Qaid claim result banner.
+  void clearQaidClaimResult() {
+    _qaidClaimResult = null;
+    _qaidClaimMessage = null;
+    notifyListeners();
+  }
+
+  /// Human claims Qaid (seat 0) — Kammelna manual violation reporting.
+  /// Per BALOOT_RULES.md §14.5:
+  /// - If opponent actually violated → opponent gets Kabout penalty
+  /// - If false claim → accuser (human) gets Kabout penalty
+  void humanClaimQaid() {
+    if (phase != GamePhase.playing || !canClaimQaid) return;
+    _cancelTimers();
+
+    final violatorSeat = _engine.checkLastPlayViolation(0);
+
+    if (violatorSeat != null) {
+      // Correct claim — opponent violated
+      _engine.applyQaidPenalty(violatorSeat);
+      _qaidClaimResult = 'correct';
+      _qaidClaimMessage = null; // Will be set by UI using l10n
+      HapticFeedback.heavyImpact();
+      _showBubble(0, 'Qaid');
+    } else {
+      // False claim — human gets penalty
+      _engine.applyQaidPenalty(0);
+      _qaidClaimResult = 'false';
+      _qaidClaimMessage = null;
+      HapticFeedback.heavyImpact();
+    }
+
+    _afterEngineAction();
   }
 
   /// Whether to show the Trick 2 project reveal overlay.
@@ -629,11 +675,9 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Human declares a project — [GamePhase.projectDeclaration] or trick 1 while playing.
+  /// Human declares a project — only allowed during [GamePhase.projectDeclaration] window.
   void humanDeclareProject(int projectIndex) {
-    final ok = phase == GamePhase.projectDeclaration ||
-        (phase == GamePhase.playing && trickNumber <= 1);
-    if (!ok) return;
+    if (phase != GamePhase.projectDeclaration) return;
     try {
       _engine.declareProject(0, projectIndex);
       notifyListeners();
@@ -643,9 +687,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void humanUndeclareProject(ProjectType type) {
-    final ok = phase == GamePhase.projectDeclaration ||
-        (phase == GamePhase.playing && trickNumber <= 1);
-    if (!ok) return;
+    if (phase != GamePhase.projectDeclaration) return;
     try {
       _engine.undeclareProject(0, type);
       notifyListeners();
@@ -654,34 +696,37 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Human claims Sawa — badge + all hands revealed [~5s], then round score.
+  /// Generic Sawa claim — badge + all hands revealed [~5s], then round score.
   static const int _sawaRevealDurationMs = 5000;
 
   void humanClaimSawa() {
     if (phase != GamePhase.playing || !canSawa) return;
-    if (_sawaRevealHands != null) return;
+    _startSawaReveal(0);
+  }
 
+  void _startSawaReveal(int seat) {
+    if (_sawaRevealHands != null) return;
     _cancelTimers();
 
     _sawaRevealHands = List.generate(
       4,
       (s) => List<CardModel>.from(_engine.getHand(s)),
     );
-    _sawaRevealClaimSeat = 0;
+    _sawaRevealClaimSeat = seat;
     notifyListeners();
 
     _sawaRevealTimer = Timer(
       const Duration(milliseconds: _sawaRevealDurationMs),
-      _finalizeHumanSawaReveal,
+      () => _finalizeSawaReveal(seat),
     );
   }
 
-  void _finalizeHumanSawaReveal() {
+  void _finalizeSawaReveal(int seat) {
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
 
     try {
-      if (phase != GamePhase.playing || !_engine.canSawa(0)) {
+      if (phase != GamePhase.playing || !_engine.canSawa(seat)) {
         _clearSawaRevealState();
         notifyListeners();
         return;
@@ -690,11 +735,11 @@ class GameProvider extends ChangeNotifier {
       _sawaRevealClaimSeat = null;
 
       _sawaSkipTablePauseBeforeScoreboard = true;
-      _engine.claimSawa(0);
-      HapticFeedback.heavyImpact();
+      _engine.claimSawa(seat);
+      if (seat == 0) HapticFeedback.heavyImpact();
       _afterEngineAction();
     } catch (e) {
-      debugPrint('[GameProvider] humanClaimSawa error: $e');
+      debugPrint('[GameProvider] SawaReveal error: $e');
       _sawaSkipTablePauseBeforeScoreboard = false;
       _clearSawaRevealState();
       notifyListeners();
@@ -861,6 +906,12 @@ class GameProvider extends ChangeNotifier {
     final dealerBefore = roundState.dealerIndex;
 
     try {
+      // Kammelna Rule: Bot checks for Sawa (Master Hand) before playing
+      if (phaseBefore == GamePhase.playing && _engine.canSawa(seat)) {
+        _triggerBotSawaReveal(seat);
+        return;
+      }
+
       _engine.botPlay(seat);
 
       // Show speech bubble for bot bid actions
@@ -1066,7 +1117,7 @@ class GameProvider extends ChangeNotifier {
       case BidAction.sun:          return 'Sun';
       case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
       case BidAction.ashkal:       return 'Ashkal';
-      case BidAction.sawa:         return 'Sawa';
+      case BidAction.sawa:         return 'Sawa (bid)';
       case BidAction.pass:         return 'Pass';
       case BidAction.confirmHakam: return 'Hakam';
     }
@@ -1143,5 +1194,9 @@ class GameProvider extends ChangeNotifier {
       t.cancel();
     }
     super.dispose();
+  }
+  void _triggerBotSawaReveal(int seat) {
+    debugPrint('[GameProvider] Bot (Seat $seat) claims SAWA!');
+    _startSawaReveal(seat);
   }
 }

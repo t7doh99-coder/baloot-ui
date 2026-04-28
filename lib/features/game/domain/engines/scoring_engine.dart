@@ -46,7 +46,7 @@ class RoundScoreResult {
 ///
 /// Handles:
 /// - Raw Abnat -> scoreboard point conversion
-/// - Sun formula: round(abnat / 10) * 2
+/// - Sun formula: round(abnat / 10) * 2 (Kammelna / §8.5; no special case for .5)
 /// - Hakam formula: Jawaker rounding (.5 rounds DOWN)
 /// - Khams (buyer loses), Kabout (all-trick sweep)
 /// - Double system base values + project multipliers
@@ -60,13 +60,7 @@ class ScoringEngine {
   /// Hakam: round(abnat / 10) with Jawaker rounding
   int abnatToScoreboard(int abnat, GameMode mode) {
     if (mode == GameMode.sun) {
-      // Kammelna "5 Rule" for Sun:
-      // If last digit is < 5: round down (64 -> 12)
-      // If last digit is > 5: round up (66 -> 14)
-      // If last digit is exactly 5: exact half (65 -> 13)
-      if (abnat % 10 == 5) {
-        return (abnat ~/ 10) * 2 + 1;
-      }
+      // Kammelna / Jawaker (BALOOT_RULES §8.5): round(Raw Abnat ÷ 10) × 2
       return (abnat / 10).round() * 2;
     }
     // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
@@ -301,11 +295,12 @@ class ScoringEngine {
     int aBonus = 0, bBonus = 0;
     final multiplier = _projectMultiplier(doubleStatus);
     
-    // Rule 14.4: Defenders get their OWN projects + the STOLEN projects from buyer.
+    // Rule 14.4: defenders get Khams base + stolen *buyer's* declared project pts only.
+    final buyerSb = buyerTeam == 'A' ? teamAProjectScoreboard : teamBProjectScoreboard;
     if (defenderTeam == 'A') {
-      aBonus = (teamAProjectScoreboard + teamBProjectScoreboard) * multiplier;
+      aBonus = buyerSb * multiplier;
     } else {
-      bBonus = (teamBProjectScoreboard + teamAProjectScoreboard) * multiplier;
+      bBonus = buyerSb * multiplier;
     }
 
     if (balootTeam == 'A') aBonus += balootPoints;
