@@ -35,11 +35,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     super.dispose();
   }
 
-  void _syncRingTicker({required bool humanTurn, required bool projectDeclaration}) {
-    final needTicker = humanTurn || projectDeclaration;
-    if (needTicker == _humanTurn) return;
-    _humanTurn = needTicker;
-    if (needTicker) {
+  void _syncRingTicker({required bool humanTurn}) {
+    if (humanTurn == _humanTurn) return;
+    _humanTurn = humanTurn;
+    if (humanTurn) {
       _ringTicker?.dispose();
       _ringTicker = null;
       _ringTicker = createTicker((_) {
@@ -78,34 +77,27 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     context.watch<LocaleProvider>();
     final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
-    final inProjectDeclaration = game.phase == GamePhase.projectDeclaration;
     _syncRingTicker(
-      humanTurn: game.isHumanTurn,
-      projectDeclaration: inProjectDeclaration,
+      humanTurn: game.isHumanTurn || game.isOpeningProjectWindow,
     );
 
     final name = game.playerName(0);
     final avatarPath = AppAssets.playerAvatarPath(0);
     final badge = _badgeParts(game, loc);
     final secs = game.turnTimerSeconds;
-    final totalProj = game.projectPhaseDurationSeconds.clamp(1, 99);
-    final projSecs = game.projectTimerSeconds.clamp(0, totalProj);
 
     final String ringSecondsText;
     final double ringProgress;
     final bool ringActive;
-    if (inProjectDeclaration) {
-      ringSecondsText = '$projSecs';
-      ringProgress = (projSecs / totalProj).clamp(0.001, 1.0);
-      ringActive = true;
-    } else {
-      ringActive = game.isHumanTurn;
-      ringSecondsText =
-          game.isHumanTurn ? '${secs ?? 0}' : '—';
-      final rawProgress =
-          game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
-      ringProgress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
-    }
+    final opening = game.isOpeningProjectWindow;
+    ringActive = game.isHumanTurn || opening;
+    ringSecondsText = opening
+        ? '${game.openingProjectSecondsLeft}'
+        : (game.isHumanTurn ? '${secs ?? 0}' : '—');
+    final rawProgress = opening
+        ? game.openingProjectTimerProgress
+        : (game.isHumanTurn ? game.activeSeatTimerProgress : 0.0);
+    ringProgress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
@@ -149,7 +141,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                   children: [
                     _MiniAvatar(
                       path: avatarPath,
-                      active: game.isHumanTurn,
+                      active: game.isHumanTurn || game.isOpeningProjectWindow,
                       isDealer: game.dealerIndex == 0,
                     ),
                     const SizedBox(width: 10),

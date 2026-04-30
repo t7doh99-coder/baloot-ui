@@ -246,10 +246,6 @@ class _PhasePill extends StatelessWidget {
         label = loc.doubleWindow;
         color = const Color(0xFFE63946);
         break;
-      case GamePhase.projectDeclaration:
-        label = loc.projects;
-        color = AppColors.goldAccent;
-        break;
       default:
         return const SizedBox.shrink();
     }

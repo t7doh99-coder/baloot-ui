@@ -32,7 +32,7 @@ class GameL10n {
   String get sun => _ar ? 'صن' : 'Sun';
   String get sawa => _ar ? 'سوى' : 'Sawa';
   /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
-  String get sawaBidShort => _ar ? 'سوى · مزاد' : 'Sawa · Bid';
+  String get sawaBidShort => sawa;
   /// Master-hand claim during tricks (سوى اليد).
   String get sawaHandsTooltip =>
       _ar ? 'سوى اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';

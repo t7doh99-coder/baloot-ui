@@ -43,19 +43,35 @@ class _RoundScoreStrings {
   String get exitGame => ar ? 'خروج' : 'Exit game';
   String get playAgain => ar ? 'العب مرة أخرى' : 'Play again';
 
-  String get labelKhams =>
-      ar ? 'نتيجة الشراء: خسرانة (كهمس)' : 'Purchase result: Lost (Khams)';
-  String get labelWon => ar ? 'نتيجة الشراء: فائزة' : 'Purchase result: Won';
+  /// Buyer is our team (seat 0): we failed the purchase threshold.
+  String get labelKhamsOurs =>
+      ar ? 'شراءنا: خسرانة (كهمس)' : 'Our purchase: Lost (Khams)';
+  /// Buyer is their team: their purchase failed (good for us as defenders).
+  String get labelKhamsTheirs =>
+      ar ? 'شراؤهم: خسرانة (كهمس)' : 'Their purchase: Lost (Khams)';
+
+  /// Buyer is our team: we made Sun/Hakam threshold (normal round).
+  String get labelWonOurs =>
+      ar ? 'شراءنا: فائز (تجاوز الحد)' : 'Our purchase: Won (made threshold)';
+  /// Buyer is their team: they made threshold (defenders’ view).
+  String get labelWonTheirs =>
+      ar ? 'شراؤهم: فائز (تجاوز الحد)' : 'Their purchase: Won (made threshold)';
+
   String get labelViolationPenalty => ar ? 'غرامة قيد — خسارة دور' : 'Qaid violation — round lost';
 
-  /// When buyer’s side took all tricks (successful purchase sweep).
-  String get labelWonKabout =>
-      ar ? 'نتيجة الشراء: فائزة (كبوت)' : 'Purchase result: Won (Kabout sweep)';
+  /// Our team bought and swept all tricks.
+  String get labelWonKaboutOurs =>
+      ar ? 'شراءنا: فائز (كبوت)' : 'Our purchase: Won (Kabout sweep)';
+  /// They bought and swept all tricks.
+  String get labelWonKaboutTheirs =>
+      ar ? 'شراؤهم: فائز (كبوت)' : 'Their purchase: Won (Kabout sweep)';
 
-  /// When defenders took all tricks (Khams-equivalent headline; counted as Kabout in scoring).
-  String get labelLostOppKabout =>
-      ar ? 'نتيجة الشراء: خسرانة (كبوت للمدافعين)' :
-      'Purchase result: Lost (defenders took Kabout)';
+  /// We bought; defenders took every trick (Kabout against buyer).
+  String get labelLostKaboutWeBought =>
+      ar ? 'شراءنا: خسرانة (كبوت للمدافعين)' : 'Our purchase: Lost (defenders took Kabout)';
+  /// They bought; we (defenders) took every trick.
+  String get labelLostKaboutTheyBought =>
+      ar ? 'شراؤهم: خسرانة (كبوت لنا كمدافعين)' : 'Their purchase: Lost (we defended Kabout)';
 
   /// One line: threshold is trick Abnat only (no projects in the comparison).
   String khamsThresholdShort(bool sunMode) => sunMode
@@ -103,24 +119,38 @@ class RoundScoreOverlay extends StatelessWidget {
     if (r == null) return const SizedBox.shrink();
 
     final buyerSide = r.buyerTeam == 'A' ? s.ourTeam : s.theirTeam;
+    /// Human is always seat 0 → Team A ([GameProvider]).
+    const humanTeam = 'A';
+    final humanIsBuyer = r.buyerTeam == humanTeam;
 
-    // Headlines follow engine semantics (Khams/Kabout/normal).
-    // Khams thresholds use trick Abnat only; projects are scored separately on the board.
+    // Headlines: name *whose* purchase failed/won; tint from human POV (avoid misleading green/red).
     final (contractText, contractColor) = () {
       if (r.reason == 'qaid_penalty') {
         return (s.labelViolationPenalty, _lossRed);
       }
       if (r.isKhams) {
-        return (s.labelKhams, _lossRed);
+        if (humanIsBuyer) {
+          return (s.labelKhamsOurs, _lossRed);
+        }
+        return (s.labelKhamsTheirs, const Color(0xFF69F0AE));
       }
       if (r.isKabout) {
         final buyerSwept = r.winningTeam == r.buyerTeam;
         if (buyerSwept) {
-          return (s.labelWonKabout, const Color(0xFF69F0AE));
+          if (humanIsBuyer) {
+            return (s.labelWonKaboutOurs, const Color(0xFF69F0AE));
+          }
+          return (s.labelWonKaboutTheirs, _lossRed);
         }
-        return (s.labelLostOppKabout, _lossRed);
+        if (humanIsBuyer) {
+          return (s.labelLostKaboutWeBought, _lossRed);
+        }
+        return (s.labelLostKaboutTheyBought, const Color(0xFF69F0AE));
       }
-      return (s.labelWon, const Color(0xFF69F0AE));
+      if (humanIsBuyer) {
+        return (s.labelWonOurs, const Color(0xFF69F0AE));
+      }
+      return (s.labelWonTheirs, _lossRed);
     }();
 
     final groundA = r.lastTrickBonusTeam == 'A' ? 10 : 0;

@@ -15,7 +15,7 @@ import 'engines/sawa_probability_engine.dart';
 import '../../../core/utils/game_logger.dart';
 
 /// The game phase the controller is currently in.
-enum GamePhase { notStarted, dealing, bidding, doubleWindow, projectDeclaration, playing, scoring, gameOver }
+enum GamePhase { notStarted, dealing, bidding, doubleWindow, playing, scoring, gameOver }
 
 /// Master controller that ties all engine modules together.
 ///
@@ -53,8 +53,8 @@ class BalootGameController implements IBalootController {
   // Track if Baloot has been declared (auto, on 2nd card of K-Q pair)
   final Set<int> _balootDeclaredBy = {};
 
-  /// Kammelna: declarations only after trick 1 lead card; open window once.
-  bool _trick1ProjectWindowOpenedAfterLeadCard = false;
+  /// When true, sequence projects may be declared (8s UI window from [GameProvider]).
+  bool _sequenceProjectDeclarationWindowOpen = false;
 
   /// Seat that last called Double or Four (defender); buyer Triple / Gahwa return here.
   int? _escalationDefenderSeat;
@@ -161,8 +161,7 @@ class BalootGameController implements IBalootController {
     _activeDeclaredProjects.clear();
     _balootDeclaredBy.clear();
     _escalationDefenderSeat = null;
-    _trick1ProjectWindowOpenedAfterLeadCard = false;
-
+    _sequenceProjectDeclarationWindowOpen = false;
     _gamePhase = GamePhase.bidding;
   }
 
@@ -405,16 +404,25 @@ class BalootGameController implements IBalootController {
     _startPlayPhase();
   }
 
-  /// Transition from project declaration to actual card play.
-  /// Kammelna: declaration happens after trick 1's first card — we only resume [playing];
-  /// [TurnManager] state is preserved.
-  void advanceFromProjects() {
-    if (_gamePhase != GamePhase.projectDeclaration) return;
-    _gamePhase = GamePhase.playing;
+  // NOTE: Sequence projects only during [beginSequenceProjectDeclarationWindow] window.
+
+  /// Opens the 8s declaration window (call before [runOpeningBotProjectDeclarations]).
+  void beginSequenceProjectDeclarationWindow() {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return;
+    if (_turnManager!.trickNumber != 1 ||
+        _turnManager!.currentTrick.isNotEmpty) {
+      return;
+    }
+    _sequenceProjectDeclarationWindowOpen = true;
+  }
+
+  /// Closes the declaration window (after countdown); no further sequence declares until next round.
+  void endSequenceProjectDeclarationWindow() {
+    _sequenceProjectDeclarationWindowOpen = false;
   }
 
   void _startPlayPhase() {
-    _trick1ProjectWindowOpenedAfterLeadCard = false;
+    _sequenceProjectDeclarationWindowOpen = false;
     // Kammelna/Saudi rules: the player to the RIGHT of the dealer leads trick 1.
     final firstPlayer = (_dealerIndex + 1) % 4;
     _turnManager = TurnManager(
@@ -484,17 +492,8 @@ class BalootGameController implements IBalootController {
       currentPlayerIndex: _turnManager!.currentPlayerIndex,
     );
 
-    if (trickResult == null &&
-        _gamePhase == GamePhase.playing &&
-        _turnManager!.trickNumber == 1 &&
-        _turnManager!.currentTrick.length == 1 &&
-        !_trick1ProjectWindowOpenedAfterLeadCard) {
-      _trick1ProjectWindowOpenedAfterLeadCard = true;
-      _gamePhase = GamePhase.projectDeclaration;
-      logger.log(
-        'Project declaration window (after 1st card trick 1, before 2nd card — Kammelna)',
-      );
-    }
+    // Project declarations are allowed during playing phase on Trick 1
+    // (no separate projectDeclaration phase — uses the standard turn timer)
 
     if (trickResult != null) {
       // Trick complete
@@ -522,10 +521,14 @@ class BalootGameController implements IBalootController {
 
   @override
   void declareProject(int seatIndex, int projectIndex) {
-    final inProjectPhase = _gamePhase == GamePhase.projectDeclaration;
-    if (!inProjectPhase) {
+    // Client/Kammelna: sequence projects before the opening lead (trick 1, no cards yet).
+    final beforeOpeningLead = _gamePhase == GamePhase.playing &&
+        _turnManager != null &&
+        _turnManager!.trickNumber == 1 &&
+        _turnManager!.currentTrick.isEmpty;
+    if (!beforeOpeningLead || !_sequenceProjectDeclarationWindowOpen) {
       throw const InvalidMoveException(
-        'Projects can only be declared during the project declaration phase.',
+        'Projects can only be declared during the opening declaration window.',
       );
     }
 
@@ -561,7 +564,11 @@ class BalootGameController implements IBalootController {
   }
 
   void undeclareProject(int seatIndex, ProjectType type) {
-    if (_gamePhase != GamePhase.projectDeclaration) {
+    final beforeOpeningLead = _gamePhase == GamePhase.playing &&
+        _turnManager != null &&
+        _turnManager!.trickNumber == 1 &&
+        _turnManager!.currentTrick.isEmpty;
+    if (!beforeOpeningLead || !_sequenceProjectDeclarationWindowOpen) {
       return; // Silently ignore invalid un-declares
     }
 
@@ -779,6 +786,7 @@ class BalootGameController implements IBalootController {
       teamBProjects,
       _roundState.activeMode!,
       _roundState.trumpSuit,
+      (_dealerIndex + 1) % 4,
     );
 
     if (projectWinner == 'A') {
@@ -789,14 +797,6 @@ class BalootGameController implements IBalootController {
       // Team B won, delete Team A's projects
       _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 == 0 && p.type != ProjectType.baloot);
       logger.log('Team B won project priority. Team A projects nullified.');
-    } else if (projectWinner == null &&
-        teamAProjects.isNotEmpty &&
-        teamBProjects.isNotEmpty) {
-      // Project Sawa (perfect tie): neither team scores sequence projects (Baloot kept).
-      _activeDeclaredProjects.removeWhere((p) => p.type != ProjectType.baloot);
-      logger.log(
-        'Project Sawa (tie): sequence projects discarded for scoring — neither team.',
-      );
     }
   }
 
@@ -815,12 +815,13 @@ class BalootGameController implements IBalootController {
         .where((p) => p.playerIndex % 2 != 0)
         .toList();
 
-    // Resolve project priority — null = project Sawa (no sequence bonuses)
+    // Resolve project priority
     final projectWinner = _projectDetector.resolveProjectPriority(
       teamAProjects,
       teamBProjects,
       mode,
       _roundState.trumpSuit,
+      (_dealerIndex + 1) % 4,
     );
 
     // Calculate project Abnat and scoreboard points
@@ -922,9 +923,17 @@ class BalootGameController implements IBalootController {
     if (projectWinner != null) {
       logger.log('  Project Priority Winner: Team $projectWinner');
     }
-    
-    logger.log('  Effective Project Abnat (After Priority/Stealing): A=${scoreResult.teamAProjectAbnat}, B=${scoreResult.teamBProjectAbnat}');
-    
+
+    if (scoreResult.isKhams) {
+      logger.log(
+        '  Sequence project Abnat (Khams: all credited to defenders Team ${scoreResult.winningTeam}): A=${scoreResult.teamAProjectAbnat}, B=${scoreResult.teamBProjectAbnat}',
+      );
+    } else {
+      logger.log(
+        '  Effective Project Abnat (after priority): A=${scoreResult.teamAProjectAbnat}, B=${scoreResult.teamBProjectAbnat}',
+      );
+    }
+
     if (balootTeam != null) {
       logger.log('  Baloot Declared: Team $balootTeam (+2 Scoreboard Pts)');
     }
@@ -991,9 +1000,7 @@ class BalootGameController implements IBalootController {
         }
         skipDoubleWindow();
 
-      case GamePhase.projectDeclaration:
-        _botDeclareProjects(seatIndex);
-        break;
+      // Project declarations by bots now happen during playing phase, Trick 1
 
       case GamePhase.playing:
         final card = _botEngine.decidePlay(
@@ -1033,6 +1040,27 @@ class BalootGameController implements IBalootController {
       } catch (_) {
         break;
       }
+    }
+  }
+
+  /// Public wrapper for bot project declarations during playing phase.
+  void botDeclareProjectsDuringPlay(int seatIndex) {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return;
+    if (_turnManager!.trickNumber != 1) return;
+    if (_turnManager!.currentTrick.isNotEmpty) return;
+    if (!_sequenceProjectDeclarationWindowOpen) return;
+    _botDeclareProjects(seatIndex);
+  }
+
+  /// Before trick 1’s opening lead: auto-declare all bots’ detected sequence projects.
+  void runOpeningBotProjectDeclarations() {
+    if (_gamePhase != GamePhase.playing || _turnManager == null) return;
+    if (_turnManager!.trickNumber != 1 || _turnManager!.currentTrick.isNotEmpty) {
+      return;
+    }
+    if (!_sequenceProjectDeclarationWindowOpen) return;
+    for (var s = 1; s <= 3; s++) {
+      _botDeclareProjects(s);
     }
   }
 
@@ -1106,11 +1134,11 @@ class BalootGameController implements IBalootController {
       teamBProjects,
       _roundState.activeMode!,
       _roundState.trumpSuit,
+      (_dealerIndex + 1) % 4,
     );
   }
 
-  /// UI only: one entry — winning team's strongest non-Baloot project, or Baloot if that's all.
-  /// Scoring still uses full [_activeDeclaredProjects]; this does not change rules.
+  /// UI: winning team's projects for reveal (client spec).
   List<DeclaredProject> get winningTeamBestProjectsForReveal {
     final winner = projectWinningTeam;
     if (winner == null || _roundState.activeMode == null) return [];
@@ -1120,6 +1148,8 @@ class BalootGameController implements IBalootController {
     }).toList();
     if (ours.isEmpty) return [];
 
+    final result = <DeclaredProject>[];
+    
     final regular = ours.where((p) => p.type != ProjectType.baloot).toList();
     if (regular.isNotEmpty) {
       regular.sort((a, b) {
@@ -1127,11 +1157,16 @@ class BalootGameController implements IBalootController {
         if (cmp != 0) return cmp;
         return b.highestCardStrength.compareTo(a.highestCardStrength);
       });
-      return [regular.first];
+      // Kammelna rules: return ALL projects for the winning team!
+      result.addAll(regular);
     }
+    
     final baloot = ours.where((p) => p.type == ProjectType.baloot).toList();
-    if (baloot.isNotEmpty) return [baloot.first];
-    return [];
+    if (baloot.isNotEmpty) {
+      result.addAll(baloot);
+    }
+    
+    return result;
   }
 
   @override

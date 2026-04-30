@@ -146,6 +146,14 @@ class GameProvider extends ChangeNotifier {
   int? _sawaRevealClaimSeat;
   bool _sawaSkipTablePauseBeforeScoreboard = false;
 
+  /// Shared window after double window: everyone may declare before trick 1’s first card.
+  static const _openingProjectWindowSeconds = 8;
+  Timer? _openingProjectCountdownTimer;
+  bool _openingProjectWindowActive = false;
+  bool _openingProjectWindowFinishedForRound = false;
+  int _openingProjectSecondsLeft = 0;
+  DateTime? _openingProjectWindowStartedAt;
+
   // ── Currently selected card in hand (seat 0) ──
   CardModel? _selectedCard;
 
@@ -153,11 +161,6 @@ class GameProvider extends ChangeNotifier {
   int _lastHumanThrowCardIndex = 0;
   int _lastHumanThrowHandCount = 8;
   
-  // ── Project Declaration Phase (Kammelna 6-sec window) ──
-  Timer? _projectPhaseTimer;
-  int _projectTimerSeconds = 6;
-  static const int _projectPhaseDuration = 6;
-
   // ── God Mode (for debugging bots) ──
   bool _isGodModeEnabled = false;
 
@@ -254,6 +257,29 @@ class GameProvider extends ChangeNotifier {
   /// Current trick number (1–8).
   int get trickNumber => roundState.trickNumber;
 
+  /// True only during the 8s pre-lead window (sequence projects).
+  bool get canDeclareProjects =>
+      phase == GamePhase.playing &&
+      trickNumber == 1 &&
+      currentTrick.isEmpty &&
+      isOpeningProjectWindow;
+
+  /// 8s shared countdown before the opening lead; no play until this ends.
+  bool get isOpeningProjectWindow => _openingProjectWindowActive;
+
+  int get openingProjectSecondsLeft => _openingProjectSecondsLeft;
+
+  /// Burn-ring progress for the shared 8s pre-lead window (1.0 → 0.0 over 8s wall clock).
+  double get openingProjectTimerProgress {
+    if (!isOpeningProjectWindow || _openingProjectWindowStartedAt == null) {
+      return 1.0;
+    }
+    final elapsedMs =
+        DateTime.now().difference(_openingProjectWindowStartedAt!).inMilliseconds;
+    return (1.0 - elapsedMs / (_openingProjectWindowSeconds * 1000))
+        .clamp(0.0, 1.0);
+  }
+
   /// Whether the double window is open.
   bool get isDoubleWindowOpen => roundState.isDoubleWindowOpen;
 
@@ -336,11 +362,7 @@ class GameProvider extends ChangeNotifier {
     return buyerPts > 100 && defPts < 100;
   }
 
-  /// Remaining seconds in the project declaration window.
-  int get projectTimerSeconds => _projectTimerSeconds;
 
-  /// Total seconds in project declaration phase (denominator for countdown ring).
-  int get projectPhaseDurationSeconds => _projectPhaseDuration;
 
   /// Speech bubbles keyed by seat index.
   Map<int, PlayerBubble> get bubbles => Map.unmodifiable(_bubbles);
@@ -529,6 +551,12 @@ class GameProvider extends ChangeNotifier {
   void startGame() {
     _targetScore = 152;
     _lastTrickMiniBySeat = null;
+    _openingProjectCountdownTimer?.cancel();
+    _openingProjectCountdownTimer = null;
+    _openingProjectWindowActive = false;
+    _openingProjectSecondsLeft = 0;
+    _openingProjectWindowFinishedForRound = false;
+    _openingProjectWindowStartedAt = null;
     _engine.startNewGame(_playerNames);
     _prevPhase = _engine.gamePhase;
     _prevCompletedTricks = 0;
@@ -552,6 +580,11 @@ class GameProvider extends ChangeNotifier {
   /// state is left as-is until the next [startGame].
   void leaveTable() {
     _cancelTimers();
+    _openingProjectWindowActive = false;
+    _openingProjectSecondsLeft = 0;
+    _openingProjectWindowFinishedForRound = false;
+    _openingProjectWindowStartedAt = null;
+    _engine.endSequenceProjectDeclarationWindow();
     _clearSawaRevealState();
     _lastRoundResult = null;
     _roundJustEnded = false;
@@ -619,6 +652,7 @@ class GameProvider extends ChangeNotifier {
   /// Tap a card in the human's hand to select/deselect it.
   void selectCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
+    if (isOpeningProjectWindow) return;
     if (_selectedCard == card) {
       _selectedCard = null;
     } else {
@@ -637,6 +671,7 @@ class GameProvider extends ChangeNotifier {
   /// Human plays a card directly (seat 0 only).
   void humanPlayCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
+    if (isOpeningProjectWindow) return;
     final hand = playerHand;
     if (hand.isNotEmpty) {
       final idx = hand.indexOf(card);
@@ -649,7 +684,8 @@ class GameProvider extends ChangeNotifier {
       _engine.playCard(0, card);
       _selectedCard = null;
       HapticFeedback.mediumImpact();
-      // Trigger project reveal when the FIRST card of Trick 2 is played
+      // Trigger project reveal at START of Trick 2 (Kammelna/pagat rule:
+      // "When playing to the second trick, the player shows the project")
       if (trickBefore == 1 &&
           trickNumber == 2 &&
           winningTeamBestProjectsForReveal.isNotEmpty) {
@@ -675,9 +711,10 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Human declares a project — only allowed during [GamePhase.projectDeclaration] window.
+  /// Human declares a project — only allowed during Trick 1 of playing phase.
   void humanDeclareProject(int projectIndex) {
-    if (phase != GamePhase.projectDeclaration) return;
+    final ok = canDeclareProjects;
+    if (!ok) return;
     try {
       _engine.declareProject(0, projectIndex);
       notifyListeners();
@@ -687,7 +724,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   void humanUndeclareProject(ProjectType type) {
-    if (phase != GamePhase.projectDeclaration) return;
+    final ok = canDeclareProjects;
+    if (!ok) return;
     try {
       _engine.undeclareProject(0, type);
       notifyListeners();
@@ -773,6 +811,15 @@ class GameProvider extends ChangeNotifier {
 
     final newPhase = _engine.gamePhase;
 
+    if (newPhase == GamePhase.dealing) {
+      _openingProjectCountdownTimer?.cancel();
+      _openingProjectCountdownTimer = null;
+      _openingProjectWindowActive = false;
+      _openingProjectSecondsLeft = 0;
+      _openingProjectWindowFinishedForRound = false;
+      _openingProjectWindowStartedAt = null;
+    }
+
     // Detect "round just completed" by watching playing → dealing|gameOver.
     final roundJustScored = _prevPhase == GamePhase.playing &&
         (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
@@ -846,9 +893,11 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _scheduleNextAction() {
-    _cancelTimers();
-
     if (_engine.isGameOver) return;
+
+    if (_openingProjectWindowActive) return;
+
+    _cancelTimers();
 
     final p = _engine.gamePhase;
 
@@ -863,11 +912,6 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    if (p == GamePhase.projectDeclaration) {
-      _startProjectPhaseTimer();
-      return;
-    }
-
     if (p == GamePhase.scoring) {
       // Safety guard — engine shouldn't stay here but handle just in case.
       _botTimer = Timer(const Duration(milliseconds: 3000), () {
@@ -877,6 +921,14 @@ class GameProvider extends ChangeNotifier {
         notifyListeners();
         _scheduleNextAction();
       });
+      return;
+    }
+
+    if (p == GamePhase.playing &&
+        trickNumber == 1 &&
+        currentTrick.isEmpty &&
+        !_openingProjectWindowFinishedForRound) {
+      _startOpeningProjectWindow();
       return;
     }
 
@@ -906,11 +958,7 @@ class GameProvider extends ChangeNotifier {
     final dealerBefore = roundState.dealerIndex;
 
     try {
-      // Kammelna Rule: Bot checks for Sawa (Master Hand) before playing
-      if (phaseBefore == GamePhase.playing && _engine.canSawa(seat)) {
-        _triggerBotSawaReveal(seat);
-        return;
-      }
+      // In-play Sawa (hand reveal / end round): human only — bots never auto-claim.
 
       _engine.botPlay(seat);
 
@@ -921,7 +969,7 @@ class GameProvider extends ChangeNotifier {
         _inferBotDoubleBubble(seat);
       }
 
-      // Trigger project reveal when first card of Trick 2 is played (by bot or human)
+      // Trigger project reveal at START of Trick 2 (Kammelna/pagat rule)
       if (phaseBefore == GamePhase.playing &&
           trickBefore == 1 &&
           trickNumber == 2 &&
@@ -1000,6 +1048,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _onHumanTimeout() {
+    if (isOpeningProjectWindow) return;
     // Bot takes over for the human player this turn
     debugPrint('[GameProvider] Human timeout — bot taking over seat 0');
     try {
@@ -1015,39 +1064,51 @@ class GameProvider extends ChangeNotifier {
     _turnTimer = null;
     _botTimer?.cancel();
     _botTimer = null;
-    _projectPhaseTimer?.cancel();
-    _projectPhaseTimer = null;
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
+    _openingProjectCountdownTimer?.cancel();
+    _openingProjectCountdownTimer = null;
   }
 
-  void _startProjectPhaseTimer() {
-    _cancelTimers();
-    _projectTimerSeconds = _projectPhaseDuration;
-    notifyListeners();
-
-    // Bots declare their projects during the window (staggered for realism)
-    for (int s = 1; s < 4; s++) {
-      final delay = 400 + _rng.nextInt(2000);
-      Timer(Duration(milliseconds: delay), () {
-        if (phase == GamePhase.projectDeclaration) {
-          _engine.botPlay(s);
-          notifyListeners();
-        }
-      });
+  void _startOpeningProjectWindow() {
+    if (_openingProjectWindowActive) return;
+    _engine.beginSequenceProjectDeclarationWindow();
+    _openingProjectWindowActive = true;
+    _openingProjectWindowStartedAt = DateTime.now();
+    _openingProjectSecondsLeft = _openingProjectWindowSeconds;
+    try {
+      _engine.runOpeningBotProjectDeclarations();
+    } catch (e) {
+      debugPrint('[GameProvider] runOpeningBotProjectDeclarations: $e');
     }
-
-    _projectPhaseTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      _projectTimerSeconds--;
-      notifyListeners();
-
-      if (_projectTimerSeconds <= 0) {
+    notifyListeners();
+    _openingProjectCountdownTimer?.cancel();
+    _openingProjectCountdownTimer =
+        Timer.periodic(const Duration(seconds: 1), (t) {
+      _openingProjectSecondsLeft -= 1;
+      if (_openingProjectSecondsLeft <= 0) {
         t.cancel();
-        _engine.advanceFromProjects();
-        _afterEngineAction();
+        _openingProjectCountdownTimer = null;
+        _finishOpeningProjectWindow();
+      } else {
+        notifyListeners();
       }
     });
   }
+
+  void _finishOpeningProjectWindow() {
+    _openingProjectCountdownTimer?.cancel();
+    _openingProjectCountdownTimer = null;
+    _openingProjectWindowActive = false;
+    _openingProjectSecondsLeft = 0;
+    _openingProjectWindowStartedAt = null;
+    _openingProjectWindowFinishedForRound = true;
+    _engine.endSequenceProjectDeclarationWindow();
+    notifyListeners();
+    _scheduleNextAction();
+  }
+
+
 
   // ══════════════════════════════════════════════════════════════════
   //  SPEECH BUBBLES
@@ -1117,7 +1178,7 @@ class GameProvider extends ChangeNotifier {
       case BidAction.sun:          return 'Sun';
       case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
       case BidAction.ashkal:       return 'Ashkal';
-      case BidAction.sawa:         return 'Sawa (bid)';
+      case BidAction.sawa:         return 'Sawa';
       case BidAction.pass:         return 'Pass';
       case BidAction.confirmHakam: return 'Hakam';
     }
@@ -1194,9 +1255,5 @@ class GameProvider extends ChangeNotifier {
       t.cancel();
     }
     super.dispose();
-  }
-  void _triggerBotSawaReveal(int seat) {
-    debugPrint('[GameProvider] Bot (Seat $seat) claims SAWA!');
-    _startSawaReveal(seat);
   }
 }

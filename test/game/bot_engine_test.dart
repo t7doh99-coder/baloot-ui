@@ -300,11 +300,6 @@ void main() {
           continue;
         }
 
-        if (phase == GamePhase.projectDeclaration) {
-          controller.advanceFromProjects();
-          continue;
-        }
-
         final currentSeat = controller.roundState.currentPlayerIndex;
         controller.botPlay(currentSeat);
         safety++;

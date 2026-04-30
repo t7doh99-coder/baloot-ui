@@ -253,18 +253,19 @@ class ProjectDetector {
   }
 
   /// Compare two teams' projects and determine which team's projects count.
-  /// Returns 'A', 'B', or null if no competing projects OR **project Sawa** (perfect tie).
+  /// Returns 'A', 'B', or null ONLY if there are no competing projects.
   ///
   /// Per BALOOT_RULES.md §6.3 / client rulebook (Kammelna-style):
   /// Both teams compare highest project. Superior project wins.
   /// If tied rank → highest card in sequence wins.
   /// In Hakam, trump sequence beats non-trump.
-  /// If nothing splits the tie → **project Sawa** ([null]): neither team scores project points.
+  /// If identical → **Tie-breaker by turn order** (closest to dealer's right wins).
   String? resolveProjectPriority(
     List<DeclaredProject> teamAProjects,
     List<DeclaredProject> teamBProjects,
     GameMode mode,
     Suit? trumpSuit,
+    int firstPlayerIndex,
   ) {
     // Filter out Baloot (doesn't participate in priority)
     final aRegular = teamAProjects.where((p) => p.type != ProjectType.baloot).toList();
@@ -298,8 +299,14 @@ class ProjectDetector {
       if (bIsTrump && !aIsTrump) return 'B';
     }
 
-    // 4. Perfect tie → project Sawa (neither team's sequence counts)
-    return null;
+    // 4. Perfect tie → tie-breaker by order of play (starting from firstPlayerIndex)
+    final aDist = (aBest.playerIndex - firstPlayerIndex) % 4;
+    final aDistance = aDist < 0 ? aDist + 4 : aDist;
+
+    final bDist = (bBest.playerIndex - firstPlayerIndex) % 4;
+    final bDistance = bDist < 0 ? bDist + 4 : bDist;
+
+    return aDistance < bDistance ? 'A' : 'B';
   }
 
   void _sortProjects(List<DeclaredProject> list) {

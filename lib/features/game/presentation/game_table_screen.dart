@@ -431,7 +431,7 @@ class _StartBtn extends StatelessWidget {
 //  hakamConfirmation│ Confirm Hakam · Switch to Sun (R1 Hakam or R2 Second Hakam — Visca/Kammelna)
 //  doubleWindow     │ Pass · Double · Four · Gahwa
 //                   │ (only defending team; Hakam mode; or Sun >100 rule)
-//  playing trick 1  │ Projects (declare up to 2)
+//  playing trick 1  │ Projects (8s pre-lead — you only); Majlis shows your 8s ring
 //  playing trick 2+ │ (none — card tap + Play button handles it)
 //  scoring          │ Next Round (auto)
 //  gameOver         │ (none)
@@ -453,6 +453,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   final Set<int> _selectedProjects = {};
 
   bool _didAutoOpenProjects = false;
+  bool _wasOpeningProjectWindow = false;
 
   /// [GameProvider] is a single instance; `didUpdateWidget`'s `oldWidget.game` is that
   /// same object, so comparing `old.game.phase` to `widget.game.phase` never detects
@@ -465,6 +466,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   @override
   void initState() {
     super.initState();
+    _wasOpeningProjectWindow = widget.game.isOpeningProjectWindow;
     _syncTrackedEngineFields(widget.game);
   }
 
@@ -475,9 +477,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     _trackedDoubleStatus = g.doubleStatus;
   }
 
-  /// Expanded tier row is only valid during the project declaration phase.
+  /// Expanded project row: only before the opening lead on trick 1.
   static bool _projectsPickerMayShow(GameProvider g) {
-    return g.phase == GamePhase.projectDeclaration;
+    return g.canDeclareProjects;
   }
 
   @override
@@ -485,6 +487,17 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     super.didUpdateWidget(old);
 
     final g = widget.game;
+    final wasOpening = _wasOpeningProjectWindow;
+    _wasOpeningProjectWindow = g.isOpeningProjectWindow;
+    if (wasOpening && !g.isOpeningProjectWindow) {
+      if (_activePicker == _DashboardPicker.projects) {
+        setState(() {
+          _activePicker = _DashboardPicker.none;
+          _selectedProjects.clear();
+        });
+      }
+    }
+
     final progressed = g.phase != _trackedPhase ||
         g.trickNumber != _trackedTrickNumber ||
         g.biddingPhase != _trackedBiddingPhase ||
@@ -503,24 +516,17 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       _syncTrackedEngineFields(g);
     }
 
-    // Auto-open project picker during the dedicated Project Declaration phase (Kammelna UX)
-    if (widget.game.phase == GamePhase.projectDeclaration &&
-        !_didAutoOpenProjects) {
-      final detected = widget.game.playerProjects
-          .where((p) => p.type != ProjectType.baloot)
-          .toList();
-      if (detected.isNotEmpty) {
-        _didAutoOpenProjects = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() => _activePicker = _DashboardPicker.projects);
-          }
-        });
-      }
+    // Auto-open project picker once when the 8s pre-trick window starts (always).
+    if (widget.game.isOpeningProjectWindow && !_didAutoOpenProjects) {
+      _didAutoOpenProjects = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _activePicker = _DashboardPicker.projects);
+        }
+      });
     }
 
-    // Reset the flag when phase leaves projectDeclaration
-    if (widget.game.phase != GamePhase.projectDeclaration) {
+    if (!_projectsPickerMayShow(widget.game)) {
       _didAutoOpenProjects = false;
     }
   }
@@ -529,9 +535,20 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   Widget build(BuildContext context) {
     final game = widget.game;
 
+    // Auto-open project picker in build as well (backup for didUpdateWidget race)
+    if (game.isOpeningProjectWindow &&
+        !_didAutoOpenProjects &&
+        _activePicker == _DashboardPicker.none) {
+      _didAutoOpenProjects = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _activePicker = _DashboardPicker.projects);
+        }
+      });
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
-      // The hierarchy: Top (Projects expanded), Middle (Profile), Bottom (Actions)
       children: [
         if (_activePicker == _DashboardPicker.projects &&
             _projectsPickerMayShow(game))
@@ -567,22 +584,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           (game.isHumanDefender || game.isHumanBuyer)) {
         buttons = _doubleButtons(context, loc);
       }
-    } else if (phase == GamePhase.projectDeclaration) {
-      // 6s countdown is on HumanPlayerMajlisBar. Keep this pill dark (no gold).
-      final expanded = _activePicker == _DashboardPicker.projects;
-      buttons = [
-        _GameBtn(
-          label: loc.projects,
-          forceDarkStyle: true,
-          onTap: () {
-             setState(() {
-               _activePicker = expanded
-                   ? _DashboardPicker.none
-                   : _DashboardPicker.projects;
-             });
-          },
-        ),
-      ];
     } else if (phase == GamePhase.playing) {
       buttons = _playingButtons(context, loc);
     }
@@ -720,9 +721,21 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   }
 
   List<Widget> _playingButtons(BuildContext ctx, GameL10n loc) {
-    // Kammelna Rule: Projects are declared in the dedicated 6s phase before playing.
-    // Baloot (K&Q) is auto-declared when playing, so no button needed here.
-    return [];
+    if (!widget.game.isOpeningProjectWindow) return [];
+    final expanded = _activePicker == _DashboardPicker.projects;
+    return [
+      _GameBtn(
+        label: loc.projects,
+        forceDarkStyle: true,
+        onTap: () {
+          setState(() {
+            _activePicker = expanded
+                ? _DashboardPicker.none
+                : _DashboardPicker.projects;
+          });
+        },
+      ),
+    ];
   }
 
   List<Widget> _buildSuitPickerButtons(BuildContext ctx, GameL10n loc) {
@@ -756,7 +769,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   Widget _buildProjectPickerExpanded(BuildContext context, GameL10n loc) {
     final gp = context.read<GameProvider>();
-    final canEditProjects = gp.phase == GamePhase.projectDeclaration;
+    final canEditProjects = gp.canDeclareProjects;
     var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
     
     final declared = gp.humanDeclaredProjects;

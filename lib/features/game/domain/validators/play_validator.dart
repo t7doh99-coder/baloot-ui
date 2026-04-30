@@ -80,21 +80,67 @@ class PlayValidator {
     final hasTrump = hand.any((c) => c.suit == trumpSuit);
 
     // Rule 2: Must play trump if holding one (mandatory cut).
-    // EXCEPTION (Free Play Rule): If your partner is currently winning the trick,
-    // you are not forced to cut. Only applies when playerSeat is known.
+    //
+    // EXCEPTIONS where you are NOT forced to cut:
+    //   (a) Free Play: your partner is currently winning the trick.
+    //   (b) Can't Overtrump: an opponent already played trump and you have
+    //       no trump higher than theirs — you may play ANY card.
+    //       (pagat.com: "If unable to beat the opponent's trump, they may
+    //        play any card — it is legal, but not necessary, to play a
+    //        lower trump.")
     if (hasTrump && card.suit != trumpSuit) {
-      bool partnerIsWinning = false;
+      bool exempt = false;
+
       if (playerSeat != null) {
+        // (a) Partner winning → free play
         final int currentWinnerSeat = _getCurrentWinnerSeat(
           currentTrick: currentTrick,
           leadingSuit: leadingSuit,
           trumpSuit: trumpSuit,
         );
-        partnerIsWinning = currentWinnerSeat >= 0 &&
-            (currentWinnerSeat % 2 == playerSeat % 2);
+        if (currentWinnerSeat >= 0 &&
+            (currentWinnerSeat % 2 == playerSeat % 2)) {
+          
+          // Partner is winning. Check the "Ace" exception for the 3rd player.
+          // In Hakam, if the 3rd player is void, they must cut their partner's 
+          // winning trick UNLESS the partner led an Ace (or declared Ekka).
+          bool mustCutPartner = false;
+          if (currentTrick.length == 2 && currentWinnerSeat == currentTrick.first.playerIndex) {
+            final ledCard = currentTrick.first.card;
+            if (ledCard.rank != Rank.ace) {
+              mustCutPartner = true;
+            }
+          }
+
+          if (!mustCutPartner) {
+            exempt = true;
+          }
+        }
+
+        // (b) Opponent already trumped & we can't overtrump → free play
+        if (!exempt) {
+          final highestOppTrump = _highestOpponentTrumpStrength(
+            currentTrick: currentTrick,
+            trumpSuit: trumpSuit!,
+            playerSeat: playerSeat,
+          );
+          if (highestOppTrump > 0) {
+            // Opponent has trumped — check if we can beat it
+            final canOvertrump = hand.any((c) =>
+                c.suit == trumpSuit &&
+                c.getStrength(
+                      mode: GameMode.hakam,
+                      trumpSuit: trumpSuit,
+                    ) >
+                    highestOppTrump);
+            if (!canOvertrump) {
+              exempt = true; // free to play anything
+            }
+          }
+        }
       }
 
-      if (!partnerIsWinning) {
+      if (!exempt) {
         return PlayValidationResult.violation(
           ViolationKind.cutViolation,
           'Must play trump (${trumpSuit!.name}) when void in leading suit unless partner is winning.',
@@ -155,26 +201,14 @@ class PlayValidator {
     required Suit trumpSuit,
     required int playerSeat,
   }) {
-    final playerIsTeamA = playerSeat % 2 == 0;
+    final highestOpponentTrump = _highestOpponentTrumpStrength(
+      currentTrick: currentTrick,
+      trumpSuit: trumpSuit,
+      playerSeat: playerSeat,
+    );
 
-    // Find the highest trump played by an OPPONENT (different team) only
-    int highestOpponentTrump = -1;
-    for (final play in currentTrick) {
-      final playIsTeamA = play.playerIndex % 2 == 0;
-      final isOpponent = playIsTeamA != playerIsTeamA;
-      if (isOpponent && play.card.suit == trumpSuit) {
-        final strength = play.card.getStrength(
-          mode: GameMode.hakam,
-          trumpSuit: trumpSuit,
-        );
-        if (strength > highestOpponentTrump) {
-          highestOpponentTrump = strength;
-        }
-      }
-    }
-
-    if (highestOpponentTrump < 0) {
-      // No one (or only teammate) has played trump yet — no up-trump restriction
+    if (highestOpponentTrump <= 0) {
+      // No opponent has played trump yet — no up-trump restriction
       return const PlayValidationResult.valid();
     }
 
@@ -276,5 +310,28 @@ class PlayValidator {
     }
     
     return winnerSeat;
+  }
+
+  /// Returns the strength of the highest trump played by an OPPONENT, or 0 if
+  /// no opponent has trumped yet. Shared by the mandatory-cut exception and
+  /// the up-trump rule.
+  int _highestOpponentTrumpStrength({
+    required List<CardPlayModel> currentTrick,
+    required Suit trumpSuit,
+    required int playerSeat,
+  }) {
+    final playerIsTeamA = playerSeat % 2 == 0;
+    int highest = 0;
+    for (final play in currentTrick) {
+      final isOpponent = (play.playerIndex % 2 == 0) != playerIsTeamA;
+      if (isOpponent && play.card.suit == trumpSuit) {
+        final s = play.card.getStrength(
+          mode: GameMode.hakam,
+          trumpSuit: trumpSuit,
+        );
+        if (s > highest) highest = s;
+      }
+    }
+    return highest;
   }
 }

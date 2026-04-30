@@ -213,8 +213,8 @@ The player sitting to the **RIGHT of the dealer** leads the first trick in the r
 - Both teams compare their highest eligible sequence project.
 - Team with the **superior project** has their Abnat added (only the winning team's sequence project counts).
 - If tied project rank → compare highest card in the sequence; higher wins.
-- If still tied (same rank and same high card, and neither side wins the trump split) → **project Sawa**: **neither** team receives sequence project points (no turn-order tiebreak).
-- **Baloot (K+Q):** evaluated separately per engine rules (see §6.5); sequence-project Sawa does not cancel Baloot except where Khams stealing rules apply (§14.4).
+- If still tied (same rank and same high card, and neither side wins the trump split) → **turn-order tiebreak**: the team whose player declared first (starting from right of dealer) wins the comparison and reveals their projects.
+- **Baloot (K+Q):** evaluated separately per engine rules (see §6.5); sequence-project tiebreaks do not cancel Baloot except where Khams stealing rules apply (§14.4).
 
 ### 6.4 Project Multiplier Rule (Jawaker/Kamelna — VERIFIED)
 > [!IMPORTANT] When a Double/Triple/Four is active:
@@ -425,7 +425,7 @@ All previously open questions have been resolved from client meeting video recor
 To ensure the game engine handles edge cases identically to professional GCC tournament standards (matching **Kammelna**), the following strict rules must be programmed:
 
 ### 14.1 Project Tie-Breakers & Overlaps
-- **Rank Ties:** If both teams hold a sequence project of equal rank (e.g., both hold A-K-Q), the Hakam/Trump sequence wins when one side holds trump-backed sequence and ordering rules dictate. After rank → high card → trump-split steps, **if still tied** → **project Sawa**: neither team earns sequence-project points (**no turn-order tiebreak**, matching Kammelna).
+- **Rank Ties:** If both teams hold a sequence project of equal rank (e.g., both hold A-K-Q), the Hakam/Trump sequence wins when one side holds trump-backed sequence and ordering rules dictate. After rank → high card → trump-split steps, **if still tied** → **turn-order tiebreak**: the team whose player is closest to the dealer's right (first to declare) wins the comparison and reveals their projects. Per Pagat/Belote and Arabic Wikipedia: *"If none are in the trump suit, the player closest in play to the dealer is considered the highest."*
 - **Overlaps:** A single card **cannot** be double-dipped into two sequence projects. The engine must only permit declaring the highest valid sequence. Cards in a sequence, however, **can** be reused to declare a "Baloot" pair.
 
 ### 14.2 The "Empty Bidding" Loop

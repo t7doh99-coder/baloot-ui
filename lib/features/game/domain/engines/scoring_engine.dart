@@ -56,12 +56,15 @@ class ScoringEngine {
 
   /// Convert raw Abnat to scoreboard points.
   ///
-  /// Sun: round(abnat / 10) * 2
-  /// Hakam: round(abnat / 10) with Jawaker rounding
+  /// Sun (Kammelna): abnaat ÷ 5 (i.e. multiply by 2 first, then ÷ 10)
+  ///   65 → 13, 60 → 12, 70 → 14 (total always = 26)
+  /// Hakam: round(abnaat ÷ 10) with .5 rounding DOWN
   int abnatToScoreboard(int abnat, GameMode mode) {
     if (mode == GameMode.sun) {
-      // Kammelna / Jawaker (BALOOT_RULES §8.5): round(Raw Abnat ÷ 10) × 2
-      return (abnat / 10).round() * 2;
+      // Kammelna Sun: abnaat ÷ 5 (equivalent to (abnaat × 2) ÷ 10)
+      // This avoids the .5 rounding bug from the old round(x/10)*2 formula.
+      // Example: 65 abnaat → 65/5 = 13 ✓ (old formula gave 14 ✗)
+      return (abnat / 5).round();
     }
     // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
     return _jawakerRound(abnat / 10);
@@ -155,7 +158,6 @@ class ScoringEngine {
       );
     }
 
-    // --- Kabout check (uses actual trick counts, not Abnat) ---
     if (isKabout) {
       return _withBreakdown(_scoreKabout(
         teamAAbnat: trickAbnatA,
@@ -164,6 +166,7 @@ class ScoringEngine {
         teamATricksWon: teamATricksCount,
         teamBTricksWon: teamBTricksCount,
         mode: mode,
+        buyerTeam: buyerTeam,
         doubleStatus: doubleStatus,
         projectWinningTeam: projectWinningTeam,
         teamAProjectScoreboard: teamAProjectScoreboard,
@@ -226,6 +229,7 @@ class ScoringEngine {
     required int teamATricksWon,
     required int teamBTricksWon,
     required GameMode mode,
+    required String buyerTeam,
     DoubleStatus doubleStatus = DoubleStatus.none,
     String? projectWinningTeam,
     int teamAProjectScoreboard = 0,
@@ -240,19 +244,35 @@ class ScoringEngine {
     final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
     final kaboutPts = baseKabout * aceMultiplier * doubleMultiplier;
     final winnerIsA = teamATricksWon == 8;
+    final winnerTeam = winnerIsA ? 'A' : 'B';
 
     int aPts = winnerIsA ? kaboutPts : 0;
     int bPts = winnerIsA ? 0 : kaboutPts;
 
     // Project scoreboard points (Abnat conversion is skipped for Kabout; add explicitly)
-    if (projectWinningTeam != null) {
-      final pm = _projectMultiplier(doubleStatus);
+    final pm = _projectMultiplier(doubleStatus);
+    
+    // Check if this Kabout is a Khams-equivalent (defenders took all tricks)
+    final buyerFailed = winnerTeam != buyerTeam;
+    
+    if (buyerFailed) {
+      // Defender Kabout: Buyer failed completely. Defenders steal buyer's projects 
+      // AND keep their own (just like Khams).
+      final totalProjectSb = teamAProjectScoreboard + teamBProjectScoreboard;
+      if (winnerTeam == 'A') {
+        aPts += totalProjectSb * pm;
+      } else {
+        bPts += totalProjectSb * pm;
+      }
+    } else {
+      // Buyer Kabout: Buyer succeeded. No stealing. Whoever won project priority gets their points.
       if (projectWinningTeam == 'A') {
         aPts += teamAProjectScoreboard * pm;
-      } else {
+      } else if (projectWinningTeam == 'B') {
         bPts += teamBProjectScoreboard * pm;
       }
     }
+
     if (balootTeam == 'A') aPts += balootPoints;
     if (balootTeam == 'B') bPts += balootPoints;
 
@@ -289,18 +309,19 @@ class ScoringEngine {
     }
 
     // Project stealing (BALOOT_RULES.md §14.4 — Kammelna):
-    // Defenders get Khams base + the *buyer's team's* declared project scoreboard
-    // points (not the abstract project-priority winner). Baloot is handled below
-    // and is not stolen (exception in same section).
+    // Defenders get Khams base + ALL declared project scoreboard points
+    // (both their own projects AND the buyer's stolen projects).
+    // Baloot is handled separately and is not stolen.
     int aBonus = 0, bBonus = 0;
     final multiplier = _projectMultiplier(doubleStatus);
     
-    // Rule 14.4: defenders get Khams base + stolen *buyer's* declared project pts only.
-    final buyerSb = buyerTeam == 'A' ? teamAProjectScoreboard : teamBProjectScoreboard;
+    // Total sequence projects on the board (one of these is 0 due to priority filtering)
+    final totalProjectSb = teamAProjectScoreboard + teamBProjectScoreboard;
+    
     if (defenderTeam == 'A') {
-      aBonus = buyerSb * multiplier;
+      aBonus = totalProjectSb * multiplier;
     } else {
-      bBonus = buyerSb * multiplier;
+      bBonus = totalProjectSb * multiplier;
     }
 
     if (balootTeam == 'A') aBonus += balootPoints;
@@ -356,11 +377,16 @@ class ScoringEngine {
     } else {
       // No double: convert TRICK Abnaat to scoreboard points.
       // Per Kammelna: Sun always totals 26, Hakam always totals 16.
-      // Compute Team A via formula, derive Team B as complement to
-      // prevent rounding drift (matches client example: "opponents get 18" = 26−8).
+      // We ALWAYS calculate the BUYER'S score first to ensure rounding consistency
+      // (Buyer rounds DOWN on .5 in Hakam) and then derive the defender as the remainder.
       final modeTotal = mode == GameMode.sun ? 26 : 16;
-      aPts = abnatToScoreboard(teamAAbnat, mode);
-      bPts = modeTotal - aPts;
+      if (buyerTeam == 'A') {
+        aPts = abnatToScoreboard(teamAAbnat, mode);
+        bPts = modeTotal - aPts;
+      } else {
+        bPts = abnatToScoreboard(teamBAbnat, mode);
+        aPts = modeTotal - bPts;
+      }
 
       // Add project scoreboard points for the winning team
       if (projectWinningTeam == 'A') {
@@ -369,8 +395,6 @@ class ScoringEngine {
         bPts += teamBProjectScoreboard;
       }
     }
-
-
 
     // Baloot is always 2 pts (never derived from Abnat, immune to doubling)
     if (balootTeam == 'A') aPts += balootPoints;

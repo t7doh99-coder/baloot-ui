@@ -42,7 +42,9 @@ class PlayerSeatWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final game      = context.watch<GameProvider>();
-    final isActive  = game.currentPlayerIndex == seat;
+    // During the 8s pre-lead window only the human sees a countdown (Majlis bar).
+    final isActive  = game.currentPlayerIndex == seat &&
+        !game.isOpeningProjectWindow;
     final isDealer  = game.dealerIndex == seat;
     final isBuyer   = game.buyerIndex  == seat;
     final name      = game.playerName(seat);
@@ -339,7 +341,6 @@ class _SeatPlayerInfoBox extends StatelessWidget {
         return loc.bidRound1Short;
       case GamePhase.doubleWindow:
         return loc.doubleShort;
-      case GamePhase.projectDeclaration:
       case GamePhase.playing:
       case GamePhase.scoring:
         final mode = game.roundState.activeMode;
@@ -708,10 +709,11 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
   Widget build(BuildContext context) {
     // Live progress from provider — updated every frame by ticker
     final game      = context.watch<GameProvider>();
+    final progress =
+        widget.isActive ? game.activeSeatTimerProgress : 1.0;
+
     final ringT     = (widget.avatarDiameter * 0.13).clamp(4.0, 7.0);
     final totalSz   = widget.avatarDiameter + ringT * 2 + 6;
-    final progress  = widget.isActive ? game.activeSeatTimerProgress : 1.0;
-
     final avatarImagePath = AppAssets.playerAvatarPath(widget.seatIndex);
 
     return AnimatedBuilder(

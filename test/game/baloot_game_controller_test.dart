@@ -55,8 +55,6 @@ void main() {
 
       final lead = ctrl.roundState.currentPlayerIndex;
       ctrl.playCard(lead, ctrl.getHand(lead).first);
-      expect(ctrl.gamePhase, GamePhase.projectDeclaration);
-      ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
     });
 
@@ -127,8 +125,6 @@ void main() {
 
       final lead = ctrl.roundState.currentPlayerIndex;
       ctrl.playCard(lead, ctrl.getHand(lead).first);
-      expect(ctrl.gamePhase, GamePhase.projectDeclaration);
-      ctrl.advanceFromProjects();
       expect(ctrl.gamePhase, GamePhase.playing);
 
       // Opener already led one card; others still have full hands
@@ -297,9 +293,6 @@ void main() {
 
         if (ctrl.gamePhase == GamePhase.doubleWindow) {
           ctrl.skipDoubleWindow();
-        }
-        if (ctrl.gamePhase == GamePhase.projectDeclaration) {
-          ctrl.advanceFromProjects();
         }
 
         // Play round with bot
