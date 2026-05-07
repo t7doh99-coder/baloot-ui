@@ -152,6 +152,17 @@ class _GameTableScreenState extends State<GameTableScreen> {
                         ),
                       ),
                       
+                      // Speech Bubble for Human Player (Seat 0)
+                      if (game.bubbles[0] != null)
+                        Positioned(
+                          right: 24 * layoutScale,
+                          bottom: GameTableLayout.handStackBottom(layoutScale) + 160 * layoutScale,
+                          child: SpeechBubbleOverlay(
+                            bubble: game.bubbles[0]!,
+                            tailOnLeft: true,
+                          ),
+                        ),
+                      
                       // 4) The Unified Dashboard — anchored to the absolute bottom.
                       Positioned(
                         left: 0,
@@ -452,6 +463,13 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   DoubleStatus? _pendingDouble;
   final Set<int> _selectedProjects = {};
 
+  int _manual400 = 0;
+  int _manual100 = 0;
+  int _manual50 = 0;
+  int _manualSera = 0;
+
+  int get _totalManual => _manual400 + _manual100 + _manual50 + _manualSera;
+
   bool _didAutoOpenProjects = false;
   bool _wasOpeningProjectWindow = false;
 
@@ -466,7 +484,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   @override
   void initState() {
     super.initState();
-    _wasOpeningProjectWindow = widget.game.isOpeningProjectWindow;
     _syncTrackedEngineFields(widget.game);
   }
 
@@ -487,16 +504,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     super.didUpdateWidget(old);
 
     final g = widget.game;
-    final wasOpening = _wasOpeningProjectWindow;
-    _wasOpeningProjectWindow = g.isOpeningProjectWindow;
-    if (wasOpening && !g.isOpeningProjectWindow) {
-      if (_activePicker == _DashboardPicker.projects) {
-        setState(() {
-          _activePicker = _DashboardPicker.none;
-          _selectedProjects.clear();
-        });
-      }
-    }
 
     final progressed = g.phase != _trackedPhase ||
         g.trickNumber != _trackedTrickNumber ||
@@ -509,21 +516,19 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           _activePicker = _DashboardPicker.none;
           _pendingDouble = null;
           _selectedProjects.clear();
+          _manual400 = 0;
+          _manual100 = 0;
+          _manual50 = 0;
+          _manualSera = 0;
         });
       } else {
         _selectedProjects.clear();
+        _manual400 = 0;
+        _manual100 = 0;
+        _manual50 = 0;
+        _manualSera = 0;
       }
       _syncTrackedEngineFields(g);
-    }
-
-    // Auto-open project picker once when the 8s pre-trick window starts (always).
-    if (widget.game.isOpeningProjectWindow && !_didAutoOpenProjects) {
-      _didAutoOpenProjects = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() => _activePicker = _DashboardPicker.projects);
-        }
-      });
     }
 
     if (!_projectsPickerMayShow(widget.game)) {
@@ -535,17 +540,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   Widget build(BuildContext context) {
     final game = widget.game;
 
-    // Auto-open project picker in build as well (backup for didUpdateWidget race)
-    if (game.isOpeningProjectWindow &&
-        !_didAutoOpenProjects &&
-        _activePicker == _DashboardPicker.none) {
-      _didAutoOpenProjects = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() => _activePicker = _DashboardPicker.projects);
-        }
-      });
-    }
+    // No longer auto-opening the project picker here. User must manually open it.
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -554,7 +549,16 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
             _projectsPickerMayShow(game))
           _buildProjectPickerExpanded(context, GameL10n.of(context)),
         if (_showHand(game.phase))
-          const HumanPlayerMajlisBar(),
+          HumanPlayerMajlisBar(
+            isProjectExpanded: _activePicker == _DashboardPicker.projects,
+            onProjectTap: () {
+              setState(() {
+                _activePicker = _activePicker == _DashboardPicker.projects
+                    ? _DashboardPicker.none
+                    : _DashboardPicker.projects;
+              });
+            },
+          ),
         _buildBottomActions(context),
       ],
     );
@@ -584,8 +588,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           (game.isHumanDefender || game.isHumanBuyer)) {
         buttons = _doubleButtons(context, loc);
       }
-    } else if (phase == GamePhase.playing) {
-      buttons = _playingButtons(context, loc);
     }
 
     if (buttons.isEmpty) return const SizedBox(height: 8);
@@ -623,8 +625,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
-        if (gp.canHumanBidSawa)
-          _GameBtn(label: loc.sawaBidShort, onTap: () => gp.humanBid(BidAction.sawa)),
+
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -639,8 +640,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     // Round 2 — Pass or Sawa (defenders lock the pending bid) — Kammelna/Jawaker.
     if (widget.game.hasRound2PendingBid) {
       return [
-        if (gp.canHumanBidSawa)
-          _GameBtn(label: loc.sawaBidShort, onTap: () => gp.humanBid(BidAction.sawa)),
+
         _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -720,23 +720,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     return [];
   }
 
-  List<Widget> _playingButtons(BuildContext ctx, GameL10n loc) {
-    if (!widget.game.isOpeningProjectWindow) return [];
-    final expanded = _activePicker == _DashboardPicker.projects;
-    return [
-      _GameBtn(
-        label: loc.projects,
-        forceDarkStyle: true,
-        onTap: () {
-          setState(() {
-            _activePicker = expanded
-                ? _DashboardPicker.none
-                : _DashboardPicker.projects;
-          });
-        },
-      ),
-    ];
-  }
 
   List<Widget> _buildSuitPickerButtons(BuildContext ctx, GameL10n loc) {
     final gp = ctx.read<GameProvider>();
@@ -771,9 +754,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     final gp = context.read<GameProvider>();
     final canEditProjects = gp.canDeclareProjects;
     var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
-    
-    final declared = gp.humanDeclaredProjects;
-    final remaining = 2 - declared.length;
 
     const orderedTypes = [
       ProjectType.fourHundred,
@@ -791,15 +771,30 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
         children: List.generate(orderedTypes.length, (idx) {
           final t = orderedTypes[idx];
           
-          // Find if user has this project available (either actually declared, or in detected list)
-          final matches = detected.where((p) => p.type == t).toList();
-          final countVal = matches.isEmpty ? 0 : 1;
-          
-          // Find matching index in the original detected list for selection tracking
-          final origIndex = detected.indexWhere((p) => p.type == t);
-          final isDeclared = declared.any((d) => d.type == t);
-          final isSelected = origIndex >= 0 && _selectedProjects.contains(origIndex);
-          final isActive = isDeclared || isSelected;
+          final List<ProjectType> matchingTypes;
+          if (t == ProjectType.hundred) {
+            matchingTypes = [
+              ProjectType.hundred,
+              ProjectType.fourJacks,
+              ProjectType.sixCardRun,
+              ProjectType.sevenCardRun,
+              ProjectType.eightCardRun
+            ];
+          } else {
+            matchingTypes = [t];
+          }
+
+          final origIndices = detected.asMap().entries
+              .where((e) => matchingTypes.contains(e.value.type))
+              .map((e) => e.key).toList();
+              
+          int manualCount = 0;
+          if (t == ProjectType.fourHundred) manualCount = _manual400;
+          else if (t == ProjectType.hundred) manualCount = _manual100;
+          else if (t == ProjectType.fifty) manualCount = _manual50;
+          else if (t == ProjectType.sera) manualCount = _manualSera;
+
+          final isActive = manualCount > 0;
 
           return Expanded(
             child: Padding(
@@ -821,7 +816,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
                     ),
                   ),
                   child: Text(
-                    countVal.toString(),
+                    manualCount.toString(),
                     style: TextStyle(
                       color: isActive
                           ? Colors.black
@@ -836,21 +831,45 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
                 isActive: isActive,
                 onTap: () {
                   if (!canEditProjects) return;
-                  if (origIndex < 0) return; // Completely unavailable
                   
-                  if (isActive) {
-                    // Toggle OFF (Undeclare)
-                    setState(() {
-                       _selectedProjects.remove(origIndex);
-                    });
-                     gp.humanUndeclareProject(t);
-                  } else if (remaining > 0) {
-                     // Toggle ON (Declare)
-                     setState(() {
-                       _selectedProjects.add(origIndex);
-                     });
-                     gp.humanDeclareProject(origIndex);
-                  }
+                  setState(() {
+                    if (_totalManual >= 2) {
+                      // 3rd press resets everything
+                      _manual400 = 0;
+                      _manual100 = 0;
+                      _manual50 = 0;
+                      _manualSera = 0;
+                      
+                      // Undeclare from engine
+                      for (var idx in _selectedProjects) {
+                        gp.humanUndeclareProject(detected[idx].type);
+                      }
+                      _selectedProjects.clear();
+                    } else {
+                      // Increment counter
+                      if (t == ProjectType.fourHundred) _manual400++;
+                      else if (t == ProjectType.hundred) _manual100++;
+                      else if (t == ProjectType.fifty) _manual50++;
+                      else if (t == ProjectType.sera) _manualSera++;
+                      
+                      // If the user actually HAS this occurrence, declare it in engine
+                      int newCount = 0;
+                      if (t == ProjectType.fourHundred) newCount = _manual400;
+                      else if (t == ProjectType.hundred) newCount = _manual100;
+                      else if (t == ProjectType.fifty) newCount = _manual50;
+                      else if (t == ProjectType.sera) newCount = _manualSera;
+                      
+                      int foundCount = 0;
+                      for (var oIdx in origIndices) {
+                        foundCount++;
+                        if (foundCount == newCount && !_selectedProjects.contains(oIdx)) {
+                          _selectedProjects.add(oIdx);
+                          gp.humanDeclareProject(oIdx);
+                          break;
+                        }
+                      }
+                    }
+                  });
                 }
               ),
             ),

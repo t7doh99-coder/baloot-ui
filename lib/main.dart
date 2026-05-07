@@ -73,7 +73,9 @@ class AntigravittyBalootApp extends StatelessWidget {
           data: bounded,
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: child!,
+            // [child] can be null briefly during route transitions; null assert
+            // caused a full-screen red error in debug on some navigations.
+            child: child ?? const SizedBox.shrink(),
           ),
         );
       },

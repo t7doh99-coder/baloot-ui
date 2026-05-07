@@ -45,10 +45,10 @@ class _RoundScoreStrings {
 
   /// Buyer is our team (seat 0): we failed the purchase threshold.
   String get labelKhamsOurs =>
-      ar ? 'شراءنا: خسرانة (كهمس)' : 'Our purchase: Lost (Khams)';
+      ar ? 'شراءنا: خسران (خمس)' : 'Our purchase: Lost (Khams)';
   /// Buyer is their team: their purchase failed (good for us as defenders).
   String get labelKhamsTheirs =>
-      ar ? 'شراؤهم: خسرانة (كهمس)' : 'Their purchase: Lost (Khams)';
+      ar ? 'شراؤهم: خسران (خمس)' : 'Their purchase: Lost (Khams)';
 
   /// Buyer is our team: we made Sun/Hakam threshold (normal round).
   String get labelWonOurs =>
@@ -68,10 +68,10 @@ class _RoundScoreStrings {
 
   /// We bought; defenders took every trick (Kabout against buyer).
   String get labelLostKaboutWeBought =>
-      ar ? 'شراءنا: خسرانة (كبوت للمدافعين)' : 'Our purchase: Lost (defenders took Kabout)';
+      ar ? 'شراءنا: خسران (كبوت للمدافعين)' : 'Our purchase: Lost (defenders took Kabout)';
   /// They bought; we (defenders) took every trick.
   String get labelLostKaboutTheyBought =>
-      ar ? 'شراؤهم: خسرانة (كبوت لنا كمدافعين)' : 'Their purchase: Lost (we defended Kabout)';
+      ar ? 'شراؤهم: خسران (كبوت لنا كمدافعين)' : 'Their purchase: Lost (we defended Kabout)';
 
   /// One line: threshold is trick Abnat only (no projects in the comparison).
   String khamsThresholdShort(bool sunMode) => sunMode
@@ -150,7 +150,9 @@ class RoundScoreOverlay extends StatelessWidget {
       if (humanIsBuyer) {
         return (s.labelWonOurs, const Color(0xFF69F0AE));
       }
-      return (s.labelWonTheirs, _lossRed);
+      // Normal: they only “won” the purchase (threshold). We still get defender
+      // points in the Result row — red here looked like swapped/losing Nashra.
+      return (s.labelWonTheirs, _titleGold);
     }();
 
     final groundA = r.lastTrickBonusTeam == 'A' ? 10 : 0;
@@ -417,7 +419,7 @@ class RoundScoreOverlay extends StatelessWidget {
     return switch (en) {
       'Double' => 'دبل',
       'Triple' => 'تربل',
-      'Four' => 'أربعة',
+      'Four' => 'فور',
       'Gahwa' => 'قهوة',
       _ => en,
     };

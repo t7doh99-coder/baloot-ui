@@ -65,10 +65,17 @@ class _NavigationShellState extends State<NavigationShell>
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
   void _onPlayNow() {
-    context.read<GameProvider>().startGame();
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const GameTableScreen()),
-    );
+    final game = context.read<GameProvider>();
+    final nav = Navigator.of(context);
+    game.startGame();
+    // Pushing the same frame as a full provider notify rebuild can hitch; run
+    // navigation on the next frame so the route opens more smoothly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      nav.push(
+        MaterialPageRoute<void>(builder: (_) => const GameTableScreen()),
+      );
+    });
   }
 
 

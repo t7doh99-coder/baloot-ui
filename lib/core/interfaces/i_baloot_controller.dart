@@ -32,6 +32,7 @@ abstract class IBalootController {
   /// Play a card from a player's hand.
   void playCard(int seatIndex, CardModel card);
 
+
   // ── Projects ──
 
   /// Declare a project during trick 1.

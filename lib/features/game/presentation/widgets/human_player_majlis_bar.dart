@@ -17,7 +17,14 @@ const Color _kBarCharcoal = Color(0xFF2C2C2C);
 const Color _kNamePillBg = Color(0xFF232323);
 const Color _kGoldRing = Color(0xFFD4AF37);
 class HumanPlayerMajlisBar extends StatefulWidget {
-  const HumanPlayerMajlisBar({super.key});
+  final VoidCallback? onProjectTap;
+  final bool isProjectExpanded;
+
+  const HumanPlayerMajlisBar({
+    super.key,
+    this.onProjectTap,
+    this.isProjectExpanded = false,
+  });
 
   @override
   State<HumanPlayerMajlisBar> createState() => _HumanPlayerMajlisBarState();
@@ -78,7 +85,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
     _syncRingTicker(
-      humanTurn: game.isHumanTurn || game.isOpeningProjectWindow,
+      humanTurn: game.isHumanTurn,
     );
 
     final name = game.playerName(0);
@@ -86,18 +93,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     final badge = _badgeParts(game, loc);
     final secs = game.turnTimerSeconds;
 
-    final String ringSecondsText;
-    final double ringProgress;
-    final bool ringActive;
-    final opening = game.isOpeningProjectWindow;
-    ringActive = game.isHumanTurn || opening;
-    ringSecondsText = opening
-        ? '${game.openingProjectSecondsLeft}'
-        : (game.isHumanTurn ? '${secs ?? 0}' : '—');
-    final rawProgress = opening
-        ? game.openingProjectTimerProgress
-        : (game.isHumanTurn ? game.activeSeatTimerProgress : 0.0);
-    ringProgress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
+    final bool ringActive = game.isHumanTurn;
+    final ringSecondsText = game.isHumanTurn ? '${secs ?? 0}' : '—';
+    final rawProgress = game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
+    final ringProgress = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
@@ -122,61 +121,83 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _RankChip(primary: badge.primary, secondary: badge.secondary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _kNamePillBg,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.05),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    _MiniAvatar(
-                      path: avatarPath,
-                      active: game.isHumanTurn || game.isOpeningProjectWindow,
-                      isDealer: game.dealerIndex == 0,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.96),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.15,
-                        ),
+            Row(
+              children: [
+                _RankChip(primary: badge.primary, secondary: badge.secondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _kNamePillBg,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        _MiniAvatar(
+                          path: avatarPath,
+                          active: game.isHumanTurn,
+                          isDealer: game.dealerIndex == 0,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.96),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                _CountdownRing(
+                  isActive: ringActive,
+                  progress: ringProgress,
+                  secondsText: ringSecondsText,
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            _CountdownRing(
-              isActive: ringActive,
-              progress: ringProgress,
-              secondsText: ringSecondsText,
-            ),
-            const SizedBox(width: 10),
-            _SawaButton(
-              isActive: game.canSawa && !game.isSawaRevealPlaying,
-              onTap: () => game.humanClaimSawa(),
-            ),
-            const SizedBox(width: 6),
-            _QaidButton(
-              isActive: game.canClaimQaid,
-              onTap: () => game.humanClaimQaid(),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: _SawaButton(
+                    isActive: game.canSawa && !game.isSawaRevealPlaying,
+                    onTap: () => game.humanClaimSawa(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ProjectButton(
+                    isActive: game.canDeclareProjects,
+                    isExpanded: widget.isProjectExpanded,
+                    onTap: widget.onProjectTap ?? () {},
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QaidButton(
+                    isActive: game.canClaimQaid,
+                    onTap: () => game.humanClaimQaid(),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -444,17 +465,16 @@ class _SawaButton extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? gold.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                isActive ? const Color(0xFFFFDF73) : Colors.white.withValues(alpha: 0.1),
+            color: isActive ? gold : Colors.white.withValues(alpha: 0.1),
             width: 1.5,
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: gold.withValues(alpha: 0.5),
+                    color: gold.withValues(alpha: 0.2),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -463,8 +483,9 @@ class _SawaButton extends StatelessWidget {
         ),
         child: Text(
           loc.sawa,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.3),
+            color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
             fontSize: 14,
             fontWeight: FontWeight.w900,
             fontFamily: ar ? 'Tajawal' : null,
@@ -502,6 +523,7 @@ class _QaidButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = GameL10n.of(context);
+    const gold = Color(0xFFD4AF37);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -511,20 +533,16 @@ class _QaidButton extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: isActive
-                ? const Color(0xFFE63946).withValues(alpha: 0.9) // Red when active
-                : Colors.white.withValues(alpha: 0.05), // Greyed out when disabled
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isActive
-                  ? const Color(0xFFFF6B6B)
-                  : Colors.white.withValues(alpha: 0.1),
+              color: isActive ? gold : Colors.white.withValues(alpha: 0.1),
               width: 1.5,
             ),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFE63946).withValues(alpha: 0.5),
+                      color: gold.withValues(alpha: 0.2),
                       blurRadius: 10,
                       spreadRadius: 1,
                     )
@@ -533,8 +551,9 @@ class _QaidButton extends StatelessWidget {
           ),
           child: Text(
             loc.qaid,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.3),
+              color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
               fontSize: 14,
               fontWeight: FontWeight.w900,
               fontFamily: 'Tajawal',
@@ -547,3 +566,59 @@ class _QaidButton extends StatelessWidget {
   }
 }
 
+class _ProjectButton extends StatelessWidget {
+  final bool isActive;
+  final bool isExpanded;
+  final VoidCallback onTap;
+
+  const _ProjectButton({
+    required this.isActive,
+    required this.isExpanded,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    const gold = Color(0xFFD4AF37);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isActive ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? gold : Colors.white.withValues(alpha: 0.1),
+              width: 1.5,
+            ),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: gold.withValues(alpha: 0.2),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    )
+                  ]
+                : [],
+          ),
+          child: Text(
+            loc.projects,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Tajawal',
+              height: 1.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -176,19 +176,34 @@ class ScoringEngine {
       ));
     }
 
-    // --- Determine round winner (using TRICK Abnaat only, NOT projects) ---
-    // Per Kammelna: Khams is decided by trick card points only.
-    // Sun threshold: 65 (out of 130 total trick Abnaat)
-    // Hakam threshold: 81 (out of 162 total trick Abnaat)
-    final threshold = mode == GameMode.sun ? 65 : 81;
+    // --- Determine round winner (using TOTAL Abnaat including projects and Baloot) ---
+    // The tie check (Sawa Type 3) happens on the final abnaat after all bonuses are added.
     final buyerTrickAbnat = buyerTeam == 'A' ? trickAbnatA : trickAbnatB;
     final defenderTrickAbnat = buyerTeam == 'A' ? trickAbnatB : trickAbnatA;
 
+    final totalBuyerAbnat = buyerTrickAbnat +
+        (buyerTeam == 'A' ? effectiveProjectA : effectiveProjectB) +
+        (buyerTeam == balootTeam ? 20 : 0); // Baloot is 20 abnaat (2 scoreboard pts)
+    
+    final totalDefenderAbnat = defenderTrickAbnat +
+        (buyerTeam == 'A' ? effectiveProjectB : effectiveProjectA) +
+        ((buyerTeam == 'A' ? 'B' : 'A') == balootTeam ? 20 : 0);
+
     bool buyerWins;
-    if (doubleStatus != DoubleStatus.none && buyerTrickAbnat == defenderTrickAbnat) {
-      buyerWins = doubleCallerTeam != buyerTeam;
+    bool isTie = false;
+    
+    if (totalBuyerAbnat == totalDefenderAbnat) {
+      isTie = true;
+      // Tie rules (Kammelna & Tournaments):
+      // 1. Normal play (no double): Buyer MUST win more than half. A tie means buyer loses (Khams).
+      // 2. Doubled play: The team that CALLED the highest double/triple/four LOSES the tie.
+      if (doubleStatus != DoubleStatus.none) {
+        buyerWins = (doubleCallerTeam != buyerTeam);
+      } else {
+        buyerWins = false; // Normal play: buyer loses tie
+      }
     } else {
-      buyerWins = buyerTrickAbnat > threshold;
+      buyerWins = totalBuyerAbnat > totalDefenderAbnat;
     }
 
     // --- Khams (buyer loses) ---
@@ -435,16 +450,19 @@ class ScoringEngine {
     }
   }
 
-  /// Project multiplier: capped at ×2 per Jawaker/Kamelna/Tournament rules.
-  /// Even in Triple/Four, projects are only doubled, never tripled/quadrupled.
+  /// Project multiplier: scales with Double level per Kammelna/Jawaker rules.
+  /// Double = ×2, Triple = ×3, Four = ×4.
+  /// Baloot (2 pts) is NEVER multiplied — it is handled separately.
   int _projectMultiplier(DoubleStatus status) {
     switch (status) {
       case DoubleStatus.none:
         return 1;
       case DoubleStatus.doubled:
+        return 2;
       case DoubleStatus.tripled:
+        return 3;
       case DoubleStatus.four:
-        return 2;  // Capped at ×2
+        return 4;
       case DoubleStatus.gahwa:
         return 1;
     }

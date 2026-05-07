@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../../core/assets/game_asset_warmup.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../data/models/card_model.dart';
@@ -152,19 +153,28 @@ class _SplashScreenState extends State<SplashScreen>
       _circleController.forward();
     }
 
-    // Navigate at 2.8s total (fast!)
-    _navTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 400),
-            pageBuilder: (_, __, ___) => const NavigationShell(),
-            transitionsBuilder: (_, anim, __, child) {
-              return FadeTransition(opacity: anim, child: child);
-            },
-          ),
-        );
+    // Navigate at 2.8s total (fast!) — warmup table assets first to avoid a red
+    // error flash / long hitch on first Play.
+    _navTimer = Timer(const Duration(milliseconds: 1200), () async {
+      if (!mounted) return;
+      try {
+        await warmHeavyGameAssets(context);
+      } catch (e, st) {
+        assert(() {
+          debugPrint('[Splash] asset warmup failed: $e\n$st');
+          return true;
+        }());
       }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder<void>(
+          transitionDuration: const Duration(milliseconds: 400),
+          pageBuilder: (_, __, ___) => const NavigationShell(),
+          transitionsBuilder: (_, anim, __, child) {
+            return FadeTransition(opacity: anim, child: child);
+          },
+        ),
+      );
     });
   }
 

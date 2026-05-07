@@ -22,9 +22,16 @@ class DetectedProject {
       case ProjectType.fifty:
         return 2;
       case ProjectType.hundred:
+      case ProjectType.fourJacks:
         return 3;
-      case ProjectType.fourHundred:
+      case ProjectType.sixCardRun:
         return 4;
+      case ProjectType.sevenCardRun:
+        return 5;
+      case ProjectType.eightCardRun:
+        return 6;
+      case ProjectType.fourHundred:
+        return 7;
       case ProjectType.baloot:
         return 0;
     }
@@ -82,8 +89,23 @@ class ProjectDetector {
     final balootProjects = projects.where((p) => p.type == ProjectType.baloot).toList();
     final regularProjects = projects.where((p) => p.type != ProjectType.baloot).toList();
 
-    // Max 2 regular projects per player
-    final limited = regularProjects.take(2).toList();
+    // Max 2 regular projects per player — with NO card overlap (Kammelna rule).
+    // A single card cannot be used in two different projects simultaneously.
+    final limited = <DetectedProject>[];
+    for (final project in regularProjects) {
+      if (limited.isEmpty) {
+        limited.add(project);
+      } else if (limited.length < 2) {
+        // Check that this project shares no cards with the already-selected one
+        final usedCards = limited.first.cards.toSet();
+        final overlap = project.cards.any((c) => usedCards.contains(c));
+        if (!overlap) {
+          limited.add(project);
+        }
+      } else {
+        break; // Already have 2
+      }
+    }
     limited.addAll(balootProjects);
 
     return limited;
@@ -110,13 +132,36 @@ class ProjectDetector {
       final runs = _findConsecutiveRuns(suitCards);
 
       for (final run in runs) {
-        if (run.length >= 5) {
-          // 100 (5+ consecutive). Kammelna rules only require showing 5 cards.
-          final best5 = run.length > 5 ? run.sublist(run.length - 5) : run;
-          final highest = best5.last.getStrength(mode: GameMode.sun);
+        if (run.length >= 8) {
+          // 8-card run (entire suit) = 250 abnaat
+          final highest = run.last.getStrength(mode: GameMode.sun);
+          projects.add(DetectedProject(
+            type: ProjectType.eightCardRun,
+            cards: run,
+            highestStrength: highest,
+          ));
+        } else if (run.length >= 7) {
+          // 7-card run = 200 abnaat
+          final highest = run.last.getStrength(mode: GameMode.sun);
+          projects.add(DetectedProject(
+            type: ProjectType.sevenCardRun,
+            cards: run,
+            highestStrength: highest,
+          ));
+        } else if (run.length >= 6) {
+          // 6-card run = 150 abnaat
+          final highest = run.last.getStrength(mode: GameMode.sun);
+          projects.add(DetectedProject(
+            type: ProjectType.sixCardRun,
+            cards: run,
+            highestStrength: highest,
+          ));
+        } else if (run.length >= 5) {
+          // 100 (5 consecutive)
+          final highest = run.last.getStrength(mode: GameMode.sun);
           projects.add(DetectedProject(
             type: ProjectType.hundred,
-            cards: best5,
+            cards: run,
             highestStrength: highest,
           ));
         } else if (run.length >= 4) {
@@ -213,7 +258,7 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/J/Q/K) same rank → 100 (Available in both modes per BALOOT_RULES.md)
+    // 4×(10/Q/K) same rank → 100, 4×J → 200 (Kammelna document §2.2)
     final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
     for (final rank in courtRanks) {
       final sameRankCards = hand.where((c) => c.rank == rank).toList();
@@ -222,7 +267,7 @@ class ProjectDetector {
             .map((c) => c.getStrength(mode: GameMode.sun))
             .reduce((a, b) => a > b ? a : b);
         projects.add(DetectedProject(
-          type: ProjectType.hundred,
+          type: rank == Rank.jack ? ProjectType.fourJacks : ProjectType.hundred,
           cards: sameRankCards,
           highestStrength: highest,
         ));

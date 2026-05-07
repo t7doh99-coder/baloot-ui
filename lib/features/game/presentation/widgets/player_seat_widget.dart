@@ -9,7 +9,7 @@ import '../../../../core/l10n/locale_provider.dart';
 import '../../../../core/layout/game_table_layout.dart';
 import '../../../../data/models/card_model.dart'
     show CardModel, Suit, Rank, GameMode;
-import '../../../../data/models/round_state_model.dart' show BiddingPhase;
+import '../../../../data/models/round_state_model.dart' show BiddingPhase, ProjectType;
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart'
@@ -42,9 +42,7 @@ class PlayerSeatWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final game      = context.watch<GameProvider>();
-    // During the 8s pre-lead window only the human sees a countdown (Majlis bar).
-    final isActive  = game.currentPlayerIndex == seat &&
-        !game.isOpeningProjectWindow;
+    final isActive  = game.currentPlayerIndex == seat;
     final isDealer  = game.dealerIndex == seat;
     final isBuyer   = game.buyerIndex  == seat;
     final name      = game.playerName(seat);
@@ -489,6 +487,34 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       );
     }
 
+    Widget? projectBadge;
+    if (game.phase == GamePhase.playing && game.trickNumber == 1) {
+       final projects = game.roundState.declaredProjects
+           .where((p) => p.playerIndex == seatIndex && p.type != ProjectType.baloot)
+           .toList();
+           
+       if (projects.isNotEmpty) {
+          final names = projects.map((p) {
+            if (p.type == ProjectType.fourHundred) return '400';
+            if ([ProjectType.hundred, ProjectType.fourJacks, ProjectType.sixCardRun, ProjectType.sevenCardRun, ProjectType.eightCardRun].contains(p.type)) {
+              return '100';
+            }
+            if (p.type == ProjectType.fifty) return '50';
+            return 'Sera';
+          }).toList();
+          final text = names.join(' & ');
+          
+          projectBadge = _KamelnaBidBadge(
+            label: loc.localizeBubble(text),
+            suit: null,
+            backgroundColor: const Color(0xFFE0E0E0),
+            borderColor: const Color(0xFFBDBDBD),
+            isHighlighted: true,
+            textColorOverride: const Color(0xFF424242),
+          );
+       }
+    }
+
     final bubble = game.bubbles[seatIndex];
 
     final bool isLeft = orientation == SeatOrientation.left;
@@ -502,21 +528,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       alignment: Alignment.topCenter,
       children: [
         // Draw badges FIRST so their flat tops are hidden behind the chipFrame
-        if (sawaBadge != null)
-          Positioned(
-            bottom: -15,
-            child: sawaBadge,
-          ),
-        if (dealerBadge != null)
-          Positioned(
-            bottom: bidBadge != null ? -28 : -15,
-            child: dealerBadge,
-          ),
-        if (bidBadge != null)
-          Positioned(
-            bottom: -15,
-            child: bidBadge,
-          ),
+        ..._buildBottomBadges(sawaBadge: sawaBadge, projectBadge: projectBadge, bidBadge: bidBadge, dealerBadge: dealerBadge),
         // Draw the main player box on top
         chipFrame,
         if (bubble != null)
@@ -524,13 +536,36 @@ class _SeatPlayerInfoBox extends StatelessWidget {
             top: 10, // Align with avatar center
             left: (isLeft || isTop) ? 65.0 : null,
             right: isRight ? 65.0 : null,
-            child: _SpeechBubbleOverlay(
+            child: SpeechBubbleOverlay(
               bubble: bubble,
               tailOnLeft: tailOnLeft,
             ),
           ),
       ],
     );
+  }
+
+  List<Widget> _buildBottomBadges({
+    Widget? sawaBadge,
+    Widget? projectBadge,
+    Widget? bidBadge,
+    Widget? dealerBadge,
+  }) {
+    final badges = <Widget>[];
+    if (sawaBadge != null) badges.add(sawaBadge);
+    if (projectBadge != null) badges.add(projectBadge);
+    if (bidBadge != null) badges.add(bidBadge);
+    if (dealerBadge != null) badges.add(dealerBadge);
+
+    final positionedBadges = <Widget>[];
+    for (int i = badges.length - 1; i >= 0; i--) {
+      final offset = -15 - (i * 13).toDouble();
+      positionedBadges.add(Positioned(
+        bottom: offset,
+        child: badges[i],
+      ));
+    }
+    return positionedBadges;
   }
 }
 
@@ -1362,11 +1397,11 @@ class _ChatBubblePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _SpeechBubbleOverlay extends StatelessWidget {
+class SpeechBubbleOverlay extends StatelessWidget {
   final PlayerBubble bubble;
   final bool tailOnLeft;
 
-  const _SpeechBubbleOverlay({required this.bubble, required this.tailOnLeft});
+  const SpeechBubbleOverlay({super.key, required this.bubble, required this.tailOnLeft});
 
   @override
   Widget build(BuildContext context) {

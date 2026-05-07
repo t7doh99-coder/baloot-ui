@@ -36,16 +36,16 @@ class GameL10n {
   /// Master-hand claim during tricks (سوى اليد).
   String get sawaHandsTooltip =>
       _ar ? 'سوى اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';
-  String get ashkal => _ar ? 'أشكال' : 'Ashkal';
+  String get ashkal => _ar ? 'أشكل' : 'Ashkal';
   String get confirmHakam => _ar ? 'تأكيد الحكم' : 'Confirm Hakam';
   String get switchToSun => _ar ? 'تحويل لصن' : 'Switch to Sun';
   String get projects => _ar ? 'مشاريع' : 'Projects';
   String get cancel => _ar ? 'إلغاء' : 'Cancel';
-  String get closed => _ar ? 'سِرّ' : 'Closed';
-  String get open => _ar ? 'علني' : 'Open';
+  String get closed => _ar ? 'مقفل' : 'Closed';
+  String get open => _ar ? 'مفتوح' : 'Open';
   String get doubleWord => _ar ? 'دبل' : 'Double';
   String get triple => _ar ? 'تربل' : 'Triple';
-  String get four => _ar ? 'أربعة' : 'Four';
+  String get four => _ar ? 'فور' : 'Four';
   String get gahwa => _ar ? 'قهوة' : 'Gahwa';
   String get qaid => _ar ? 'قيدها' : 'Qaid';
   String get falseQaidMessage => _ar ? 'ادعاء قيد خاطئ! خسارة الجولة' : 'False Qaid claim! Round lost';
@@ -123,15 +123,23 @@ class GameL10n {
         ProjectType.sera => 'Sera',
         ProjectType.fifty => '50',
         ProjectType.hundred => '100',
+        ProjectType.sixCardRun => '150',
+        ProjectType.sevenCardRun => '200',
+        ProjectType.eightCardRun => '250',
+        ProjectType.fourJacks => '4J',
         ProjectType.fourHundred => '400',
         ProjectType.baloot => 'Baloot',
       };
     }
     return switch (t) {
-      ProjectType.sera => 'صيرة',
-      ProjectType.fifty => '٥٠',
-      ProjectType.hundred => '١٠٠',
-      ProjectType.fourHundred => '٤٠٠',
+      ProjectType.sera => 'سرا',
+      ProjectType.fifty => 'خمسين',
+      ProjectType.hundred => 'مية',
+      ProjectType.sixCardRun => 'مية وخمسين',
+      ProjectType.sevenCardRun => 'ميتين',
+      ProjectType.eightCardRun => 'ميتين وخمسين',
+      ProjectType.fourJacks => 'أربع أولاد',
+      ProjectType.fourHundred => 'أربعمية',
       ProjectType.baloot => 'بلوت',
     };
   }
@@ -154,13 +162,24 @@ class GameL10n {
       'Hakam' => 'حكم',
       'Sun' => 'صن',
       'Sawa' => 'سوى',
-      'Ashkal' => 'أشكال',
+      'Ashkal' => 'أشكل',
       'Double' => 'دبل',
       'Triple' => 'تربل',
-      'Four' => 'أربعة',
+      'Four' => 'فور',
       'Gahwa' => 'قهوة',
       'Qaid' => 'قيدها',
-      _ => en,
+      'Sera' => 'سرا',
+      '50' => 'خمسين',
+      '100' => 'مية',
+      '400' => 'أربعمية',
+      _ => _tryTranslateCombinedProjects(en),
     };
+  }
+
+  String _tryTranslateCombinedProjects(String en) {
+    if (en.contains(' & ')) {
+      return en.split(' & ').map((p) => localizeBubble(p.trim())).join(' و ');
+    }
+    return en;
   }
 }

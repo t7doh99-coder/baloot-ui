@@ -86,7 +86,7 @@ class BotEngine {
     if (vsTheirTrump < 26) {
       return const BotBidDecision(action: BidAction.pass);
     }
-    return const BotBidDecision(action: BidAction.sawa);
+    return const BotBidDecision(action: BidAction.pass);
   }
 
   BotBidDecision _decideRound2(
@@ -107,16 +107,10 @@ class BotEngine {
         return const BotBidDecision(action: BidAction.pass);
       }
       if (round2PendingMode == GameMode.sun) {
-        final s = _evaluateSunHand(hand);
-        return s >= 38
-            ? const BotBidDecision(action: BidAction.pass)
-            : const BotBidDecision(action: BidAction.sawa);
+        return const BotBidDecision(action: BidAction.pass);
       }
       if (round2PendingMode == GameMode.hakam && round2PendingTrump != null) {
-        final h = _evaluateHakamHand(hand, round2PendingTrump);
-        return h >= 36
-            ? const BotBidDecision(action: BidAction.pass)
-            : const BotBidDecision(action: BidAction.sawa);
+        return const BotBidDecision(action: BidAction.pass);
       }
     }
 

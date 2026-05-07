@@ -29,6 +29,13 @@ class MajlisTableBackground extends StatelessWidget {
               mapAssetPath,
               fit: BoxFit.fill,
               alignment: Alignment.center,
+              // Avoid Flutter’s default red/yellow error screen if an SVG fails.
+              // Parent gradient still shows; table remains usable.
+              errorBuilder: (_, __, ___) => const SizedBox.expand(),
+              placeholderBuilder: (_) => const ColoredBox(
+                color: Colors.transparent,
+                child: SizedBox.expand(),
+              ),
             ),
           ),
           const DecoratedBox(

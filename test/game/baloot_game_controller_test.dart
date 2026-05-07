@@ -6,16 +6,29 @@ import 'package:baloot_game/core/errors/game_exceptions.dart';
 import 'package:baloot_game/features/game/domain/managers/bidding_manager.dart';
 import 'package:baloot_game/features/game/domain/baloot_game_controller.dart';
 
+/// Matches app flow: [startNewGame] enters [GamePhase.dealing]; the UI then
+/// calls [BalootGameController.startNewRound] after a short delay.
+void _syncTestRound(BalootGameController ctrl) {
+  if (ctrl.gamePhase == GamePhase.dealing) {
+    ctrl.startNewRound();
+  }
+}
+
 void main() {
   group('Game lifecycle', () {
-    test('startNewGame initializes 4 players and enters bidding', () {
+    test('startNewGame initializes dealing with safe round/hand state', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['Alice', 'Bob', 'Charlie', 'Dave']);
 
-      expect(ctrl.gamePhase, GamePhase.bidding);
+      expect(ctrl.gamePhase, GamePhase.dealing);
+      expect(ctrl.getHand(0), isEmpty);
+      expect(ctrl.roundState.dealerIndex, inInclusiveRange(0, 3));
       expect(ctrl.gameScore.teamA, 0);
       expect(ctrl.gameScore.teamB, 0);
       expect(ctrl.isGameOver, false);
+
+      _syncTestRound(ctrl);
+      expect(ctrl.gamePhase, GamePhase.bidding);
     });
 
     test('requires exactly 4 players', () {
@@ -31,6 +44,7 @@ void main() {
     test('bidding Hakam → transitions to double window → then play', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       final bidder = ctrl.roundState.currentPlayerIndex;
 
@@ -63,6 +77,7 @@ void main() {
       for (var seed = 0; seed < 200; seed++) {
         final c = BalootGameController(random: Random(seed));
         c.startNewGame(['A', 'B', 'C', 'D']);
+        _syncTestRound(c);
         if (c.roundState.dealerIndex == 0) {
           ctrl = c;
           break;
@@ -83,6 +98,7 @@ void main() {
     test('all pass both rounds → new round with advanced dealer', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       final initialDealer = ctrl.roundState.dealerIndex;
 
@@ -108,6 +124,7 @@ void main() {
     test('deal, bid Hakam, play 8 tricks via bot, score correctly', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       // Bid Hakam
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
@@ -157,6 +174,7 @@ void main() {
     test('playing a card not in hand throws', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       // Bid Sun for simplicity
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
@@ -196,6 +214,7 @@ void main() {
     test('playing out of turn throws', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
       while (ctrl.gamePhase == GamePhase.bidding) {
@@ -223,6 +242,7 @@ void main() {
     test('calling Gahwa ends the game', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       // Bid Hakam
       ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.hakam);
@@ -258,6 +278,7 @@ void main() {
     test('getGameState returns all reconnection data', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       final state = ctrl.getGameState();
       expect(state['gamePhase'], isNotNull);
@@ -273,6 +294,7 @@ void main() {
     test('can play multiple rounds until game ends', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
+      _syncTestRound(ctrl);
 
       int roundCount = 0;
       const maxRounds = 50; // safety limit

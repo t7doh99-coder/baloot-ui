@@ -51,8 +51,16 @@ class DeclaredProject {
         return 50; // Both modes: 50 Abnat
       case ProjectType.hundred:
         return 100; // Both modes: 100 Abnat
+      case ProjectType.sixCardRun:
+        return 150; // 6 consecutive same suit
+      case ProjectType.sevenCardRun:
+        return 200; // 7 consecutive same suit
+      case ProjectType.eightCardRun:
+        return 250; // 8 consecutive same suit (all cards of one suit)
+      case ProjectType.fourJacks:
+        return 200; // 4 Jacks — special: double normal 4-of-a-kind
       case ProjectType.fourHundred:
-        return 200; // Sun only: 200 Abnat → round(200/10)*2 = 40 scoreboard pts
+        return 200; // Sun only: 4 Aces → 200 Abnat = 40 scoreboard pts
       case ProjectType.baloot:
         return 0; // Baloot is scoreboard pts, not Abnat
     }
@@ -71,6 +79,14 @@ class DeclaredProject {
         return mode == GameMode.sun ? 10 : 5;
       case ProjectType.hundred:
         return mode == GameMode.sun ? 20 : 10;
+      case ProjectType.sixCardRun:
+        return mode == GameMode.sun ? 30 : 15;
+      case ProjectType.sevenCardRun:
+        return mode == GameMode.sun ? 40 : 20;
+      case ProjectType.eightCardRun:
+        return mode == GameMode.sun ? 50 : 25;
+      case ProjectType.fourJacks:
+        return mode == GameMode.sun ? 40 : 20;
       case ProjectType.fourHundred:
         return 40; // Sun only
       case ProjectType.baloot:
@@ -86,9 +102,16 @@ class DeclaredProject {
       case ProjectType.fifty:
         return 2;
       case ProjectType.hundred:
+      case ProjectType.fourJacks:
         return 3;
-      case ProjectType.fourHundred:
+      case ProjectType.sixCardRun:
         return 4;
+      case ProjectType.sevenCardRun:
+        return 5;
+      case ProjectType.eightCardRun:
+        return 6;
+      case ProjectType.fourHundred:
+        return 7;
       case ProjectType.baloot:
         return 0; // Baloot doesn't participate in priority comparison
     }
@@ -103,7 +126,7 @@ class DeclaredProject {
   }
 }
 
-enum ProjectType { sera, fifty, hundred, fourHundred, baloot }
+enum ProjectType { sera, fifty, hundred, sixCardRun, sevenCardRun, eightCardRun, fourJacks, fourHundred, baloot }
 
 /// Complete state of a single round — everything needed for
 /// state recovery / reconnection (BALOOT_RULES.md Section 11).

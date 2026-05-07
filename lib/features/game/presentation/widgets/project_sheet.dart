@@ -291,22 +291,30 @@ class _ProjectTile extends StatelessWidget {
 
   static String _projectLabel(ProjectType type) {
     switch (type) {
-      case ProjectType.sera:        return 'Sera (3 in a row)';
-      case ProjectType.fifty:       return 'Fifty (4 in a row)';
-      case ProjectType.hundred:     return 'Hundred (5+)';
-      case ProjectType.fourHundred: return 'Four Hundred (4 Aces)';
-      case ProjectType.baloot:      return 'Baloot';
+      case ProjectType.sera:          return 'Sera (3 in a row)';
+      case ProjectType.fifty:         return 'Fifty (4 in a row)';
+      case ProjectType.hundred:       return 'Hundred (5 in a row)';
+      case ProjectType.sixCardRun:    return '150 (6 in a row)';
+      case ProjectType.sevenCardRun:  return '200 (7 in a row)';
+      case ProjectType.eightCardRun:  return '250 (8 in a row)';
+      case ProjectType.fourJacks:     return '4 Jacks';
+      case ProjectType.fourHundred:   return 'Four Hundred (4 Aces)';
+      case ProjectType.baloot:        return 'Baloot';
     }
   }
 
   static String _abnatValue(ProjectType type, GameMode? mode) {
     final isHakam = mode == GameMode.hakam;
     switch (type) {
-      case ProjectType.sera:        return isHakam ? '20' : '4';
-      case ProjectType.fifty:       return isHakam ? '50' : '10';
-      case ProjectType.hundred:     return '100';
-      case ProjectType.fourHundred: return '40';
-      case ProjectType.baloot:      return '2';
+      case ProjectType.sera:          return isHakam ? '20' : '4';
+      case ProjectType.fifty:         return isHakam ? '50' : '10';
+      case ProjectType.hundred:       return isHakam ? '100' : '20';
+      case ProjectType.sixCardRun:    return isHakam ? '150' : '30';
+      case ProjectType.sevenCardRun:  return isHakam ? '200' : '40';
+      case ProjectType.eightCardRun:  return isHakam ? '250' : '50';
+      case ProjectType.fourJacks:     return isHakam ? '200' : '40';
+      case ProjectType.fourHundred:   return '40';
+      case ProjectType.baloot:        return '2';
     }
   }
 }

@@ -76,12 +76,13 @@ class TurnManager {
 
   /// Play a card into the current trick.
   /// Returns a [TrickResult] when the trick is complete (4 cards), null otherwise.
-  TrickResult? playCard(int seatIndex, CardModel card) {
+  TrickResult? playCard(int seatIndex, CardModel card, {bool advanceTurn = true}) {
     _currentTrick.add(CardPlayModel(card: card, playerIndex: seatIndex));
 
     if (_currentTrick.length < 4) {
-      // Advance to next player (clockwise on screen = CCW at table = to the right)
-      _currentPlayerIndex = (_currentPlayerIndex + 1) % 4;
+      if (advanceTurn) {
+        this.advanceTurn();
+      }
       return null;
     }
 
@@ -95,6 +96,11 @@ class TurnManager {
     _currentPlayerIndex = result.winnerIndex;
 
     return result;
+  }
+
+  /// Manually advance the turn to the next player (used when advanceTurn was false in playCard).
+  void advanceTurn() {
+    _currentPlayerIndex = (_currentPlayerIndex + 1) % 4;
   }
 
   /// Evaluate which of the 4 played cards wins the trick.

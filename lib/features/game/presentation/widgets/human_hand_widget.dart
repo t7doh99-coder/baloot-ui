@@ -48,9 +48,9 @@ class HumanHandWidget extends StatelessWidget {
     final isHumanTurn = game.isHumanTurn;
     final selectedCard = game.selectedCard;
     final sawaReveal = game.isSawaRevealPlaying;
-    final openingProjects = game.isOpeningProjectWindow;
 
-    final validCards = isPlayPhase && isHumanTurn && !openingProjects
+    // During the project declaration in trick 1, the human can still play valid cards.
+    final validCards = isPlayPhase && isHumanTurn
         ? game.validCards
         : hand;
     final trumpSuit = game.roundState.activeMode == GameMode.hakam
@@ -72,11 +72,9 @@ class HumanHandWidget extends StatelessWidget {
             child: Align(
               alignment: Alignment.bottomCenter,
               child: IgnorePointer(
-                ignoring: sawaReveal || openingProjects,
+                ignoring: sawaReveal,
                 child: Opacity(
-                  opacity: sawaReveal
-                      ? 0.0
-                      : (openingProjects ? 0.85 : 1.0),
+                  opacity: sawaReveal ? 0.0 : 1.0,
                   child: Transform.translate(
                     offset: Offset(0, -4 * scale),
                     child: _DesignerHandFan(
@@ -86,13 +84,12 @@ class HumanHandWidget extends StatelessWidget {
                       validCards: validCards,
                       interactive: isPlayPhase &&
                           isHumanTurn &&
-                          !sawaReveal &&
-                          !openingProjects,
+                          !sawaReveal,
                       trumpSuit: trumpSuit,
                       // Reduce available width so rotated cards don't overhang screen edges
                       availableWidth: screenW - 40 * scale,
                       onCardTap: (card) {
-                        if (!isPlayPhase || !isHumanTurn || openingProjects) {
+                        if (!isPlayPhase || !isHumanTurn) {
                           return;
                         }
                         // Tapping ONLY selects (pops up) the card.
@@ -100,7 +97,7 @@ class HumanHandWidget extends StatelessWidget {
                         game.selectCard(card);
                       },
                       onSwipePlay: (card) {
-                        if (!isPlayPhase || !isHumanTurn || openingProjects) {
+                        if (!isPlayPhase || !isHumanTurn) {
                           return;
                         }
                         if (validCards.contains(card)) {
