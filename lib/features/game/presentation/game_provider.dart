@@ -58,6 +58,9 @@ class LastRoundResult {
   final int teamAProjectAbnat;
   final int teamBProjectAbnat;
 
+  /// Which team declared Baloot (K+Q of trump) this round — null if none.
+  final String? balootTeam;
+
   final bool isKhams;
   final bool isKabout;
   final String? reason; // 'khams', 'kabout', 'kabout_ace', 'normal'
@@ -80,6 +83,7 @@ class LastRoundResult {
     this.lastTrickBonusTeam,
     this.teamAProjectAbnat = 0,
     this.teamBProjectAbnat = 0,
+    this.balootTeam,
     required this.isKhams,
     required this.isKabout,
     this.reason,
@@ -137,8 +141,11 @@ class GameProvider extends ChangeNotifier {
   String? _qaidClaimResult; // 'correct' or 'false'
   String? _qaidClaimMessage;
 
-  // ── Project Reveal at Trick 2 ──
-  bool _showProjectReveal = false;
+  // ── Project Reveal at Trick 2 (Kammelna-style: per-turn, sequential) ──
+  /// Which single seat is currently revealing its project (null = none).
+  int? _projectRevealSeat;
+  /// Seats that have already revealed during this Trick 2.
+  final Set<int> _revealedProjectSeats = {};
 
   /// Kammelna-style Sawa: سوا badge + all hands face-up (~5s), then engine ends round.
   Timer? _sawaRevealTimer;
@@ -497,8 +504,11 @@ class GameProvider extends ChangeNotifier {
     _afterEngineAction();
   }
 
-  /// Whether to show the Trick 2 project reveal overlay.
-  bool get showProjectReveal => _showProjectReveal;
+  /// Whether to show a project reveal for a specific seat (Kammelna per-turn).
+  bool get showProjectReveal => _projectRevealSeat != null;
+
+  /// The specific seat currently revealing its project (null = none).
+  int? get projectRevealSeat => _projectRevealSeat;
 
   bool get isSawaRevealPlaying => _sawaRevealHands != null;
 
@@ -512,7 +522,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void dismissProjectReveal() {
-    _showProjectReveal = false;
+    _projectRevealSeat = null;
     notifyListeners();
   }
 
@@ -652,9 +662,15 @@ class GameProvider extends ChangeNotifier {
     _cancelTimers();
     try {
       final trickBefore = trickNumber;
+      final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
       _engine.playCard(0, card);
       _selectedCard = null;
       HapticFeedback.mediumImpact();
+      // Announce Baloot if the 2nd K-Q trump card just triggered auto-declaration
+      final balootAfter = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
+      if (balootAfter > balootBefore) {
+        _showBubble(0, 'Baloot');
+      }
       _afterEngineAction();
     } on PlayViolationException catch (e) {
       // Qaid (Violation) — show Kammelna-style banner
@@ -828,18 +844,12 @@ class GameProvider extends ChangeNotifier {
       final hasProjectsToReveal = winningTeamBestProjectsForReveal.isNotEmpty;
       
       if (isTransitionToTrick2 && hasProjectsToReveal) {
-        // Step 1: Wait for trick 1 to be fully swept off the table (~2 seconds)
+        // Kammelna-style: clear reveal state, then proceed to Trick 2.
+        // Each player's project will be revealed individually in _scheduleNextAction.
+        _revealedProjectSeats.clear();
+        _projectRevealSeat = null;
         _botTimer = Timer(const Duration(milliseconds: 2000), () {
-          // Step 2: Show the project fan reveal
-          _showProjectReveal = true;
-          notifyListeners();
-          
-          // Step 3: Keep it visible for 3 seconds, then start Trick 2
-          _botTimer = Timer(const Duration(milliseconds: 3000), () {
-            _showProjectReveal = false;
-            notifyListeners();
-            _scheduleNextAction();
-          });
+          _scheduleNextAction();
         });
       } else {
         // Normal trick completion pause (3.35s)
@@ -872,8 +882,6 @@ class GameProvider extends ChangeNotifier {
   void _scheduleNextAction() {
     if (_engine.isGameOver) return;
 
-
-
     _cancelTimers();
 
     final p = _engine.gamePhase;
@@ -901,11 +909,37 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-
-
     final currentSeat = roundState.currentPlayerIndex;
 
-    if (currentSeat == 0) {
+    // ── Kammelna-style: per-turn project reveal during Trick 2 ──
+    // Before a player plays their Trick 2 card, reveal their project first.
+    if (p == GamePhase.playing && trickNumber == 2) {
+      final seatProjects = winningTeamBestProjectsForReveal
+          .where((proj) => proj.playerIndex == currentSeat && proj.type != ProjectType.baloot)
+          .toList();
+
+      if (seatProjects.isNotEmpty && !_revealedProjectSeats.contains(currentSeat)) {
+        // This player has unrevealed projects — show fan + bubble first
+        _revealedProjectSeats.add(currentSeat);
+        _projectRevealSeat = currentSeat;
+        _announceProjects(currentSeat);
+        
+        // Hold the reveal for 2.5s, then clear and dispatch their actual turn
+        _botTimer = Timer(const Duration(milliseconds: 2500), () {
+          _projectRevealSeat = null;
+          notifyListeners();
+          _dispatchTurn(currentSeat);
+        });
+        return;
+      }
+    }
+
+    _dispatchTurn(currentSeat);
+  }
+
+  /// Dispatches the actual turn (human timer or bot delay) for [seat].
+  void _dispatchTurn(int seat) {
+    if (seat == 0) {
       // Human's turn — start timer
       _startTurnTimer();
     } else {
@@ -914,7 +948,7 @@ class GameProvider extends ChangeNotifier {
       _botTurnStartedAt = DateTime.now();
       _botTurnMaxMs = delay;
       _botTimer = Timer(Duration(milliseconds: delay), () {
-        _executeBotTurn(currentSeat);
+        _executeBotTurn(seat);
       });
     }
   }
@@ -932,16 +966,23 @@ class GameProvider extends ChangeNotifier {
       // In-play Sawa (hand reveal / end round): human only — bots never auto-claim.
 
       final declaredBefore = roundState.declaredProjects.length;
+      final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
       _engine.botPlay(seat);
       final declaredAfter = roundState.declaredProjects.length;
+      final balootAfter = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
 
       // Show speech bubble for bot actions
       if (phaseBefore == GamePhase.bidding) {
         _inferBotBidBubble(seat);
       } else if (phaseBefore == GamePhase.doubleWindow) {
         _inferBotDoubleBubble(seat);
-      } else if (phaseBefore == GamePhase.playing && declaredAfter > declaredBefore) {
-        _announceProjects(seat);
+      } else if (phaseBefore == GamePhase.playing) {
+        // Baloot declaration takes priority over regular project announcements
+        if (balootAfter > balootBefore) {
+          _showBubble(seat, 'Baloot');
+        } else if (declaredAfter > declaredBefore) {
+          _announceProjects(seat);
+        }
       }
 
       // Detect all-pass cancellation: dealer rotated means new deal was triggered
@@ -1029,7 +1070,7 @@ class GameProvider extends ChangeNotifier {
     _botTimer = null;
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
-    _showProjectReveal = false;
+    _projectRevealSeat = null;
   }
 
 
@@ -1098,6 +1139,14 @@ class GameProvider extends ChangeNotifier {
     final d = _engine.lastRoundScoreResult;
     if (d == null) return;
 
+    // Find if any team declared Baloot this round
+    final balootProject = rs.declaredProjects
+        .where((p) => p.type == ProjectType.baloot)
+        .firstOrNull;
+    final balootTeam = balootProject != null
+        ? (balootProject.playerIndex % 2 == 0 ? 'A' : 'B')
+        : null;
+
     _lastRoundResult = LastRoundResult(
       teamAPoints: d.teamAPoints,
       teamBPoints: d.teamBPoints,
@@ -1108,6 +1157,7 @@ class GameProvider extends ChangeNotifier {
       lastTrickBonusTeam: d.lastTrickBonusTeam,
       teamAProjectAbnat: d.teamAProjectAbnat,
       teamBProjectAbnat: d.teamBProjectAbnat,
+      balootTeam: balootTeam,
       isKhams: d.isKhams,
       isKabout: d.isKabout,
       reason: d.reason,

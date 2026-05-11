@@ -172,6 +172,7 @@ class GameL10n {
       '50' => 'خمسين',
       '100' => 'مية',
       '400' => 'أربعمية',
+      'Baloot' => 'بلوت',
       _ => _tryTranslateCombinedProjects(en),
     };
   }

@@ -290,12 +290,22 @@ class BiddingManager {
         break;
 
       case BidAction.ashkal:
-        // Jawaker/Kamelna/Pagat: Ashkal is NOT available in Round 2.
-        // Round 2 options are: Sun, Second Hakam, or Pass only.
-        throw InvalidBidException(
-          playerIndex: seatIndex,
-          message: 'Ashkal is not available in Round 2.',
+        // Kammelna explicitly allows Ashkal in Round 2 for Dealer and Sane
+        if (seatIndex != dealerIndex && seatIndex != _saneIndex) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message:
+                'Ashkal is only available to Dealer (seat $dealerIndex) or Sane (seat $_saneIndex).',
+          );
+        }
+        _result = BidResult(
+          mode: GameMode.sun,
+          buyerIndex: seatIndex,
+          isAshkal: true,
         );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+        break;
 
 
       case BidAction.pass:

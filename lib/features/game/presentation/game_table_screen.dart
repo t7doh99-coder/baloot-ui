@@ -81,7 +81,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
         : const <CardModel>[];
     final humanProjectCards = sawaBottom.isNotEmpty
         ? sawaBottom
-        : (game.showProjectReveal
+        : (game.showProjectReveal && game.projectRevealSeat == 0
             ? game.winningTeamBestProjectsForReveal
                 .where((p) => p.playerIndex == 0)
                 .expand((p) => p.cards)
@@ -645,13 +645,18 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       ];
     }
 
-    // Round 2 opening bids — BALOOT_RULES §4.3 (order matches Kammelna: صن · حكم ثاني · ولا)
+    // Round 2 opening bids
+    final isDealer = widget.game.roundState.dealerIndex == _humanSeat;
+    final isSane = (widget.game.roundState.dealerIndex + 3) % 4 == _humanSeat;
+
     return [
       _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
       _GameBtn(
         label: loc.secondHakam,
         onTap: () => setState(() => _activePicker = _DashboardPicker.suit),
       ),
+      if (isDealer || isSane)
+        _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
       _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
     ];
   }

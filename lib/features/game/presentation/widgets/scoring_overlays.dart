@@ -29,6 +29,7 @@ class _RoundScoreStrings {
   String get tricks => ar ? 'الأكلات' : 'Tricks';
   String get ground => ar ? 'الأرض' : 'Ground';
   String get projects => ar ? 'المشاريع' : 'Projects';
+  String get baloot => ar ? 'بلوت (ملك + بنت الحكم)' : 'Baloot (K+Q trump)';
   /// Trick card points only (threshold 65/81); excludes project lines.
   String get trickPoints => ar ? 'أبناط الورق (الأكل)' : 'Trick pts (cards)';
   String get points => ar ? 'الأبناط' : 'Points';
@@ -342,6 +343,14 @@ class RoundScoreOverlay extends StatelessWidget {
                                     r.teamAProjectAbnat,
                                     taj,
                                   ),
+                                  // Baloot row: only shown when K+Q trump was declared
+                                  if (r.balootTeam != null)
+                                    _ScoreTableRow.baloot(
+                                      s.baloot,
+                                      themPts: r.balootTeam == 'B' ? 2 : 0,
+                                      usPts: r.balootTeam == 'A' ? 2 : 0,
+                                      taj: taj,
+                                    ),
                                   if (r.isKhams) ...[
                                     const SizedBox(height: 4),
                                     Text(
@@ -553,6 +562,28 @@ class _ScoreTableRow extends StatelessWidget {
       themText: them > 0 ? '$them' : '—',
       usText: us > 0 ? '$us' : '—',
       taj: taj,
+    );
+  }
+
+  /// Special Baloot row: gold label, +2 for declaring team, — for the other.
+  /// [themPts] and [usPts] should each be either 0 or 2.
+  factory _ScoreTableRow.baloot(
+    String label, {
+    required int themPts,
+    required int usPts,
+    required TextStyle Function({
+      double size,
+      FontWeight w,
+      Color? color,
+    }) taj,
+  }) {
+    return _ScoreTableRow._(
+      label: '👑 $label',
+      themText: themPts > 0 ? '+$themPts' : '—',
+      usText: usPts > 0 ? '+$usPts' : '—',
+      taj: taj,
+      emphasize: false,
+      isFinal: false,
     );
   }
 

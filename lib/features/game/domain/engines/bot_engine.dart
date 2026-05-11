@@ -79,7 +79,8 @@ class BotEngine {
       return const BotBidDecision(action: BidAction.pass);
     }
     final sunScore = _evaluateSunHand(hand);
-    if (sunScore >= 48) {
+    // Overriding an opponent's Hakam with Sun requires a strong hand (top 5-10% of Sun hands)
+    if (sunScore >= 24) {
       return const BotBidDecision(action: BidAction.sun);
     }
     final vsTheirTrump = _evaluateHakamHand(hand, buyerCard.suit);
@@ -120,7 +121,8 @@ class BotEngine {
 
     // Evaluate Sun strength
     final sunScore = _evaluateSunHand(hand);
-    if (sunScore >= 40) {
+    // In Round 2, bots should bid Sun if they have a decent hand (around 90th percentile)
+    if (sunScore >= 18) {
       return const BotBidDecision(action: BidAction.sun);
     }
 
@@ -128,7 +130,7 @@ class BotEngine {
     final bestSuit = _findStrongestTrumpSuit(hand, exclude: buyerCard.suit);
     if (bestSuit != null) {
       final hakamScore = _evaluateHakamHand(hand, bestSuit);
-      if (hakamScore >= 35) {
+      if (hakamScore >= 30) {
         return BotBidDecision(
           action: BidAction.secondHakam,
           secondHakamSuit: bestSuit,
@@ -136,7 +138,15 @@ class BotEngine {
       }
     }
 
-    // Ashkal is Round 1 only (BALOOT_RULES.md §4.6) — never in Round 2.
+    // Ashkal: allow in Round 2 for Dealer and Sane
+    final saneIndex = (dealerIndex + 3) % 4;
+    if (seatIndex == dealerIndex || seatIndex == saneIndex) {
+      // Ashkal means Sun, so they need a decent Sun score.
+      // Slightly lower threshold than direct Sun, hoping partner benefits from the card.
+      if (sunScore >= 16) {
+        return const BotBidDecision(action: BidAction.ashkal);
+      }
+    }
 
     return const BotBidDecision(action: BidAction.pass);
   }

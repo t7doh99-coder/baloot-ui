@@ -60,7 +60,7 @@ class PlayerSeatWidget extends StatelessWidget {
 
     final projectCards = sawaRevealHere
         ? sawaCards
-        : (game.showProjectReveal
+        : (game.showProjectReveal && game.projectRevealSeat == seat
             ? game.winningTeamBestProjectsForReveal
                 .where((p) => p.playerIndex == seat)
                 .expand((p) => p.cards)
