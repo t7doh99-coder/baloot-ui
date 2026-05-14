@@ -242,11 +242,22 @@ class BiddingManager {
     switch (action) {
       case BidAction.sun:
         if (_round2PendingBuyer != null) {
-          throw InvalidBidException(
-            playerIndex: seatIndex,
-            message:
-                'Round 2: pass or call Sawa on the current bid — cannot bid Sun again.',
-          );
+          if (_round2PendingMode == GameMode.sun) {
+            throw InvalidBidException(
+              playerIndex: seatIndex,
+              message: 'Round 2: Sun is already bid — cannot bid Sun again.',
+            );
+          }
+          // Overriding a pending Second Hakam!
+          _round2PendingBuyer = seatIndex;
+          _round2PendingMode = GameMode.sun;
+          _round2PendingTrump = null;
+          _passCount = 0;
+          _advanceBidder();
+          while (_currentBidder == _round2PendingBuyer) {
+            _advanceBidder();
+          }
+          break;
         }
         _round2PendingBuyer = seatIndex;
         _round2PendingMode = GameMode.sun;

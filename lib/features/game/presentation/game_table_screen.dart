@@ -620,7 +620,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
       // Kammelna-style row: صن · حكم · أشكال · سوى(defenders vs Hakam) · بس
       return [
-        _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(label: gp.hasActiveHakamBid ? loc.qabalk : loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
         if (!gp.hasActiveHakamBid)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (!gp.hasActiveHakamBid && canAshkal)
@@ -639,8 +639,10 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
     // Round 2 — Pass or Sawa (defenders lock the pending bid) — Kammelna/Jawaker.
     if (widget.game.hasRound2PendingBid) {
+      final isHakam = widget.game.activeRound2PendingMode == GameMode.hakam;
       return [
-
+        if (isHakam)
+          _GameBtn(label: loc.qabalk, onTap: () => gp.humanBid(BidAction.sun)),
         _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }

@@ -455,23 +455,60 @@ class _SeatPlayerInfoBox extends StatelessWidget {
     }
 
     // ── Kamelna-style "Drawer" Bid Badge ─────────────
+    // Shows DURING bidding (persistent) and DURING play.
     Widget? bidBadge;
+
+    // ── During BIDDING: persistent badge on whoever placed a bid ──
+    if (!showSawaDrawer && game.phase == GamePhase.bidding) {
+      final bp = game.biddingPhase;
+      String? badgeLabel;
+
+      if (bp == BiddingPhase.round1 || bp == BiddingPhase.hakamConfirmation) {
+        if (seatIndex == game.activeRound1HakamSeat) {
+          badgeLabel = loc.hakam;
+        }
+      } else if (bp == BiddingPhase.round2) {
+        if (seatIndex == game.activeRound2PendingBuyerSeat) {
+          final pendingMode = game.activeRound2PendingMode;
+          badgeLabel = pendingMode == GameMode.sun ? loc.sun : loc.hakam;
+        }
+      }
+
+      if (badgeLabel != null) {
+        bidBadge = _KamelnaBidBadge(
+          label: badgeLabel,
+          suit: null,
+          backgroundColor: const Color(0xFF1B5E20),
+          borderColor: const Color(0xFF66BB6A),
+          isHighlighted: true,
+          textColorOverride: Colors.white,
+        );
+      }
+    }
+
+    // ── During PLAY / DOUBLE / SCORING: badge on the buyer ──
     if (!showSawaDrawer &&
+        bidBadge == null &&
         seatIndex == game.buyerIndex &&
-        modeText.isNotEmpty) {
-      final label = game.gameModeLabel == '—' ? modeText : game.gameModeLabel;
-      final suit = game.trumpSuit; 
-      
-      // Determine theme colors based on parent box
-      final bgColor = highlighted ? const Color(0xFF70120E) : const Color(0xFF2F1A15);
-      final borderColor = highlighted ? const Color(0xE0E4C267) : const Color(0x66FFFFFF);
-      
+        (game.phase == GamePhase.playing ||
+         game.phase == GamePhase.doubleWindow ||
+         game.phase == GamePhase.scoring)) {
+      final String label;
+      if (game.roundState.isAshkal) {
+        label = loc.ashkal;
+      } else if (game.roundState.activeMode == GameMode.sun) {
+        label = loc.sun;
+      } else {
+        label = loc.hakam;
+      }
+
       bidBadge = _KamelnaBidBadge(
         label: label,
-        suit: suit,
-        backgroundColor: bgColor,
-        borderColor: borderColor,
-        isHighlighted: highlighted,
+        suit: null,
+        backgroundColor: const Color(0xFF1B5E20),
+        borderColor: const Color(0xFF66BB6A),
+        isHighlighted: true,
+        textColorOverride: Colors.white,
       );
     }
 
@@ -480,6 +517,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       dealerBadge = _KamelnaBidBadge(
         label: loc.dealer,
         suit: null,
+        icon: Icons.style, // Cards icon
         backgroundColor: const Color(0xFFD4AF37).withValues(alpha: 0.15),
         borderColor: const Color(0xFFD4AF37),
         isHighlighted: true,
@@ -572,6 +610,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
 class _KamelnaBidBadge extends StatelessWidget {
   final String label;
   final Suit? suit;
+  final IconData? icon;
   final Color backgroundColor;
   final Color borderColor;
   final bool isHighlighted;
@@ -580,6 +619,7 @@ class _KamelnaBidBadge extends StatelessWidget {
   const _KamelnaBidBadge({
     required this.label,
     this.suit,
+    this.icon,
     required this.backgroundColor,
     required this.borderColor,
     this.isHighlighted = false,
@@ -589,8 +629,8 @@ class _KamelnaBidBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 68, // Narrower to look tucked inside the box above it
-      padding: const EdgeInsets.only(top: 5, bottom: 2), // Added more top space inside the badge
+      width: 68,
+      padding: const EdgeInsets.only(top: 5, bottom: 2, left: 2, right: 2),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: const BorderRadius.only(
@@ -601,10 +641,15 @@ class _KamelnaBidBadge extends StatelessWidget {
           left: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
           right: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
           bottom: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
-          top: BorderSide.none, // Removed top border to prevent bleed-through
+          top: BorderSide.none,
         ),
-
         boxShadow: [
+          if (isHighlighted)
+            BoxShadow(
+              color: borderColor.withValues(alpha: 0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 4,
@@ -616,24 +661,33 @@ class _KamelnaBidBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.85)),
+              size: 10,
+            ),
+            const SizedBox(width: 3),
+          ],
           if (suit != null) ...[
             Text(
               _suitSymbol(suit!),
               style: TextStyle(
                 color: (suit == Suit.hearts || suit == Suit.diamonds)
-                    ? const Color(0xFFE53935)
+                    ? const Color(0xFFEF5350)
                     : Colors.white,
                 fontSize: 10,
+                fontWeight: FontWeight.bold,
                 height: 1,
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
           ],
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.8)),
-              fontSize: 7.5,
+              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.85)),
+              fontSize: 9,
               fontWeight: FontWeight.w900,
               fontFamily: 'Tajawal',
               letterSpacing: context.watch<LocaleProvider>().isArabic ? 0 : 0.4,

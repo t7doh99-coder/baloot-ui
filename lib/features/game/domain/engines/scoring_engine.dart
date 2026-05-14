@@ -288,8 +288,19 @@ class ScoringEngine {
       }
     }
 
-    if (balootTeam == 'A') aPts += balootPoints;
-    if (balootTeam == 'B') bPts += balootPoints;
+    // Baloot: When buyer fails (Defender Kabout), Baloot goes to the winning
+    // defender team — NOT the declaring team. (Kammelna/Jawaker/pagat.com)
+    if (balootPoints > 0 && balootTeam != null) {
+      if (buyerFailed) {
+        // Buyer lost → defender (winner) takes Baloot
+        if (winnerTeam == 'A') aPts += balootPoints;
+        if (winnerTeam == 'B') bPts += balootPoints;
+      } else {
+        // Buyer won Kabout → Baloot stays with declaring team
+        if (balootTeam == 'A') aPts += balootPoints;
+        if (balootTeam == 'B') bPts += balootPoints;
+      }
+    }
 
     return RoundScoreResult(
       teamAPoints: aPts,
@@ -323,10 +334,10 @@ class ScoringEngine {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
 
-    // Project stealing (BALOOT_RULES.md §14.4 — Kammelna):
+    // Project stealing (Kammelna/Jawaker/pagat.com):
     // Defenders get Khams base + ALL declared project scoreboard points
     // (both their own projects AND the buyer's stolen projects).
-    // Baloot is handled separately and is not stolen.
+    // Baloot is ALSO stolen — all points go to defender. Buyer gets ZERO.
     int aBonus = 0, bBonus = 0;
     final multiplier = _projectMultiplier(doubleStatus);
     
@@ -339,8 +350,15 @@ class ScoringEngine {
       bBonus = totalProjectSb * multiplier;
     }
 
-    if (balootTeam == 'A') aBonus += balootPoints;
-    if (balootTeam == 'B') bBonus += balootPoints;
+    // Baloot: When buyer loses (Khams), Baloot 2 pts go to the DEFENDER,
+    // not the declaring team. (Kammelna/Jawaker/pagat.com confirm this.)
+    if (balootPoints > 0) {
+      if (defenderTeam == 'A') {
+        aBonus += balootPoints;
+      } else {
+        bBonus += balootPoints;
+      }
+    }
 
     int aTotal = aBonus;
     int bTotal = bBonus;
@@ -538,8 +556,14 @@ class ScoringEngine {
       bPts += teamBProjectScoreboard * pm;
     }
 
-    if (balootTeam == 'A') aPts += balootPoints;
-    if (balootTeam == 'B') bPts += balootPoints;
+    // Baloot: In a violation, all points (including Baloot) go to the winner.
+    if (balootPoints > 0 && balootTeam != null) {
+      if (winningTeam == 'A') {
+        aPts += balootPoints;
+      } else {
+        bPts += balootPoints;
+      }
+    }
 
     return RoundScoreResult(
       teamAPoints: aPts,

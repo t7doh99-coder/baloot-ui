@@ -870,8 +870,19 @@ class BalootGameController implements IBalootController {
     // Determine double caller team
     String? doubleCallerTeam;
     if (_roundState.doubleStatus != DoubleStatus.none) {
-      // Defending team = non-buyer team
-      doubleCallerTeam = buyerTeam == 'A' ? 'B' : 'A';
+      final defenderTeam = buyerTeam == 'A' ? 'B' : 'A';
+      switch (_roundState.doubleStatus) {
+        case DoubleStatus.doubled:
+        case DoubleStatus.four:
+          doubleCallerTeam = defenderTeam; // Defender calls these
+          break;
+        case DoubleStatus.tripled:
+        case DoubleStatus.gahwa:
+          doubleCallerTeam = buyerTeam; // Buyer calls these
+          break;
+        case DoubleStatus.none:
+          break;
+      }
     }
 
     final buyerCardIsAce = _roundState.buyerCard?.rank == Rank.ace;

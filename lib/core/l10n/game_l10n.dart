@@ -30,6 +30,7 @@ class GameL10n {
   /// Round 2: choose a new trump (not buyer-card suit). Same action as suit-picker Hakam.
   String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
   String get sun => _ar ? 'صن' : 'Sun';
+  String get qabalk => _ar ? 'قبلك' : 'Qabalk';
   String get sawa => _ar ? 'سوى' : 'Sawa';
   /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
   String get sawaBidShort => sawa;
@@ -62,7 +63,7 @@ class GameL10n {
   String get emotes => _ar ? 'إيموشن' : 'Emotes';
 
   // ── Majlis player bar ──
-  String get dealer => _ar ? 'موزع' : 'Dealer';
+  String get dealer => _ar ? 'الموزع' : 'Dealer';
   String get buyer => _ar ? 'مشتري' : 'Buyer';
 
   // ── Project & Game Log Overlays ──
@@ -153,15 +154,22 @@ class GameL10n {
 
   /// Localize speech-bubble text produced by [GameProvider] (English tokens).
   String localizeBubble(String en) {
-    if (!_ar) return en;
+    if (!_ar) {
+      if (en == 'PassR2') return 'Pass';
+      return en;
+    }
     if (en.startsWith('Hakam ') && en.length > 6) {
       return 'حكم ${en.substring(6)}';
     }
     return switch (en) {
       'Pass' => 'بس',
+      'PassR2' => 'ولا',
       'Hakam' => 'حكم',
       'Sun' => 'صن',
+      'Qabalk' => 'قبلك',
       'Sawa' => 'سوى',
+      'Awal' => 'أول',
+      'Thani' => 'ثاني',
       'Ashkal' => 'أشكل',
       'Double' => 'دبل',
       'Triple' => 'تربل',

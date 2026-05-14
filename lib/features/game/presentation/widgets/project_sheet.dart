@@ -312,7 +312,7 @@ class _ProjectTile extends StatelessWidget {
       case ProjectType.sixCardRun:    return isHakam ? '150' : '30';
       case ProjectType.sevenCardRun:  return isHakam ? '200' : '40';
       case ProjectType.eightCardRun:  return isHakam ? '250' : '50';
-      case ProjectType.fourJacks:     return isHakam ? '200' : '40';
+      case ProjectType.fourJacks:     return isHakam ? '100' : '10';
       case ProjectType.fourHundred:   return '40';
       case ProjectType.baloot:        return '2';
     }

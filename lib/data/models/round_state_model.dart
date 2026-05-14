@@ -58,7 +58,7 @@ class DeclaredProject {
       case ProjectType.eightCardRun:
         return 250; // 8 consecutive same suit (all cards of one suit)
       case ProjectType.fourJacks:
-        return 200; // 4 Jacks — special: double normal 4-of-a-kind
+        return 100; // 4 Jacks — same as all 4-of-a-kind per Kammelna
       case ProjectType.fourHundred:
         return 200; // Sun only: 4 Aces → 200 Abnat = 40 scoreboard pts
       case ProjectType.baloot:
@@ -86,7 +86,7 @@ class DeclaredProject {
       case ProjectType.eightCardRun:
         return mode == GameMode.sun ? 50 : 25;
       case ProjectType.fourJacks:
-        return mode == GameMode.sun ? 40 : 20;
+        return mode == GameMode.sun ? 20 : 10;
       case ProjectType.fourHundred:
         return 40; // Sun only
       case ProjectType.baloot:

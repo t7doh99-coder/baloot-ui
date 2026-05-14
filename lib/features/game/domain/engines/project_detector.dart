@@ -43,7 +43,7 @@ class DetectedProject {
 /// Projects:
 /// - Sera: 3 consecutive same suit
 /// - 50: 4 consecutive same suit
-/// - 100: 5 consecutive same suit, OR 4×(10/J/Q/K) same suit, OR 4 Aces (Hakam only)
+/// - 100: 5 consecutive same suit, OR 4-of-a-kind (10/J/Q/K) (Hakam only), OR 4 Aces (Hakam only)
 /// - 400: 4 Aces (Sun only)
 /// - Baloot: K+Q of trump (Hakam only, auto-detected)
 class ProjectDetector {
@@ -165,23 +165,14 @@ class ProjectDetector {
             highestStrength: highest,
           ));
         } else if (run.length >= 4) {
-          // 50 (4-consecutive)
+          // 50 (4-consecutive) — ALL 4-card sequences are 50 per Kammelna
           final best4 = run.length > 4 ? run.sublist(run.length - 4) : run;
           final highest = best4.last.getStrength(mode: GameMode.sun);
-          // 10–J–Q–K same suit = 100 (BALOOT_RULES §6), not 50
-          if (_isHundredFourCourtRun(best4)) {
-            projects.add(DetectedProject(
-              type: ProjectType.hundred,
-              cards: best4,
-              highestStrength: highest,
-            ));
-          } else {
-            projects.add(DetectedProject(
-              type: ProjectType.fifty,
-              cards: best4,
-              highestStrength: highest,
-            ));
-          }
+          projects.add(DetectedProject(
+            type: ProjectType.fifty,
+            cards: best4,
+            highestStrength: highest,
+          ));
         } else if (run.length >= 3) {
           // Sera (3-consecutive)
           final highest = run.last.getStrength(mode: GameMode.sun);
@@ -220,21 +211,11 @@ class ProjectDetector {
     return runs;
   }
 
-  /// True if [run] is exactly 10, J, Q, K of one suit (consecutive run of four).
-  bool _isHundredFourCourtRun(List<CardModel> run) {
-    if (run.length != 4) return false;
-    final ranks = run.map((c) => c.rank).toSet();
-    return ranks.length == 4 &&
-        ranks.contains(Rank.ten) &&
-        ranks.contains(Rank.jack) &&
-        ranks.contains(Rank.queen) &&
-        ranks.contains(Rank.king);
-  }
 
   /// Detect 4-of-a-kind projects:
-  /// - 4 Aces in Sun → 400 (Jawaker: Sun only)
+  /// - 4 Aces in Sun → 400 (Kammelna: Sun only)
   /// - 4 Aces in Hakam → 100
-  /// - 4×(10/J/Q/K) same rank → 100 (Hakam only per Jawaker)
+  /// - 4×(10/J/Q/K) same rank → 100 (Hakam ONLY — not valid in Sun per Kammelna)
   List<DetectedProject> _detectFourOfAKind(List<CardModel> hand, GameMode mode) {
     final projects = <DetectedProject>[];
 
@@ -242,7 +223,7 @@ class ProjectDetector {
     final aces = hand.where((c) => c.rank == Rank.ace).toList();
     if (aces.length == 4) {
       if (mode == GameMode.sun) {
-        // 4 Aces in Sun = 400 (Jawaker: Arba'miya)
+        // 4 Aces in Sun = 400 (Kammelna: Arba'miya)
         projects.add(DetectedProject(
           type: ProjectType.fourHundred,
           cards: aces,
@@ -258,19 +239,23 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/Q/K) same rank → 100, 4×J → 200 (Kammelna document §2.2)
-    final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
-    for (final rank in courtRanks) {
-      final sameRankCards = hand.where((c) => c.rank == rank).toList();
-      if (sameRankCards.length == 4) {
-        final highest = sameRankCards
-            .map((c) => c.getStrength(mode: GameMode.sun))
-            .reduce((a, b) => a > b ? a : b);
-        projects.add(DetectedProject(
-          type: rank == Rank.jack ? ProjectType.fourJacks : ProjectType.hundred,
-          cards: sameRankCards,
-          highestStrength: highest,
-        ));
+    // 4×(10/J/Q/K) same rank → 100 (Hakam ONLY per Kammelna)
+    // In Sun, 4-of-a-kind (non-Ace) is NOT a valid project.
+    if (mode == GameMode.hakam) {
+      final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
+      for (final rank in courtRanks) {
+        final sameRankCards = hand.where((c) => c.rank == rank).toList();
+        if (sameRankCards.length == 4) {
+          final highest = sameRankCards
+              .map((c) => c.getStrength(mode: GameMode.sun))
+              .reduce((a, b) => a > b ? a : b);
+          // All 4-of-a-kind = 100 per Kammelna (Jacks NOT special)
+          projects.add(DetectedProject(
+            type: ProjectType.hundred,
+            cards: sameRankCards,
+            highestStrength: highest,
+          ));
+        }
       }
     }
 

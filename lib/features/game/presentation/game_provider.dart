@@ -130,6 +130,8 @@ class GameProvider extends ChangeNotifier {
   // ── Phase tracking for transition detection ──
   GamePhase _prevPhase = GamePhase.notStarted;
   int _prevCompletedTricks = 0;
+  int _prevDealerIndex = -1;
+  BiddingPhase _prevBiddingPhase = BiddingPhase.round1;
 
   bool _singleRoundMode = false;
 
@@ -545,6 +547,8 @@ class GameProvider extends ChangeNotifier {
     _engine.startNewGame(_playerNames);
     _prevPhase = _engine.gamePhase;
     _prevCompletedTricks = 0;
+    _prevDealerIndex = _engine.roundState.dealerIndex;
+    _prevBiddingPhase = _engine.roundState.biddingPhase;
     _lastRoundResult = null;
     _selectedCard = null;
     _roundJustEnded = false;
@@ -588,16 +592,10 @@ class GameProvider extends ChangeNotifier {
     if (!isHumanTurn || phase != GamePhase.bidding) return;
     _cancelTimers();
     try {
-      final dealerBefore = roundState.dealerIndex;
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
       _showBubble(0, _bidActionLabel(action, secondHakamSuit));
       HapticFeedback.lightImpact();
-      // Detect all-pass cancellation: dealer rotated means a new deal started
-      if (phase == GamePhase.bidding && roundState.dealerIndex != dealerBefore) {
-        _showCancelledOverlay(roundState.dealerIndex);
-      } else {
-        _afterEngineAction();
-      }
+      _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] humanBid error: $e');
     }
@@ -790,14 +788,39 @@ class GameProvider extends ChangeNotifier {
     _syncLastTrickMini();
 
     final newPhase = _engine.gamePhase;
+    final newDealerIndex = _engine.roundState.dealerIndex;
+    final newBiddingPhase = newPhase == GamePhase.bidding ? _engine.roundState.biddingPhase : BiddingPhase.round1;
+
+    // Detect all-pass cancellation: phase stays bidding but dealer rotates
+    if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.bidding && newDealerIndex != _prevDealerIndex) {
+      _prevDealerIndex = newDealerIndex;
+      _prevBiddingPhase = newBiddingPhase;
+      _showCancelledOverlay(newDealerIndex);
+      return;
+    }
+    
+    // Detect Thani (transition to Round 2)
+    if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.bidding && _prevBiddingPhase == BiddingPhase.round1 && newBiddingPhase == BiddingPhase.round2) {
+      _showBubble(newDealerIndex, 'Thani');
+      HapticFeedback.lightImpact();
+    }
+    
+    _prevDealerIndex = newDealerIndex;
+    _prevBiddingPhase = newBiddingPhase;
 
     if (newPhase == GamePhase.dealing) {
 
     }
 
-    // Detect "round just completed" by watching playing → dealing|gameOver.
+    // Clean transition: When bidding completes and we lock in the mode,
+    // immediately clear all lingering bidding dialogue (Pass/Bas/Sann).
+    if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.doubleWindow) {
+      _clearAllBubbles();
+    }
+
+    // Detect "round just completed" by watching playing → scoring.
     final roundJustScored = _prevPhase == GamePhase.playing &&
-        (newPhase == GamePhase.dealing || newPhase == GamePhase.gameOver);
+        (newPhase == GamePhase.scoring || newPhase == GamePhase.gameOver);
 
     final newCompletedTricks = completedTricksCount;
     final trickJustCompleted =
@@ -824,6 +847,14 @@ class GameProvider extends ChangeNotifier {
           if (!_engine.isGameOver && _engine.gamePhase == GamePhase.dealing) {
             _engine.startNewRound();
             _prevPhase = _engine.gamePhase;
+            _prevBiddingPhase = _engine.roundState.biddingPhase;
+            // Delay "Awal" until dealing animation finishes
+            Timer(const Duration(milliseconds: 1500), () {
+              if (_engine.gamePhase == GamePhase.bidding) {
+                _showBubble(_engine.roundState.dealerIndex, 'Awal');
+                notifyListeners();
+              }
+            });
           }
           notifyListeners();
           _scheduleNextAction();
@@ -874,6 +905,12 @@ class GameProvider extends ChangeNotifier {
     _botTimer = Timer(const Duration(milliseconds: 2200), () {
       _roundCancelled = false;
       _cancelledNewDealerName = '';
+      Timer(const Duration(milliseconds: 1500), () {
+        if (_engine.gamePhase == GamePhase.bidding) {
+          _showBubble(newDealerSeat, 'Awal');
+          notifyListeners();
+        }
+      });
       notifyListeners();
       _scheduleNextAction();
     });
@@ -891,6 +928,13 @@ class GameProvider extends ChangeNotifier {
       _botTimer = Timer(const Duration(milliseconds: 900), () {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
+        _prevBiddingPhase = _engine.roundState.biddingPhase;
+        Timer(const Duration(milliseconds: 1500), () {
+          if (_engine.gamePhase == GamePhase.bidding) {
+            _showBubble(_engine.roundState.dealerIndex, 'Awal');
+            notifyListeners();
+          }
+        });
         notifyListeners();
         _scheduleNextAction();
       });
@@ -898,14 +942,8 @@ class GameProvider extends ChangeNotifier {
     }
 
     if (p == GamePhase.scoring) {
-      // Safety guard — engine shouldn't stay here but handle just in case.
-      _botTimer = Timer(const Duration(milliseconds: 3000), () {
-        _lastRoundResult = null;
-        _engine.startNewRound();
-        _prevPhase = _engine.gamePhase;
-        notifyListeners();
-        _scheduleNextAction();
-      });
+      // Scoreboard is displayed via roundJustScored logic. We just wait here.
+      // The roundJustScored timer will dismiss it and call startNewRound.
       return;
     }
 
@@ -1018,8 +1056,26 @@ class GameProvider extends ChangeNotifier {
     } else if (bp == BiddingPhase.hakamConfirmation) {
       // Third pass just entered confirmation; this seat was the passer
       _showBubble(seat, 'Pass');
+    } else if (bp == BiddingPhase.round1) {
+      // Round 1: check if this bot just bid Hakam (it's now the active hakam bidder)
+      if (_engine.activeRound1HakamSeat == seat) {
+        _showBubble(seat, 'Hakam');
+      } else {
+        _showBubble(seat, 'Pass');
+      }
+    } else if (bp == BiddingPhase.round2) {
+      // Round 2: check if this bot just placed a pending bid
+      if (_engine.activeRound2PendingBuyerSeat == seat) {
+        final pendingMode = _engine.activeRound2PendingMode;
+        if (pendingMode == GameMode.sun) {
+          _showBubble(seat, 'Sun');
+        } else {
+          _showBubble(seat, 'Hakam');
+        }
+      } else {
+        _showBubble(seat, 'PassR2');
+      }
     } else {
-      // Bidding continues — bot either passed or bid Hakam in R1
       _showBubble(seat, 'Pass');
     }
   }
@@ -1029,9 +1085,9 @@ class GameProvider extends ChangeNotifier {
     final ds = _engine.roundState.doubleStatus;
     if (ds != DoubleStatus.none) {
       _showBubble(seat, _doubleLabel(ds));
-    } else {
-      _showBubble(seat, 'Pass');
     }
+    // Note: If the bot passes (DoubleStatus.none), we do NOT show a "Pass" bubble.
+    // This ensures a clean, silent transition to gameplay without lingering "Bas" bubbles.
   }
 
   void _startTurnTimer() {
@@ -1095,6 +1151,15 @@ class GameProvider extends ChangeNotifier {
       _bubbleTimers.remove(seat);
       notifyListeners();
     });
+  }
+
+  void _clearAllBubbles() {
+    for (final timer in _bubbleTimers.values) {
+      timer.cancel();
+    }
+    _bubbleTimers.clear();
+    _bubbles.clear();
+    notifyListeners();
   }
 
   void _announceProjects(int seatIndex) {
@@ -1177,10 +1242,22 @@ class GameProvider extends ChangeNotifier {
   String _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
-      case BidAction.sun:          return 'Sun';
+      case BidAction.sun:
+        final isConfirmation = _engine.roundState.biddingPhase == BiddingPhase.hakamConfirmation;
+        final inR1Hakam = _engine.hasActiveHakamBid;
+        final inR2Hakam = _engine.hasRound2PendingBid && _engine.activeRound2PendingMode == GameMode.hakam;
+        
+        if (!isConfirmation && (inR1Hakam || inR2Hakam)) {
+          return 'Qabalk';
+        }
+        return 'Sun';
       case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
       case BidAction.ashkal:       return 'Ashkal';
-      case BidAction.pass:         return 'Pass';
+      case BidAction.pass:
+        if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
+          return 'PassR2';
+        }
+        return 'Pass';
       case BidAction.confirmHakam: return 'Hakam';
     }
   }
