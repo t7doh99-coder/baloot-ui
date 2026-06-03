@@ -21,6 +21,8 @@ class RoundScoreResult {
   final GameMode mode;
   final String buyerTeam;
   final DoubleStatus doubleStatus;
+  final List<DeclaredProject> teamAProjectsList;
+  final List<DeclaredProject> teamBProjectsList;
 
   const RoundScoreResult({
     required this.teamAPoints,
@@ -39,6 +41,8 @@ class RoundScoreResult {
     this.mode = GameMode.hakam,
     this.buyerTeam = 'A',
     this.doubleStatus = DoubleStatus.none,
+    this.teamAProjectsList = const [],
+    this.teamBProjectsList = const [],
   });
 }
 
@@ -104,6 +108,8 @@ class ScoringEngine {
     bool buyerCardIsAce = false,
     String? projectWinningTeam,
     String? doubleCallerTeam,
+    List<DeclaredProject> teamAProjectsList = const [],
+    List<DeclaredProject> teamBProjectsList = const [],
   }) {
     // teamAAbnat / teamBAbnat are TRICK card points only (including ground).
     // Projects are handled separately via their own scoreboard point values.
@@ -138,6 +144,17 @@ class ScoringEngine {
         }
       }
 
+      // Kabout rule (Kammelna/Jawaker/pagat.com):
+      // A team must win at least ONE trick for their projects to count.
+      // The Kabout loser won 0 tricks → their projects are nullified.
+      if (base.isKabout) {
+        if (base.winningTeam == 'A') {
+          finalProjB = 0; // Team B (loser) won 0 tricks → projects nullified
+        } else {
+          finalProjA = 0; // Team A (loser) won 0 tricks → projects nullified
+        }
+      }
+
       return RoundScoreResult(
         teamAPoints: base.teamAPoints,
         teamBPoints: base.teamBPoints,
@@ -155,6 +172,8 @@ class ScoringEngine {
         mode: mode,
         buyerTeam: buyerTeam,
         doubleStatus: doubleStatus,
+        teamAProjectsList: teamAProjectsList,
+        teamBProjectsList: teamBProjectsList,
       );
     }
 
@@ -267,39 +286,27 @@ class ScoringEngine {
     // Project scoreboard points (Abnat conversion is skipped for Kabout; add explicitly)
     final pm = _projectMultiplier(doubleStatus);
     
-    // Check if this Kabout is a Khams-equivalent (defenders took all tricks)
-    final buyerFailed = winnerTeam != buyerTeam;
-    
-    if (buyerFailed) {
-      // Defender Kabout: Buyer failed completely. Defenders steal buyer's projects 
-      // AND keep their own (just like Khams).
-      final totalProjectSb = teamAProjectScoreboard + teamBProjectScoreboard;
+    // Kabout rule (Kammelna/Jawaker/pagat.com):
+    // A team must win at least ONE trick for their projects to count.
+    // The Kabout loser won 0 tricks → their projects are NULLIFIED (not stolen).
+    // Only the WINNER's own projects count (if they also won project priority).
+    if (projectWinningTeam == winnerTeam) {
+      // Winner has project priority AND won all tricks → their projects count
       if (winnerTeam == 'A') {
-        aPts += totalProjectSb * pm;
-      } else {
-        bPts += totalProjectSb * pm;
-      }
-    } else {
-      // Buyer Kabout: Buyer succeeded. No stealing. Whoever won project priority gets their points.
-      if (projectWinningTeam == 'A') {
         aPts += teamAProjectScoreboard * pm;
-      } else if (projectWinningTeam == 'B') {
+      } else {
         bPts += teamBProjectScoreboard * pm;
       }
     }
+    // If the LOSER won project priority, their projects are nullified (0 tricks)
+    // and the winner's projects were already nullified by losing priority.
+    // → No project points for anyone.
 
-    // Baloot: When buyer fails (Defender Kabout), Baloot goes to the winning
-    // defender team — NOT the declaring team. (Kammelna/Jawaker/pagat.com)
-    if (balootPoints > 0 && balootTeam != null) {
-      if (buyerFailed) {
-        // Buyer lost → defender (winner) takes Baloot
-        if (winnerTeam == 'A') aPts += balootPoints;
-        if (winnerTeam == 'B') bPts += balootPoints;
-      } else {
-        // Buyer won Kabout → Baloot stays with declaring team
-        if (balootTeam == 'A') aPts += balootPoints;
-        if (balootTeam == 'B') bPts += balootPoints;
-      }
+    // Baloot: Only the Kabout WINNER's Baloot counts.
+    // The loser won 0 tricks → their Baloot is nullified (same rule as projects).
+    if (balootPoints > 0 && balootTeam == winnerTeam) {
+      if (winnerTeam == 'A') aPts += balootPoints;
+      if (winnerTeam == 'B') bPts += balootPoints;
     }
 
     return RoundScoreResult(

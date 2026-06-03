@@ -166,7 +166,7 @@ void main() {
   });
 
   group('Phase 3: Hakam Mode - Kabout (All 8 Tricks)', () {
-    test('3.1 Buyer Kabout', () {
+    test('3.1 Buyer Kabout - No Projects', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 162,
         teamBAbnat: 0,
@@ -180,7 +180,8 @@ void main() {
       expect(result.teamBPoints, 0);
     });
 
-    test('3.2 Defender Kabout + Baloot Transfer', () {
+    test('3.2 Defender Kabout + Buyer Had Baloot → Nullified (not stolen)', () {
+      // Kammelna rule: loser won 0 tricks → their Baloot is nullified.
       final result = engine.calculateRoundScore(
         teamAAbnat: 0,
         teamBAbnat: 162,
@@ -190,11 +191,11 @@ void main() {
         teamBTricksCount: 8,
         isKabout: true,
         balootPoints: 2,
-        balootTeam: 'A', // Buyer had Baloot
+        balootTeam: 'A', // Buyer (loser) had Baloot
       );
-      // Defender Kabout: Base=25. Stolen Baloot=2. Total=27.
+      // Buyer won 0 tricks → Baloot nullified. Defender gets base only.
       expect(result.teamAPoints, 0);
-      expect(result.teamBPoints, 27);
+      expect(result.teamBPoints, 25); // Just Kabout base, no stolen Baloot
     });
 
     test('3.3 Kabout + Ace Buyer Card', () {
@@ -224,6 +225,155 @@ void main() {
         doubleStatus: DoubleStatus.doubled,
       );
       expect(result.teamAPoints, 100); // 25 * 2 * 2
+    });
+
+    // === CLIENT BUG FIX: Kabout + Projects ===
+
+    test('3.6 Buyer Kabout + Winner (buyer) has Sera → counts', () {
+      // Buyer A wins all 8 tricks AND has Sera project with priority.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        teamAProjectScoreboard: 2, // Sera = 2 pts in Hakam
+        projectWinningTeam: 'A',
+      );
+      // Winner's projects count: 25 + 2 = 27
+      expect(result.teamAPoints, 27);
+      expect(result.teamBPoints, 0);
+    });
+
+    test('3.7 Buyer Kabout + LOSER (defender) has Sera → NULLIFIED', () {
+      // CLIENT BUG: Buyer A wins all 8 tricks. Defender B has Sera.
+      // Defender won 0 tricks → their Sera is NULLIFIED.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        teamBProjectScoreboard: 2, // Defender's Sera
+        projectWinningTeam: 'B',   // Defender won priority
+      );
+      // Defender won 0 tricks → projects nullified. Buyer gets base only.
+      expect(result.teamAPoints, 25);
+      expect(result.teamBPoints, 0); // NOT 2! Sera is nullified.
+    });
+
+    test('3.8 Sun Kabout + LOSER has Sera → NULLIFIED', () {
+      // Sun Kabout by buyer. Defender has Sera but won 0 tricks.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 130,
+        teamBAbnat: 0,
+        mode: GameMode.sun,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        teamBProjectScoreboard: 4, // Sera = 4 pts in Sun
+        projectWinningTeam: 'B',
+      );
+      // Defender won 0 tricks → Sera nullified. Buyer gets 44 only.
+      expect(result.teamAPoints, 44);
+      expect(result.teamBPoints, 0); // NOT 4!
+    });
+
+    test('3.9 Sun Kabout + Winner has Sera → counts', () {
+      // Buyer A wins all tricks AND has Sera.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 130,
+        teamBAbnat: 0,
+        mode: GameMode.sun,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        teamAProjectScoreboard: 4, // Sera = 4 pts in Sun
+        projectWinningTeam: 'A',
+      );
+      // Winner's Sera counts: 44 + 4 = 48
+      expect(result.teamAPoints, 48);
+      expect(result.teamBPoints, 0);
+    });
+
+    test('3.10 Defender Kabout + Defender has own projects → counts', () {
+      // Defender B wins all 8 tricks AND has a Fifty project.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 0,
+        teamBAbnat: 162,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 0,
+        teamBTricksCount: 8,
+        isKabout: true,
+        teamBProjectScoreboard: 5, // Fifty = 5 pts in Hakam
+        projectWinningTeam: 'B',
+      );
+      // Defender's own projects count: 25 + 5 = 30
+      expect(result.teamAPoints, 0);
+      expect(result.teamBPoints, 30);
+    });
+
+    test('3.11 Defender Kabout + BUYER has projects → NULLIFIED', () {
+      // Defender B wins all 8 tricks. Buyer A had Sera.
+      // Buyer won 0 tricks → their projects are nullified (not stolen).
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 0,
+        teamBAbnat: 162,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 0,
+        teamBTricksCount: 8,
+        isKabout: true,
+        teamAProjectScoreboard: 2, // Buyer's Sera
+        projectWinningTeam: 'A',   // Buyer won priority
+      );
+      // Buyer won 0 tricks → projects nullified. Defender gets base only.
+      expect(result.teamAPoints, 0);
+      expect(result.teamBPoints, 25); // NOT 27 (no stealing in Kabout)
+    });
+
+    test('3.12 Buyer Kabout + Winner has Baloot → counts', () {
+      // Buyer A wins all tricks AND has Baloot.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        balootPoints: 2,
+        balootTeam: 'A', // Winner has Baloot
+      );
+      // Winner's Baloot counts: 25 + 2 = 27
+      expect(result.teamAPoints, 27);
+      expect(result.teamBPoints, 0);
+    });
+
+    test('3.13 Buyer Kabout + LOSER has Baloot → NULLIFIED', () {
+      // Buyer A wins all tricks. Defender B had Baloot.
+      // Defender won 0 tricks → their Baloot is nullified.
+      final result = engine.calculateRoundScore(
+        teamAAbnat: 162,
+        teamBAbnat: 0,
+        mode: GameMode.hakam,
+        buyerTeam: 'A',
+        teamATricksCount: 8,
+        teamBTricksCount: 0,
+        isKabout: true,
+        balootPoints: 2,
+        balootTeam: 'B', // Loser has Baloot
+      );
+      // Loser won 0 tricks → Baloot nullified. Buyer gets base only.
+      expect(result.teamAPoints, 25);
+      expect(result.teamBPoints, 0); // NOT 2!
     });
   });
 

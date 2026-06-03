@@ -5,7 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../../../data/models/card_model.dart' show GameMode, Suit;
-import '../../../../data/models/round_state_model.dart' show DoubleStatus;
+import '../../../../data/models/round_state_model.dart' show DoubleStatus, ProjectType, DeclaredProject;
 import '../game_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -337,12 +337,29 @@ class RoundScoreOverlay extends StatelessWidget {
                                     groundA,
                                     taj,
                                   ),
-                                  _ScoreTableRow.dataOptional(
-                                    s.projects,
-                                    r.teamBProjectAbnat,
-                                    r.teamAProjectAbnat,
-                                    taj,
-                                  ),
+                                  ...() {
+                                    if (r.teamAProjectAbnat == 0 && r.teamBProjectAbnat == 0) {
+                                      return [
+                                        _ScoreTableRow.dataOptional(s.projects, 0, 0, taj)
+                                      ];
+                                    }
+                                    final isAWinner = r.teamAProjectAbnat > 0;
+                                    final List<DeclaredProject> winningList = isAWinner ? r.teamAProjectsList : r.teamBProjectsList;
+                                    
+                                    final Map<ProjectType, int> projMap = {};
+                                    for (final p in winningList) {
+                                      projMap[p.type] = (projMap[p.type] ?? 0) + p.getAbnat(r.mode).toInt();
+                                    }
+                                    
+                                    return projMap.entries.map((entry) {
+                                      return _ScoreTableRow.dataOptional(
+                                        g10n.projectType(entry.key),
+                                        isAWinner ? 0 : entry.value,
+                                        isAWinner ? entry.value : 0,
+                                        taj,
+                                      );
+                                    }).toList();
+                                  }(),
                                   // Baloot row: only shown when K+Q trump was declared
                                   if (r.balootTeam != null)
                                     _ScoreTableRow.baloot(

@@ -181,6 +181,7 @@ class GameL10n {
       '100' => 'مية',
       '400' => 'أربعمية',
       'Baloot' => 'بلوت',
+      'Akka' => 'أكة',
       _ => _tryTranslateCombinedProjects(en),
     };
   }

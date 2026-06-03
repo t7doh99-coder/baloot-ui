@@ -760,7 +760,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   Widget _buildProjectPickerExpanded(BuildContext context, GameL10n loc) {
     final gp = context.read<GameProvider>();
     final canEditProjects = gp.canDeclareProjects;
-    var detected = gp.playerProjects.where((p) => p.type != ProjectType.baloot).toList();
+    final allProjects = gp.playerProjects;
 
     const orderedTypes = [
       ProjectType.fourHundred,
@@ -791,7 +791,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
             matchingTypes = [t];
           }
 
-          final origIndices = detected.asMap().entries
+          final origIndices = allProjects.asMap().entries
               .where((e) => matchingTypes.contains(e.value.type))
               .map((e) => e.key).toList();
               
@@ -849,7 +849,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
                       
                       // Undeclare from engine
                       for (var idx in _selectedProjects) {
-                        gp.humanUndeclareProject(detected[idx].type);
+                        gp.humanUndeclareProject(allProjects[idx].type);
                       }
                       _selectedProjects.clear();
                     } else {

@@ -1,79 +1,5 @@
 import 'package:baloot_game/data/models/card_model.dart';
 import 'package:baloot_game/data/models/card_play_model.dart';
-import 'package:baloot_game/data/models/round_state_model.dart';
-
-void main() {
-  // Test evaluation logic exactly as it is in TurnManager
-  CardPlayModel highestOfSuit(List<CardPlayModel> trick, GameMode mode, Suit? trumpSuit, Suit suit) {
-    final suitPlays = trick.where((p) => p.card.suit == suit);
-    return suitPlays.reduce((a, b) {
-      final aStr = a.card.getStrength(mode: mode, trumpSuit: trumpSuit);
-      final bStr = b.card.getStrength(mode: mode, trumpSuit: trumpSuit);
-      return aStr >= bStr ? a : b;
-    });
-  }
-
-  TrickResult evaluateTrick(List<CardPlayModel> trick, GameMode mode, Suit? trumpSuit) {
-    final leadingSuit = trick.first.card.suit;
-    CardPlayModel winner = trick.first;
-
-    if (mode == GameMode.hakam && trumpSuit != null) {
-      final trumpPlays = trick.where((p) => p.card.suit == trumpSuit);
-      if (trumpPlays.isNotEmpty) {
-        winner = trumpPlays.reduce((a, b) {
-          final aStr = a.card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit);
-          final bStr = b.card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit);
-          return aStr >= bStr ? a : b;
-        });
-      } else {
-        winner = highestOfSuit(trick, mode, trumpSuit, leadingSuit);
-      }
-    } else {
-      winner = highestOfSuit(trick, mode, trumpSuit, leadingSuit);
-    }
-    
-    return TrickResult(
-      winnerIndex: winner.playerIndex,
-      cards: trick,
-      abnat: 0,
-      isLastTrick: false,
-      lastTrickBonus: 0,
-    );
-  }
-
-  // Scenario 1: Sun mode. P0 leads 10 Clubs. P1 A Hearts, P2 K Clubs, P3 7 Clubs.
-  // P0 should win because 10 > K > 7, and A Hearts is off-suit.
-  final trick1 = [
-    CardPlayModel(card: CardModel(suit: Suit.clubs, rank: Rank.ten), playerIndex: 0),
-    CardPlayModel(card: CardModel(suit: Suit.hearts, rank: Rank.ace), playerIndex: 1),
-    CardPlayModel(card: CardModel(suit: Suit.clubs, rank: Rank.king), playerIndex: 2),
-    CardPlayModel(card: CardModel(suit: Suit.clubs, rank: Rank.seven), playerIndex: 3),
-  ];
-  final r1 = evaluateTrick(trick1, GameMode.sun, null);
-  print('Scenario 1 Winner: ${r1.winnerIndex} (Expected 0)');
-
-  // Scenario 2: Hakam Hearts. P2 leads 8 Spades. P3 K Spades, P0 7 Hearts (trump), P1 A Spades.
-  // P0 should win because they trumped.
-  final trick2 = [
-    CardPlayModel(card: CardModel(suit: Suit.spades, rank: Rank.eight), playerIndex: 2),
-    CardPlayModel(card: CardModel(suit: Suit.spades, rank: Rank.king), playerIndex: 3),
-    CardPlayModel(card: CardModel(suit: Suit.hearts, rank: Rank.seven), playerIndex: 0),
-    CardPlayModel(card: CardModel(suit: Suit.spades, rank: Rank.ace), playerIndex: 1),
-  ];
-  final r2 = evaluateTrick(trick2, GameMode.hakam, Suit.hearts);
-  print('Scenario 2 Winner: ${r2.winnerIndex} (Expected 0)');
-
-  // Scenario 3: Sun mode. P1 leads 9 Diamonds. P2 10 Diamonds, P3 A Diamonds, P0 8 Diamonds.
-  // P3 should win because A > 10 > 9 > 8.
-  final trick3 = [
-    CardPlayModel(card: CardModel(suit: Suit.diamonds, rank: Rank.nine), playerIndex: 1),
-    CardPlayModel(card: CardModel(suit: Suit.diamonds, rank: Rank.ten), playerIndex: 2),
-    CardPlayModel(card: CardModel(suit: Suit.diamonds, rank: Rank.ace), playerIndex: 3),
-    CardPlayModel(card: CardModel(suit: Suit.diamonds, rank: Rank.eight), playerIndex: 0),
-  ];
-  final r3 = evaluateTrick(trick3, GameMode.sun, null);
-  print('Scenario 3 Winner: ${r3.winnerIndex} (Expected 3)');
-}
 
 class TrickResult {
   final int winnerIndex;
@@ -82,4 +8,90 @@ class TrickResult {
   final bool isLastTrick;
   final int lastTrickBonus;
   TrickResult({required this.winnerIndex, required this.cards, required this.abnat, required this.isLastTrick, required this.lastTrickBonus});
+}
+
+bool testIsAkka(CardModel card, GameMode mode, Suit? trump, List<TrickResult> trickHistory, List<CardPlayModel> currentTrick) {
+    if (mode == GameMode.sun) return false;
+    if (card.suit == trump) return false;
+
+    bool isLeadCard = false;
+    if (currentTrick.isNotEmpty) {
+      isLeadCard = currentTrick.first.card == card;
+    } else if (trickHistory.isNotEmpty) {
+      final lastTrick = trickHistory.last;
+      if (lastTrick.cards.isNotEmpty) {
+        isLeadCard = lastTrick.cards.first.card == card;
+      }
+    }
+    if (!isLeadCard) return false;
+
+    final playedOfSuit = <CardModel>{};
+    final historyCount = currentTrick.isNotEmpty
+        ? trickHistory.length
+        : trickHistory.length - 1;
+    for (int i = 0; i < historyCount; i++) {
+      for (final play in trickHistory[i].cards) {
+        if (play.card.suit == card.suit) {
+          playedOfSuit.add(play.card);
+        }
+      }
+    }
+
+    final cardStrength = card.getStrength(mode: mode, trumpSuit: trump);
+
+    for (final rank in Rank.values) {
+      final other = CardModel(suit: card.suit, rank: rank);
+      if (other == card) continue;
+      if (playedOfSuit.contains(other)) continue;
+
+      final otherStrength = other.getStrength(mode: mode, trumpSuit: trump);
+      if (otherStrength > cardStrength) {
+        return false;
+      }
+    }
+    return true;
+}
+
+void main() {
+  print('--- AKKA LOGIC TESTS ---');
+
+  final aceHearts = CardModel(suit: Suit.hearts, rank: Rank.ace);
+  final tenHearts = CardModel(suit: Suit.hearts, rank: Rank.ten);
+  final kingHearts = CardModel(suit: Suit.hearts, rank: Rank.king);
+  final jackSpades = CardModel(suit: Suit.spades, rank: Rank.jack);
+  final aceSpades = CardModel(suit: Suit.spades, rank: Rank.ace);
+
+  // 1. Sun Mode -> Should be false immediately
+  bool sunTest = testIsAkka(aceHearts, GameMode.sun, null, [], [CardPlayModel(card: aceHearts, playerIndex: 0)]);
+  print('1. Sun Mode Test (A Hearts): \$sunTest (Expected: false)');
+
+  // 2. Hakam Mode, Trump Suit -> Should be false immediately
+  bool trumpTest = testIsAkka(jackSpades, GameMode.hakam, Suit.spades, [], [CardPlayModel(card: jackSpades, playerIndex: 0)]);
+  print('2. Hakam Trump Test (J Spades): \$trumpTest (Expected: false)');
+
+  // 3. Hakam Mode, Lead with Ace -> Should be true (Ace is highest)
+  bool leadAceTest = testIsAkka(aceHearts, GameMode.hakam, Suit.spades, [], [CardPlayModel(card: aceHearts, playerIndex: 0)]);
+  print('3. Lead with Ace (No cards played yet): \$leadAceTest (Expected: true)');
+
+  // 4. Hakam Mode, Following with Ace -> Should be false
+  bool followAceTest = testIsAkka(aceHearts, GameMode.hakam, Suit.spades, [], [CardPlayModel(card: tenHearts, playerIndex: 1), CardPlayModel(card: aceHearts, playerIndex: 0)]);
+  print('4. Following with Ace (Not leading): \$followAceTest (Expected: false)');
+
+  // 5. Hakam Mode, Lead with 10 when Ace is NOT played -> Should be false
+  bool leadTenAceUnplayed = testIsAkka(tenHearts, GameMode.hakam, Suit.spades, [], [CardPlayModel(card: tenHearts, playerIndex: 0)]);
+  print('5. Lead with 10 (Ace not played): \$leadTenAceUnplayed (Expected: false)');
+
+  // 6. Hakam Mode, Lead with 10 when Ace IS played in trick history -> Should be true
+  final trick1 = TrickResult(
+    winnerIndex: 0, 
+    cards: [
+      CardPlayModel(card: aceHearts, playerIndex: 0),
+      CardPlayModel(card: CardModel(suit: Suit.clubs, rank: Rank.seven), playerIndex: 1),
+      CardPlayModel(card: CardModel(suit: Suit.diamonds, rank: Rank.seven), playerIndex: 2),
+      CardPlayModel(card: CardModel(suit: Suit.clubs, rank: Rank.eight), playerIndex: 3),
+    ], 
+    abnat: 11, isLastTrick: false, lastTrickBonus: 0
+  );
+  bool leadTenAcePlayed = testIsAkka(tenHearts, GameMode.hakam, Suit.spades, [trick1], [CardPlayModel(card: tenHearts, playerIndex: 0)]);
+  print('6. Lead with 10 (Ace already played): \$leadTenAcePlayed (Expected: true)');
 }

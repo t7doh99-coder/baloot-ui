@@ -58,7 +58,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
   }
 
   /// Two stacked lines narrows horizontal width vs "Sun · Dealer" (fixes bar overflow).
-  static ({String primary, String? secondary}) _badgeParts(
+  static ({String primary, String? secondary})? _badgeParts(
     GameProvider game,
     GameL10n loc,
   ) {
@@ -69,14 +69,25 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
       }
       return (primary: loc.sawa, secondary: null);
     }
+    
     final humanDealer = game.dealerIndex == 0;
+    final humanBuyer = game.buyerIndex == 0;
+    
     if (humanDealer && mode != '—') {
       return (primary: loc.modeLabel(mode), secondary: loc.dealer);
     }
+    if (humanBuyer && mode != '—') {
+      return (primary: loc.modeLabel(mode), secondary: loc.buyer);
+    }
+    
     if (mode != '—') return (primary: loc.modeLabel(mode), secondary: null);
-    if (humanDealer) return (primary: loc.dealer, secondary: null);
-    if (game.buyerIndex == 0) return (primary: loc.buyer, secondary: null);
-    return (primary: loc.us, secondary: null);
+    
+    if (game.phase != GamePhase.notStarted) {
+      if (humanDealer) return (primary: loc.dealer, secondary: null);
+      if (humanBuyer) return (primary: loc.buyer, secondary: null);
+    }
+    
+    return null;
   }
 
   @override
@@ -126,8 +137,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
           children: [
             Row(
               children: [
-                _RankChip(primary: badge.primary, secondary: badge.secondary),
-                const SizedBox(width: 10),
+                if (badge != null) ...[
+                  _RankChip(primary: badge.primary, secondary: badge.secondary),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Container(
                     padding:

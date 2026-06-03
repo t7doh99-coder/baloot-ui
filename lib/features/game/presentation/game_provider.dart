@@ -73,6 +73,9 @@ class LastRoundResult {
   /// In-play master-card Sawa ended the round (Kammelna); null = normal play-out.
   final int? playSawaClaimSeat;
 
+  final List<DeclaredProject> teamAProjectsList;
+  final List<DeclaredProject> teamBProjectsList;
+
   const LastRoundResult({
     required this.teamAPoints,
     required this.teamBPoints,
@@ -93,6 +96,8 @@ class LastRoundResult {
     this.trumpSuit,
     this.doubleStatus = DoubleStatus.none,
     this.playSawaClaimSeat,
+    this.teamAProjectsList = const [],
+    this.teamBProjectsList = const [],
   });
 }
 
@@ -590,6 +595,7 @@ class GameProvider extends ChangeNotifier {
   /// Human places a bid (seat 0 only).
   void humanBid(BidAction action, {Suit? secondHakamSuit}) {
     if (!isHumanTurn || phase != GamePhase.bidding) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
@@ -604,6 +610,7 @@ class GameProvider extends ChangeNotifier {
   /// Human calls double (seat 0 only, defending team).
   void humanDouble(DoubleStatus level, {bool isOpenPlay = true}) {
     if (phase != GamePhase.doubleWindow) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
       _engine.callDouble(0, level, isOpenPlay: isOpenPlay);
@@ -618,6 +625,7 @@ class GameProvider extends ChangeNotifier {
   /// Human skips the double window.
   void humanSkipDouble() {
     if (phase != GamePhase.doubleWindow) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
       _engine.skipDoubleWindow();
@@ -630,7 +638,7 @@ class GameProvider extends ChangeNotifier {
   /// Tap a card in the human's hand to select/deselect it.
   void selectCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
-    if (canDeclareProjects) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     if (_selectedCard == card) {
       _selectedCard = null;
     } else {
@@ -649,6 +657,7 @@ class GameProvider extends ChangeNotifier {
   /// Human plays a card directly (seat 0 only).
   void humanPlayCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     // The moment the human plays a card, they forfeit any un-declared projects.
     // The turn will advance automatically and canDeclareProjects will become false.
     final hand = playerHand;
@@ -668,6 +677,12 @@ class GameProvider extends ChangeNotifier {
       final balootAfter = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
       if (balootAfter > balootBefore) {
         _showBubble(0, 'Baloot');
+      } else if (trickBefore == 1) {
+        // Announce user's manually declared projects (if any) when they play their first card
+        _announceProjects(0);
+      } else if (_engine.isAkka(card)) {
+        // Kammelna "أكة" — auto-detect strongest remaining card of suit
+        _showBubble(0, 'Akka');
       }
       _afterEngineAction();
     } on PlayViolationException catch (e) {
@@ -690,10 +705,9 @@ class GameProvider extends ChangeNotifier {
   /// Human declares a project — only allowed during Trick 1 of playing phase.
   void humanDeclareProject(int projectIndex) {
     final ok = canDeclareProjects;
-    if (!ok) return;
+    if (!ok || _turnTimer == null) return;
     try {
       _engine.declareProject(0, projectIndex);
-      _announceProjects(0);
       notifyListeners();
     } catch (e) {
       debugPrint('[GameProvider] humanDeclareProject error: $e');
@@ -702,10 +716,9 @@ class GameProvider extends ChangeNotifier {
 
   void humanUndeclareProject(ProjectType type) {
     final ok = canDeclareProjects;
-    if (!ok) return;
+    if (!ok || _turnTimer == null) return;
     try {
       _engine.undeclareProject(0, type);
-      _announceProjects(0);
       notifyListeners();
     } catch (e) {
       debugPrint('[GameProvider] humanUndeclareProject error: $e');
@@ -717,6 +730,7 @@ class GameProvider extends ChangeNotifier {
 
   void humanClaimSawa() {
     if (phase != GamePhase.playing || !canSawa) return;
+    if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _startSawaReveal(0);
   }
 
@@ -844,7 +858,7 @@ class GameProvider extends ChangeNotifier {
         _botTimer = Timer(const Duration(milliseconds: 6000), () {
           _roundJustEnded = false;
           _lastRoundResult = null;
-          if (!_engine.isGameOver && _engine.gamePhase == GamePhase.dealing) {
+          if (!_engine.isGameOver && _engine.gamePhase == GamePhase.scoring) {
             _engine.startNewRound();
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
@@ -1020,6 +1034,13 @@ class GameProvider extends ChangeNotifier {
           _showBubble(seat, 'Baloot');
         } else if (declaredAfter > declaredBefore) {
           _announceProjects(seat);
+        } else {
+          // Kammelna "أكة" — auto-detect strongest remaining card of suit
+          // Find the card this bot just played (last card in current trick or last trick)
+          final lastCard = _engine.lastPlayedCardBySeat(seat);
+          if (lastCard != null && _engine.isAkka(lastCard)) {
+            _showBubble(seat, 'Akka');
+          }
         }
       }
 
@@ -1232,6 +1253,8 @@ class GameProvider extends ChangeNotifier {
       trumpSuit: rs.trumpSuit,
       doubleStatus: d.doubleStatus,
       playSawaClaimSeat: _engine.lastPlaySawaClaimSeat,
+      teamAProjectsList: d.teamAProjectsList,
+      teamBProjectsList: d.teamBProjectsList,
     );
   }
 

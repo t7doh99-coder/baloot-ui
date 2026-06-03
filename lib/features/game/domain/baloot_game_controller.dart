@@ -101,6 +101,108 @@ class BalootGameController implements IBalootController {
     return List<TrickResult>.unmodifiable(tm.trickHistory);
   }
 
+  /// Kammelna "أكة" (Akka) detection.
+  ///
+  /// Returns `true` when [card] is the **strongest remaining card** of its suit
+  /// at the moment it is played AND the player is **leading** the trick (first card).
+  ///
+  /// Rules (per pagat.com / Kammelna):
+  /// - Only triggers on the **lead** card (first card of a trick).
+  /// - In Hakam: only applies to NON-trump suits (trump has its own hierarchy).
+  /// - In Sun: applies to all suits (standard A>10>K>Q>J>9>8>7).
+  /// - A card is Akka if every card of the same suit that is stronger has already
+  ///   been played in a previous trick.
+  bool isAkka(CardModel card) {
+    final tm = _turnManager;
+    if (tm == null) return false;
+
+    final mode = _roundState.activeMode;
+    if (mode == null || mode == GameMode.sun) return false; // Akka rule ONLY applies in Hakam
+    final trump = _roundState.trumpSuit;
+
+    // In Hakam, Akka only applies to non-trump suits
+    if (card.suit == trump) return false;
+
+    // Do NOT say "Akka" when throwing the Ace itself. The Ace is naturally the strongest.
+    // The Akka signal is only used for cards BELOW the Ace to inform the partner.
+    if (card.rank == Rank.ace) return false;
+
+    // ── LEAD-ONLY CHECK ──
+    // Akka only applies when the player LEADS the trick (plays first).
+    // After playCard(), either:
+    //   a) Trick still in progress → card is in currentTrick
+    //   b) Trick just completed → card is in trickHistory.last
+    bool isLeadCard = false;
+    if (tm.currentTrick.isNotEmpty) {
+      // Trick in progress — was this card the first one?
+      isLeadCard = tm.currentTrick.first.card == card;
+    } else if (tm.trickHistory.isNotEmpty) {
+      // Trick just completed — was this card the lead?
+      final lastTrick = tm.trickHistory.last;
+      if (lastTrick.cards.isNotEmpty) {
+        isLeadCard = lastTrick.cards.first.card == card;
+      }
+    }
+    if (!isLeadCard) return false;
+
+    // Collect all cards of the SAME suit that have been played in PREVIOUS tricks
+    final playedOfSuit = <CardModel>{};
+    // Only check completed tricks BEFORE the current one
+    final historyCount = tm.currentTrick.isNotEmpty
+        ? tm.trickHistory.length        // trick still going — all history is "before"
+        : tm.trickHistory.length - 1;   // trick just completed — exclude it
+    for (int i = 0; i < historyCount; i++) {
+      for (final play in tm.trickHistory[i].cards) {
+        if (play.card.suit == card.suit) {
+          playedOfSuit.add(play.card);
+        }
+      }
+    }
+
+    // Get the strength of the played card
+    final cardStrength = card.getStrength(mode: mode, trumpSuit: trump);
+
+    // Check all 8 ranks of this suit: is there any UNPLAYED card that's stronger?
+    for (final rank in Rank.values) {
+      final other = CardModel(suit: card.suit, rank: rank);
+      if (other == card) continue; // skip self
+      if (playedOfSuit.contains(other)) continue; // already played — gone
+
+      final otherStrength = other.getStrength(mode: mode, trumpSuit: trump);
+      if (otherStrength > cardStrength) {
+        return false; // a stronger card is still unplayed — NOT Akka
+      }
+    }
+
+    return true; // no stronger card remains — this IS Akka!
+  }
+
+  /// Returns the most recently played card by [seat], checking the current
+  /// trick first, then the last completed trick. Used for Akka detection.
+  CardModel? lastPlayedCardBySeat(int seat) {
+    final tm = _turnManager;
+    if (tm == null) return null;
+
+    // Check current trick first (card was just played)
+    for (int i = tm.currentTrick.length - 1; i >= 0; i--) {
+      if (tm.currentTrick[i].playerIndex == seat) {
+        return tm.currentTrick[i].card;
+      }
+    }
+
+    // If trick just completed, check the last completed trick
+    if (tm.trickHistory.isNotEmpty) {
+      final last = tm.trickHistory.last;
+      for (int i = last.cards.length - 1; i >= 0; i--) {
+        if (last.cards[i].playerIndex == seat) {
+          return last.cards[i].card;
+        }
+      }
+    }
+
+    return null;
+  }
+
   GamePhase get gamePhase => _gamePhase;
 
   // ── IBalootController implementation ──
@@ -911,6 +1013,8 @@ class BalootGameController implements IBalootController {
       buyerCardIsAce: buyerCardIsAce,
       projectWinningTeam: projectWinner,
       doubleCallerTeam: doubleCallerTeam,
+      teamAProjectsList: teamAProjects.where((p) => p.type != ProjectType.baloot).toList(),
+      teamBProjectsList: teamBProjects.where((p) => p.type != ProjectType.baloot).toList(),
     );
 
     _lastRoundScoreResult = scoreResult;
@@ -972,7 +1076,7 @@ class BalootGameController implements IBalootController {
     } else {
       // Advance dealer to the right for next round
       _dealerIndex = (_dealerIndex + 1) % 4;
-      _gamePhase = GamePhase.dealing;
+      _gamePhase = GamePhase.scoring;
     }
   }
 
