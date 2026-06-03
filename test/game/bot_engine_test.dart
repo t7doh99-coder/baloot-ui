@@ -7,7 +7,7 @@ import 'package:baloot_game/features/game/domain/managers/bidding_manager.dart';
 import 'package:baloot_game/features/game/domain/baloot_game_controller.dart';
 
 void main() {
-  const bot = BotEngine();
+  final bot = BotEngine();
   const buyerCard = CardModel(suit: Suit.hearts, rank: Rank.ten);
 
   group('Bidding — Round 1', () {
@@ -249,6 +249,8 @@ void main() {
         trumpSuit: Suit.hearts,
         ownScore: 40,
         opponentScore: 80,
+        currentDoubleStatus: DoubleStatus.none,
+        isDefender: true,
       );
       expect(result, DoubleStatus.doubled);
     });
@@ -270,6 +272,8 @@ void main() {
         trumpSuit: Suit.hearts,
         ownScore: 40,
         opponentScore: 80,
+        currentDoubleStatus: DoubleStatus.none,
+        isDefender: true,
       );
       expect(result, isNull);
     });
@@ -280,6 +284,8 @@ void main() {
         mode: GameMode.sun,
         ownScore: 40,
         opponentScore: 80,
+        currentDoubleStatus: DoubleStatus.none,
+        isDefender: true,
       );
       expect(result, isNull);
     });
@@ -291,7 +297,7 @@ void main() {
       controller.startNewGame(['Bot A', 'Bot B', 'Bot C', 'Bot D']);
 
       int safety = 0;
-      while (!controller.isGameOver && safety < 5000) {
+      while (!controller.isGameOver && safety < 15000) {
         final phase = controller.gamePhase;
         if (phase == GamePhase.notStarted || phase == GamePhase.gameOver) break;
 

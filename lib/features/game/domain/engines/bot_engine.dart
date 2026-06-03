@@ -1,7 +1,10 @@
+import 'dart:math';
 import '../../../../data/models/card_model.dart';
 import '../../../../data/models/card_play_model.dart';
 import '../../../../data/models/round_state_model.dart';
+import '../../../../data/models/bot_difficulty.dart';
 import '../managers/bidding_manager.dart';
+import '../managers/turn_manager.dart';
 import '../validators/play_validator.dart';
 
 /// Rule-based bot AI for Baloot.
@@ -9,15 +12,18 @@ import '../validators/play_validator.dart';
 /// Pure Dart, no UI dependencies. Evaluates hand strength and game state
 /// to make strategic decisions for bidding and card play.
 class BotEngine {
-  const BotEngine();
+  final BotDifficulty difficulty;
+  final Random _random;
+
+  BotEngine({
+    this.difficulty = BotDifficulty.medium,
+    Random? random,
+  }) : _random = random ?? Random();
 
   static const PlayValidator _validator = PlayValidator();
 
   // ── Bidding Decision ──
 
-  /// Decide what bid to place given the bot's hand and the buyer card.
-  ///
-  /// Returns a [BotBidDecision] with the chosen action and optional suit.
   BotBidDecision decideBid({
     required List<CardModel> hand,
     required CardModel buyerCard,
@@ -42,7 +48,6 @@ class BotEngine {
       return _decideRound1(hand, buyerCard);
     }
     if (phase == BiddingPhase.hakamConfirmation) {
-      // Bot already bid Hakam — confirm it (could add Sun-switch logic later)
       return const BotBidDecision(action: BidAction.confirmHakam);
     }
     return _decideRound2(
@@ -61,14 +66,16 @@ class BotEngine {
     final trumpSuit = buyerCard.suit;
     final score = _evaluateHakamHand(hand, trumpSuit);
 
-    // Bid Hakam if hand is strong in the buyer card's suit
-    if (score >= 35) {
+    int threshold = 35; // Medium
+    if (difficulty == BotDifficulty.easy) threshold = 28;
+    if (difficulty == BotDifficulty.hard) threshold = 38;
+
+    if (score >= threshold) {
       return const BotBidDecision(action: BidAction.hakam);
     }
     return const BotBidDecision(action: BidAction.pass);
   }
 
-  /// After an opponent bid Hakam: Pass, Sawa (accept), or Sun (override) — Jawaker/Kammelna.
   BotBidDecision _decideRound1AfterHakam(
     List<CardModel> hand,
     CardModel buyerCard,
@@ -79,13 +86,13 @@ class BotEngine {
       return const BotBidDecision(action: BidAction.pass);
     }
     final sunScore = _evaluateSunHand(hand);
-    // Overriding an opponent's Hakam with Sun requires a strong hand (top 5-10% of Sun hands)
-    if (sunScore >= 24) {
+    
+    int sunThreshold = 24; // Medium
+    if (difficulty == BotDifficulty.easy) sunThreshold = 18;
+    if (difficulty == BotDifficulty.hard) sunThreshold = 26;
+
+    if (sunScore >= sunThreshold) {
       return const BotBidDecision(action: BidAction.sun);
-    }
-    final vsTheirTrump = _evaluateHakamHand(hand, buyerCard.suit);
-    if (vsTheirTrump < 26) {
-      return const BotBidDecision(action: BidAction.pass);
     }
     return const BotBidDecision(action: BidAction.pass);
   }
@@ -100,7 +107,6 @@ class BotEngine {
     GameMode? round2PendingMode,
     Suit? round2PendingTrump,
   }) {
-    // Others must react with Pass or Sawa (no new Sun/Hakam).
     if (round2PendingBid &&
         round2PendingBuyerSeat != null &&
         round2PendingMode != null) {
@@ -119,18 +125,23 @@ class BotEngine {
       return const BotBidDecision(action: BidAction.pass);
     }
 
-    // Evaluate Sun strength
     final sunScore = _evaluateSunHand(hand);
-    // In Round 2, bots should bid Sun if they have a decent hand (around 90th percentile)
-    if (sunScore >= 18) {
+    int sunThreshold = 18; // Medium
+    if (difficulty == BotDifficulty.easy) sunThreshold = 14;
+    if (difficulty == BotDifficulty.hard) sunThreshold = 22;
+
+    if (sunScore >= sunThreshold) {
       return const BotBidDecision(action: BidAction.sun);
     }
 
-    // Evaluate Second Hakam — find strongest off-suit
     final bestSuit = _findStrongestTrumpSuit(hand, exclude: buyerCard.suit);
     if (bestSuit != null) {
       final hakamScore = _evaluateHakamHand(hand, bestSuit);
-      if (hakamScore >= 30) {
+      int hakamThreshold = 30; // Medium
+      if (difficulty == BotDifficulty.easy) hakamThreshold = 24;
+      if (difficulty == BotDifficulty.hard) hakamThreshold = 34;
+
+      if (hakamScore >= hakamThreshold) {
         return BotBidDecision(
           action: BidAction.secondHakam,
           secondHakamSuit: bestSuit,
@@ -138,12 +149,13 @@ class BotEngine {
       }
     }
 
-    // Ashkal: allow in Round 2 for Dealer and Sane
     final saneIndex = (dealerIndex + 3) % 4;
     if (seatIndex == dealerIndex || seatIndex == saneIndex) {
-      // Ashkal means Sun, so they need a decent Sun score.
-      // Slightly lower threshold than direct Sun, hoping partner benefits from the card.
-      if (sunScore >= 16) {
+      int ashkalThreshold = 16; // Medium
+      if (difficulty == BotDifficulty.easy) ashkalThreshold = 12;
+      if (difficulty == BotDifficulty.hard) ashkalThreshold = 20;
+
+      if (sunScore >= ashkalThreshold) {
         return const BotBidDecision(action: BidAction.ashkal);
       }
     }
@@ -153,10 +165,6 @@ class BotEngine {
 
   // ── Card Play Decision ──
 
-  /// Pick the best card to play from the bot's hand.
-  ///
-  /// Strategy varies by position in the trick (leading vs following),
-  /// game mode, and teammate/opponent analysis.
   CardModel decidePlay({
     required List<CardModel> hand,
     required List<CardPlayModel> currentTrick,
@@ -169,6 +177,7 @@ class BotEngine {
     required int teamBAbnat,
     required int buyerIndex,
     required int seatIndex,
+    List<TrickResult>? trickHistory,
   }) {
     final validCards = _validator.getValidCards(
       hand: hand,
@@ -183,6 +192,11 @@ class BotEngine {
     if (validCards.isEmpty) return hand.first;
     if (validCards.length == 1) return validCards.first;
 
+    // Easy difficulty mistake (15% chance to just play a random valid card)
+    if (difficulty == BotDifficulty.easy && _random.nextDouble() < 0.15) {
+      return validCards[_random.nextInt(validCards.length)];
+    }
+
     if (currentTrick.isEmpty) {
       return _decideLead(
         validCards: validCards,
@@ -192,6 +206,7 @@ class BotEngine {
         seatIndex: seatIndex,
         trickNumber: trickNumber,
         buyerIndex: buyerIndex,
+        trickHistory: trickHistory,
       );
     }
 
@@ -203,6 +218,7 @@ class BotEngine {
       trumpSuit: trumpSuit,
       seatIndex: seatIndex,
       buyerIndex: buyerIndex,
+      trickHistory: trickHistory,
     );
   }
 
@@ -214,39 +230,50 @@ class BotEngine {
     required int seatIndex,
     required int trickNumber,
     required int buyerIndex,
+    List<TrickResult>? trickHistory,
   }) {
+    if (difficulty == BotDifficulty.easy) {
+      // Novice: Leads the absolute highest card they have without thinking.
+      return _highestStrengthCard(validCards, mode, trumpSuit);
+    }
+
     if (mode == GameMode.hakam && trumpSuit != null) {
       final isBuyerTeam = (seatIndex % 2) == (buyerIndex % 2);
       final trumpCards = validCards.where((c) => c.suit == trumpSuit).toList();
 
-      // NEW STRATEGY (Visca ME): If we bought, lead high trumps early to draw them out.
       if (isBuyerTeam && trumpCards.isNotEmpty && trickNumber <= 3) {
-        // Sort by strength descending (Jack, 9, Ace, ...)
         trumpCards.sort((a, b) =>
             b.getStrength(mode: mode, trumpSuit: trumpSuit)
                 .compareTo(a.getStrength(mode: mode, trumpSuit: trumpSuit)));
         
         final topTrump = trumpCards.first;
-        // If we have Jack or 9, lead it.
         if (topTrump.rank == Rank.jack || topTrump.rank == Rank.nine) {
           return topTrump;
         }
       }
 
-      // In Hakam, lead with a strong non-trump Ace to collect points
+      // In Hakam, lead with a strong non-trump Ace
       final nonTrumpAces = validCards
           .where((c) => c.suit != trumpSuit && c.rank == Rank.ace)
           .toList();
       if (nonTrumpAces.isNotEmpty) return nonTrumpAces.first;
 
-      // Lead with a strong non-trump 10 if we also hold the Ace of that suit
+      // Hard Mode: Card counting. If Ace of a suit is gone, lead the 10 safely.
+      if (difficulty == BotDifficulty.hard && trickHistory != null) {
+        final tens = validCards.where((c) => c.suit != trumpSuit && c.rank == Rank.ten);
+        for (final ten in tens) {
+          if (_isCardPlayed(trickHistory, ten.suit, Rank.ace)) {
+            return ten;
+          }
+        }
+      }
+
       final tens = validCards.where((c) =>
           c.suit != trumpSuit &&
           c.rank == Rank.ten &&
           hand.any((h) => h.suit == c.suit && h.rank == Rank.ace));
       if (tens.isNotEmpty) return tens.first;
 
-      // Late game: lead trump to draw out remaining trumps
       if (trickNumber >= 5) {
         if (trumpCards.isNotEmpty) {
           trumpCards.sort((a, b) =>
@@ -256,25 +283,30 @@ class BotEngine {
         }
       }
 
-      // Lead lowest non-trump card to feel out opponents
-      final nonTrumps =
-          validCards.where((c) => c.suit != trumpSuit).toList();
+      final nonTrumps = validCards.where((c) => c.suit != trumpSuit).toList();
       if (nonTrumps.isNotEmpty) {
         return _lowestStrengthCard(nonTrumps, mode, trumpSuit);
       }
     }
 
     if (mode == GameMode.sun) {
-      // Sun: lead with Aces to grab points
       final aces = validCards.where((c) => c.rank == Rank.ace).toList();
       if (aces.isNotEmpty) return aces.first;
 
-      // Lead a suit where we're strong (have multiple high cards)
+      // Hard Mode: Play 10 if Ace is already gone.
+      if (difficulty == BotDifficulty.hard && trickHistory != null) {
+        final tens = validCards.where((c) => c.rank == Rank.ten);
+        for (final ten in tens) {
+          if (_isCardPlayed(trickHistory, ten.suit, Rank.ace)) {
+            return ten;
+          }
+        }
+      }
+
       final suitGroups = <Suit, List<CardModel>>{};
       for (final c in validCards) {
         suitGroups.putIfAbsent(c.suit, () => []).add(c);
       }
-      // Find a suit with 2+ cards where we have the highest card
       for (final entry in suitGroups.entries) {
         if (entry.value.length >= 2) {
           entry.value.sort((a, b) =>
@@ -287,7 +319,6 @@ class BotEngine {
       }
     }
 
-    // Default: lead lowest value card
     return _lowestValueCard(validCards, mode, trumpSuit);
   }
 
@@ -299,18 +330,26 @@ class BotEngine {
     Suit? trumpSuit,
     required int seatIndex,
     required int buyerIndex,
+    List<TrickResult>? trickHistory,
   }) {
     final leadSuit = currentTrick.first.card.suit;
     final partnerSeat = (seatIndex + 2) % 4;
     final isTeamA = seatIndex % 2 == 0;
 
-    // Determine who is currently winning the trick
     final currentWinner = _trickWinner(currentTrick, mode, trumpSuit);
     final winnerIsPartner = currentWinner?.playerIndex == partnerSeat;
     final winnerIsTeammate = currentWinner != null &&
         (currentWinner.playerIndex % 2 == 0) == isTeamA;
 
-    // Can we follow suit?
+    if (difficulty == BotDifficulty.easy) {
+      // Novice: Might cut teammate or just play whatever highest card they have.
+      if (mode == GameMode.hakam && trumpSuit != null) {
+        final trumps = validCards.where((c) => c.suit == trumpSuit).toList();
+        if (trumps.isNotEmpty) return _highestStrengthCard(trumps, mode, trumpSuit);
+      }
+      return _highestStrengthCard(validCards, mode, trumpSuit);
+    }
+
     final followCards = validCards.where((c) => c.suit == leadSuit).toList();
     final trumpCards = mode == GameMode.hakam && trumpSuit != null
         ? validCards.where((c) => c.suit == trumpSuit).toList()
@@ -320,16 +359,20 @@ class BotEngine {
         .toList();
 
     if (followCards.isNotEmpty) {
-      // We can follow suit
       if (winnerIsTeammate) {
-        // Partner is winning — play lowest to save high cards
+        // Hard difficulty might dump high points if teammate is securely winning
+        if (difficulty == BotDifficulty.hard && currentWinner != null) {
+           final winnerStrength = currentWinner.card.getStrength(mode: mode, trumpSuit: trumpSuit);
+           final isSecurelyWinning = (winnerStrength > 10); // arbitrary "strong" card logic
+           if (isSecurelyWinning) {
+              return _highestValueCard(followCards, mode, trumpSuit); // dump points
+           }
+        }
         return _lowestStrengthCard(followCards, mode, trumpSuit);
       }
 
-      // Try to win the trick with the cheapest winning card
       final winningCards = followCards.where((c) {
         if (currentWinner == null) return true;
-        // Can only win with same suit if no trump has been played
         final trumpPlayed = currentTrick.any((p) =>
             p.card.suit == trumpSuit && p.card.suit != leadSuit);
         if (trumpPlayed && mode == GameMode.hakam) return false;
@@ -338,26 +381,23 @@ class BotEngine {
       }).toList();
 
       if (winningCards.isNotEmpty) {
-        // Play the cheapest card that still wins
         return _lowestStrengthCard(winningCards, mode, trumpSuit);
       }
 
-      // Can't win — dump lowest value card
       return _lowestValueCard(followCards, mode, trumpSuit);
     }
 
-    // We're void in the lead suit
     if (mode == GameMode.hakam && trumpCards.isNotEmpty) {
       if (winnerIsTeammate) {
-        // Partner is winning — dump lowest non-trump instead
         if (offCards.isNotEmpty) {
+          if (difficulty == BotDifficulty.hard) {
+             return _highestValueCard(offCards, mode, trumpSuit); // Dump points to partner
+          }
           return _lowestValueCard(offCards, mode, trumpSuit);
         }
-        // Only have trump — play lowest
         return _lowestStrengthCard(trumpCards, mode, trumpSuit);
       }
 
-      // Cut with the cheapest trump that beats any existing trump
       final existingTrumpStrength = _highestTrumpInTrick(currentTrick, trumpSuit);
       if (existingTrumpStrength >= 0) {
         final beatingTrumps = trumpCards
@@ -369,92 +409,108 @@ class BotEngine {
           return _lowestStrengthCard(beatingTrumps, mode, trumpSuit);
         }
       }
-      // No higher trump needed / just cut with lowest trump
       return _lowestStrengthCard(trumpCards, mode, trumpSuit);
     }
 
-    // Sun mode void, or Hakam void in both lead + trump — dump lowest value
     return _lowestValueCard(validCards, mode, trumpSuit);
   }
 
   // ── Double Decision ──
 
-  /// Decide whether to call Double (defending team only).
-  ///
-  /// Returns null if the bot should skip, otherwise the level.
   DoubleStatus? decideDouble({
     required List<CardModel> hand,
     required GameMode mode,
     Suit? trumpSuit,
     required int ownScore,
     required int opponentScore,
+    required DoubleStatus currentDoubleStatus,
+    required bool isDefender,
   }) {
-    if (mode == GameMode.sun) return null;
+    if (mode == GameMode.sun || difficulty == BotDifficulty.easy) return null;
 
     final handScore = _evaluateHakamHand(hand, trumpSuit!);
+    
+    // Easy and Medium don't do complex escalation. They just double defensively if trailing heavily.
+    if (difficulty != BotDifficulty.hard) {
+      if (currentDoubleStatus == DoubleStatus.none && isDefender) {
+        if (handScore >= 55 && ownScore < opponentScore) return DoubleStatus.doubled;
+      }
+      return null;
+    }
 
-    // Very strong hand — consider doubling
-    if (handScore >= 55 && ownScore < opponentScore) {
-      return DoubleStatus.doubled;
+    // Hard difficulty calculates its odds for all levels.
+    if (isDefender) {
+      if (currentDoubleStatus == DoubleStatus.none) {
+        // First double
+        if (handScore >= 50 && ownScore < opponentScore) return DoubleStatus.doubled;
+      } else if (currentDoubleStatus == DoubleStatus.tripled) {
+        // Counter triple with four
+        if (handScore >= 62) return DoubleStatus.four;
+      }
+    } else {
+      // Buyer Team
+      if (currentDoubleStatus == DoubleStatus.doubled) {
+        // Counter double with triple
+        if (handScore >= 60) return DoubleStatus.tripled;
+      } else if (currentDoubleStatus == DoubleStatus.four) {
+        // Counter four with Gahwa (rare, needs perfect hand)
+        if (handScore >= 70) return DoubleStatus.gahwa;
+      }
     }
 
     return null;
   }
 
+  // ── Memory / Card Tracking (Hard Mode) ──
+
+  bool _isCardPlayed(List<TrickResult> trickHistory, Suit suit, Rank rank) {
+    for (final trick in trickHistory) {
+      for (final play in trick.cards) {
+        if (play.card.suit == suit && play.card.rank == rank) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   // ── Hand Evaluation Helpers ──
 
-  /// Score a hand for Hakam strength with the given trump suit.
-  /// Higher = stronger. Range roughly 0-80.
   int _evaluateHakamHand(List<CardModel> hand, Suit trumpSuit) {
     int score = 0;
-
     final trumpCards = hand.where((c) => c.suit == trumpSuit).toList();
     final nonTrumpCards = hand.where((c) => c.suit != trumpSuit).toList();
 
-    // Trump count is critical
     score += trumpCards.length * 6;
-
-    // High trumps are very valuable
     for (final c in trumpCards) {
       if (c.rank == Rank.jack) score += 15;
       if (c.rank == Rank.nine) score += 10;
       if (c.rank == Rank.ace) score += 6;
       if (c.rank == Rank.ten) score += 4;
     }
-
-    // Non-trump Aces are side winners
     for (final c in nonTrumpCards) {
       if (c.rank == Rank.ace) score += 5;
       if (c.rank == Rank.ten) score += 2;
     }
-
     return score;
   }
 
-  /// Score a hand for Sun strength (all suits equal).
-  /// Higher = stronger. Range roughly 0-70.
   int _evaluateSunHand(List<CardModel> hand) {
     int score = 0;
-
     for (final c in hand) {
       if (c.rank == Rank.ace) score += 8;
       if (c.rank == Rank.ten) score += 5;
       if (c.rank == Rank.king) score += 3;
     }
-
-    // Suit diversity bonus — having aces in multiple suits is very strong
     final suitAces = hand.where((c) => c.rank == Rank.ace).map((c) => c.suit).toSet();
     if (suitAces.length >= 3) score += 10;
     if (suitAces.length == 4) score += 8;
-
     return score;
   }
 
-  /// Find the best suit for Second Hakam (excluding the buyer card suit).
   Suit? _findStrongestTrumpSuit(List<CardModel> hand, {required Suit exclude}) {
     Suit? bestSuit;
     int bestScore = 0;
-
     for (final suit in Suit.values) {
       if (suit == exclude) continue;
       final score = _evaluateHakamHand(hand, suit);
@@ -463,26 +519,37 @@ class BotEngine {
         bestSuit = suit;
       }
     }
-
     return bestSuit;
   }
 
   // ── Card Comparison Helpers ──
 
-  CardModel _lowestValueCard(
-      List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
-    cards.sort((a, b) =>
+  CardModel _lowestValueCard(List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
+    final sorted = List<CardModel>.from(cards)..sort((a, b) =>
         a.getPointValue(mode: mode, trumpSuit: trumpSuit)
             .compareTo(b.getPointValue(mode: mode, trumpSuit: trumpSuit)));
-    return cards.first;
+    return sorted.first;
   }
 
-  CardModel _lowestStrengthCard(
-      List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
-    cards.sort((a, b) =>
+  CardModel _highestValueCard(List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
+    final sorted = List<CardModel>.from(cards)..sort((a, b) =>
+        b.getPointValue(mode: mode, trumpSuit: trumpSuit)
+            .compareTo(a.getPointValue(mode: mode, trumpSuit: trumpSuit)));
+    return sorted.first;
+  }
+
+  CardModel _lowestStrengthCard(List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
+    final sorted = List<CardModel>.from(cards)..sort((a, b) =>
         a.getStrength(mode: mode, trumpSuit: trumpSuit)
             .compareTo(b.getStrength(mode: mode, trumpSuit: trumpSuit)));
-    return cards.first;
+    return sorted.first;
+  }
+
+  CardModel _highestStrengthCard(List<CardModel> cards, GameMode mode, Suit? trumpSuit) {
+    final sorted = List<CardModel>.from(cards)..sort((a, b) =>
+        b.getStrength(mode: mode, trumpSuit: trumpSuit)
+            .compareTo(a.getStrength(mode: mode, trumpSuit: trumpSuit)));
+    return sorted.first;
   }
 
   int _highestTrumpInTrick(List<CardPlayModel> trick, Suit? trumpSuit) {
@@ -497,20 +564,14 @@ class BotEngine {
     return highest;
   }
 
-  /// Determine who is currently winning the trick.
-  CardPlayModel? _trickWinner(
-      List<CardPlayModel> trick, GameMode mode, Suit? trumpSuit) {
+  CardPlayModel? _trickWinner(List<CardPlayModel> trick, GameMode mode, Suit? trumpSuit) {
     if (trick.isEmpty) return null;
-
     final leadSuit = trick.first.card.suit;
     CardPlayModel winner = trick.first;
-
     for (int i = 1; i < trick.length; i++) {
       final play = trick[i];
-      final challengerIsTrump =
-          mode == GameMode.hakam && play.card.suit == trumpSuit;
-      final winnerIsTrump =
-          mode == GameMode.hakam && winner.card.suit == trumpSuit;
+      final challengerIsTrump = mode == GameMode.hakam && play.card.suit == trumpSuit;
+      final winnerIsTrump = mode == GameMode.hakam && winner.card.suit == trumpSuit;
 
       if (challengerIsTrump && !winnerIsTrump) {
         winner = play;
@@ -526,15 +587,12 @@ class BotEngine {
         }
       }
     }
-
     return winner;
   }
 }
 
-/// Result of a bot bidding decision.
 class BotBidDecision {
   final BidAction action;
   final Suit? secondHakamSuit;
-
   const BotBidDecision({required this.action, this.secondHakamSuit});
 }

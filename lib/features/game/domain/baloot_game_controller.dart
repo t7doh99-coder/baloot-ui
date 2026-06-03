@@ -12,6 +12,7 @@ import 'engines/bot_engine.dart';
 import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
 import 'engines/sawa_probability_engine.dart';
+import '../../../data/models/bot_difficulty.dart';
 import '../../../core/utils/game_logger.dart';
 
 /// The game phase the controller is currently in.
@@ -28,7 +29,7 @@ class BalootGameController implements IBalootController {
   final PlayValidator _playValidator = const PlayValidator();
   final ProjectDetector _projectDetector = const ProjectDetector();
   final ScoringEngine _scoringEngine = const ScoringEngine();
-  final BotEngine _botEngine = const BotEngine();
+  late final BotEngine _botEngine;
   final GameLogger logger = GameLogger();
 
   // Game-level state
@@ -62,7 +63,12 @@ class BalootGameController implements IBalootController {
   /// Set when the round ends via in-play **Sawa** (master cards), not trick 8 played out.
   int? _lastPlaySawaClaimSeat;
 
-  BalootGameController({Random? random}) : _rng = random ?? Random();
+  BalootGameController({
+    Random? random,
+    BotDifficulty botDifficulty = BotDifficulty.medium,
+  })  : _rng = random ?? Random() {
+    _botEngine = BotEngine(difficulty: botDifficulty, random: _rng);
+  }
 
   /// Points and flags from the last completed round (cleared on new round).
   RoundScoreResult? get lastRoundScoreResult => _lastRoundScoreResult;
@@ -1116,13 +1122,16 @@ class BalootGameController implements IBalootController {
       case GamePhase.doubleWindow:
         final buyerIdx = _roundState.buyerIndex ?? 0;
         final botIsDefender = (seatIndex % 2) != (buyerIdx % 2);
-        if (botIsDefender && _roundState.activeMode == GameMode.hakam) {
+        
+        if (_roundState.activeMode == GameMode.hakam) {
           final level = _botEngine.decideDouble(
             hand: _hands[seatIndex],
             mode: _roundState.activeMode!,
             trumpSuit: _roundState.trumpSuit,
             ownScore: seatIndex % 2 == 0 ? _teamAScore : _teamBScore,
             opponentScore: seatIndex % 2 == 0 ? _teamBScore : _teamAScore,
+            currentDoubleStatus: _roundState.doubleStatus,
+            isDefender: botIsDefender,
           );
           if (level != null) {
             callDouble(seatIndex, level);
@@ -1153,6 +1162,7 @@ class BalootGameController implements IBalootController {
           teamAAbnat: _turnManager!.teamAAbnat,
           teamBAbnat: _turnManager!.teamBAbnat,
           buyerIndex: _roundState.buyerIndex ?? -1,
+          trickHistory: _turnManager!.trickHistory,
         );
         playCard(seatIndex, card);
 
