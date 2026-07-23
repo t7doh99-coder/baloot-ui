@@ -19,6 +19,9 @@ dependencies:
   provider: ^6.1.2
   shimmer: ^3.0.0
   playing_cards: ^0.4.1+11
+  image: ^4.8.0
+  audioplayers: ^6.1.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -32,11 +35,14 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/baloot_logo.png
     - assets/images/cards/
     - assets/images/avatars/
     - assets/icons/
     - assets/lottie/
     - assets/figma/
+    - assets/audio/en/voice1/
+    - assets/audio/ar/voice1/
 
 flutter_launcher_icons:
   android: "launcher_icon"

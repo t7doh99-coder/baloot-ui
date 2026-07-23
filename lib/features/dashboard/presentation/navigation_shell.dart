@@ -5,12 +5,19 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/vip_background_shell.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../core/providers/user_provider.dart';
+import '../../../data/models/bot_difficulty.dart';
 import '../../session/presentation/create_session_screen.dart';
 import '../../game/presentation/game_table_screen.dart';
+import '../../game/presentation/game_loading_screen.dart';
+import '../../game/presentation/widgets/difficulty_selector_sheet.dart';
 import '../../game/presentation/game_provider.dart';
 import '../../game/presentation/table_background_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
-
+import 'new_home_screen_preview.dart';
+import 'test_screen_3.dart';
+import 'test_screen_4.dart';
+import 'test_screen_5.dart';
+import 'test_screen_6.dart';
 // ══════════════════════════════════════════════════════════════════
 //  NAVIGATION SHELL — Modern Game Hub
 //
@@ -64,18 +71,14 @@ class _NavigationShellState extends State<NavigationShell>
   // ── Hub action callbacks ──
   // LOGIC_PLUG_IN: Replace with ILobbyController implementation
 
-  void _onPlayNow() {
-    final game = context.read<GameProvider>();
-    final nav = Navigator.of(context);
-    game.startGame();
-    // Pushing the same frame as a full provider notify rebuild can hitch; run
-    // navigation on the next frame so the route opens more smoothly.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      nav.push(
-        MaterialPageRoute<void>(builder: (_) => const GameTableScreen()),
-      );
-    });
+  void _onPlayNow() async {
+    final difficulty = await DifficultySelectorSheet.show(context);
+    if (difficulty == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => GameLoadingScreen(difficulty: difficulty),
+      ),
+    );
   }
 
 
@@ -267,7 +270,7 @@ class _TopBar extends StatelessWidget {
                     debugPrint('[Menu] Alerts tapped');
                   },
                   onSettings: () {
-                    SettingsPanel.show(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
                   },
                 ),
               ),
@@ -1420,6 +1423,99 @@ class _QuickMenuButton extends StatelessWidget {
                         onTap: () {
                           Navigator.of(dialogContext).pop();
                           onSettings();
+                        },
+                      ),
+                      _divider(),
+                      // ── Test 1 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ١' : 'Test 1',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => Scaffold(
+                                backgroundColor: Colors.black,
+                                body: NewHomeScreenPreview(isArabic: isArabic),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      _divider(),
+                      // ── Test 2 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.science_outlined, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ٢' : 'Test 2',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => TestScreen3(isArabic: isArabic),
+                            ),
+                          );
+                        },
+                      ),
+                      _divider(),
+                      // ── Test 3 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ٣' : 'Test 3',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => TestScreen4(isArabic: isArabic),
+                            ),
+                          );
+                        },
+                      ),
+                      _divider(),
+                      // ── Test 4 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ٤' : 'Test 4',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => TestScreen5(isArabic: isArabic),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // ── Test 5 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ٥' : 'Test 5',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => TestScreen5(isArabic: isArabic),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // ── Test 6 ──
+                      _menuItem(
+                        isArabic: isArabic,
+                        icon: const Icon(Icons.workspace_premium_rounded, size: 18, color: AppColors.royalGold),
+                        label: isArabic ? 'اختبار ٦' : 'Test 6',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          Navigator.of(dialogContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => TestScreen6(isArabic: isArabic),
+                            ),
+                          );
                         },
                       ),
                     ],

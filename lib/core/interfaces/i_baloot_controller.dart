@@ -13,6 +13,9 @@ abstract class IBalootController {
   /// Start a brand new game (resets scores, picks first dealer).
   void startNewGame(List<String> playerNames);
 
+  /// Get the names of players at seats 0..3 (updated after identities assigned).
+  List<String> get playerNames;
+
   /// Start a new round within the current game.
   void startNewRound();
 

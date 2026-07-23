@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/layout/game_table_layout.dart';
 import '../../../core/constants/app_assets.dart';
@@ -23,6 +24,16 @@ import 'widgets/last_trick_mini_widget.dart';
 import 'widgets/game_table_majlis_hud.dart';
 import 'widgets/majlis_table_background.dart';
 import 'designer_table_test_screen.dart';
+
+// ── Sandstone Dark palette ─────────
+const _kGBgCanvas   = Color(0xFF1E1808);
+const _kGBgCard     = Color(0xFF2C2210);
+const _kGBgElevated = Color(0xFF392C14);
+const _kGSandGold   = Color(0xFFC49028);
+const _kGSandDark   = Color(0xFF886018);
+const _kGTextPrim   = Color(0xFFF8EDD8);
+const _kGSandBorder = Color(0x42C49028);
+// ───────────────────────────────────
 
 bool _showHand(GamePhase phase) {
   return phase != GamePhase.notStarted &&
@@ -59,9 +70,175 @@ class _GameTableScreenState extends State<GameTableScreen> {
   int _mapIndex = 0;
 
   static const List<String> _majlisMapPaths = [
-    AppAssets.majlisTableMap,
     AppAssets.majlisTableMap2,
+    AppAssets.majlisTableMap,
   ];
+
+  @override
+  void dispose() {
+    try {
+      context.read<GameProvider>().leaveTable();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  bool _allowPop = false;
+
+  void _confirmLeave(BuildContext context, GameProvider game) {
+    final isAr = context.read<LocaleProvider>().isArabic;
+    final titleFont = isAr ? GoogleFonts.cairo : GoogleFonts.readexPro;
+    final bodyFont = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            width: 340,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1808), // bgCanvas
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFC49028), width: 1.5), // gold border
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Warning badge
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    border: Border.all(color: Colors.redAccent, width: 1.5),
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.redAccent,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Title
+                Text(
+                  isAr ? 'مغادرة المباراة؟' : 'Leave Game?',
+                  style: titleFont(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFDFAE45),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Message banner / warning box
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C2210), // bgCard
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF392C14)),
+                  ),
+                  child: Text(
+                    isAr
+                        ? 'تنبيه: لن تحصل على أي نقاط خبرة (XP) أو مكافآت أو تقدم في المهام إذا غادرت المباراة الآن!'
+                        : 'Warning: You will lose all match progress, XP rewards, and coin bonuses if you leave now!',
+                    textAlign: TextAlign.center,
+                    style: bodyFont(
+                      fontSize: 13,
+                      color: const Color(0xFFF8EDD8),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Buttons
+                Row(
+                  children: [
+                    // Stay button
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(dialogCtx).pop(),
+                        child: Container(
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2C2210),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFC49028)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            isAr ? 'البقاء في اللعبة' : 'Stay in Game',
+                            style: titleFont(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFDFAE45),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Leave button
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.of(dialogCtx).pop(); // Close dialog
+                          setState(() => _allowPop = true);
+                          game.leaveTable();
+                          Navigator.of(context).pop(); // Exit screen
+                        },
+                        child: Container(
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.redAccent.shade700, Colors.red.shade900],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.redAccent.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            isAr ? 'مغادرة' : 'Leave Game',
+                            style: titleFont(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   void _cycleMajlisMap() {
     setState(() {
@@ -73,6 +250,8 @@ class _GameTableScreenState extends State<GameTableScreen> {
   Widget build(BuildContext context) {
     context.watch<LocaleProvider>();
     final game = context.watch<GameProvider>();
+    // Sync voice pack and player names language with current locale
+    game.setLanguage(context.read<LocaleProvider>().isArabic ? 'ar' : 'en');
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
@@ -88,32 +267,33 @@ class _GameTableScreenState extends State<GameTableScreen> {
                 .toList()
             : const <CardModel>[]);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: MajlisTableBackground(
-              mapAssetPath: _majlisMapPaths[_mapIndex],
+    return PopScope(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        _confirmLeave(context, game);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: MajlisTableBackground(
+                mapAssetPath: _majlisMapPaths[_mapIndex],
+              ),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-                  child: GameTableMajlisHud(
-                    game: game,
-                    onBack: () => Navigator.of(context).pop(),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+                    child: GameTableMajlisHud(
+                      game: game,
+                      onBack: () {
+                        _confirmLeave(context, game);
+                      },
                     onCycleWallpaper: _cycleMajlisMap,
-                    onTestMode: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const DesignerTableTestScreen(),
-                        ),
-                      );
-                    },
                   ),
                 ),
                 Expanded(
@@ -212,7 +392,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
             ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -470,9 +650,6 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
   int get _totalManual => _manual400 + _manual100 + _manual50 + _manualSera;
 
-  bool _didAutoOpenProjects = false;
-  bool _wasOpeningProjectWindow = false;
-
   /// [GameProvider] is a single instance; `didUpdateWidget`'s `oldWidget.game` is that
   /// same object, so comparing `old.game.phase` to `widget.game.phase` never detects
   /// engine updates. Track the last values we saw from a build instead.
@@ -530,24 +707,21 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       }
       _syncTrackedEngineFields(g);
     }
-
-    if (!_projectsPickerMayShow(widget.game)) {
-      _didAutoOpenProjects = false;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final game = widget.game;
 
-    // No longer auto-opening the project picker here. User must manually open it.
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_activePicker == _DashboardPicker.projects &&
-            _projectsPickerMayShow(game))
-          _buildProjectPickerExpanded(context, GameL10n.of(context)),
+        // Zone A: Action popup or project picker — separate box above player bar
+        Transform.translate(
+          offset: const Offset(0, 20.0), // Shift down to connect flush with yTop of the main bar
+          child: _buildContextualZone(context),
+        ),
+        // Zones B+C: Player bar below
         if (_showHand(game.phase))
           HumanPlayerMajlisBar(
             isProjectExpanded: _activePicker == _DashboardPicker.projects,
@@ -559,73 +733,92 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
               });
             },
           ),
-        _buildBottomActions(context),
       ],
     );
   }
 
-  Widget _buildBottomActions(BuildContext context) {
-    final loc = GameL10n.of(context);
+  // ── Zone A: Action popup box (with side gaps) or project picker ──
+  Widget _buildContextualZone(BuildContext context) {
+    final loc  = GameL10n.of(context);
     final game = widget.game;
-    final phase = game.phase;
-    final isHumanTurn = game.isHumanTurn;
+
+    if (game.isRoundJustEnded) return const SizedBox.shrink();
+
+    if (_activePicker == _DashboardPicker.projects && _projectsPickerMayShow(game)) {
+      return _buildProjectPickerExpanded(context, loc);
+    }
 
     List<Widget> buttons = [];
-
-    // During the 3s table pause + 6s scoreboard: show nothing
-    if (game.isRoundJustEnded) return const SizedBox(height: 8);
 
     if (_activePicker == _DashboardPicker.suit) {
       buttons = _buildSuitPickerButtons(context, loc);
     } else if (_activePicker == _DashboardPicker.doublePlay) {
       buttons = _buildDoublePlayButtons(context, loc);
-    } else if (phase == GamePhase.bidding) {
-      if (isHumanTurn) {
-        buttons = _biddingButtons(context, loc);
-      }
-    } else if (phase == GamePhase.doubleWindow) {
-      if (isHumanTurn &&
-          (game.isHumanDefender || game.isHumanBuyer)) {
-        buttons = _doubleButtons(context, loc);
-      }
+    } else if (game.phase == GamePhase.bidding && game.isHumanTurn) {
+      buttons = _biddingButtons(context, loc);
+    } else if (game.phase == GamePhase.doubleWindow &&
+        game.isHumanTurn &&
+        (game.isHumanDefender || game.isHumanBuyer)) {
+      buttons = _doubleButtons(context, loc);
     }
 
-    if (buttons.isEmpty) return const SizedBox(height: 8);
+    if (buttons.isEmpty) return const SizedBox.shrink();
 
     final scale = GameTableLayout.scale(context);
-    final barH = (56 * scale).clamp(48.0, 62.0);
+    final barH  = (56 * scale).clamp(50.0, 64.0);
+    const extraBottomPadding = 14.0;
 
+    // Stepped console box: left/right margin = 14px, bottom margin = 0px, flat bottom corners to connect with below bar
     return Container(
-      height: barH,
-      margin: EdgeInsets.fromLTRB(10, 2, 10, 8 * scale),
-      child: Row(
-        children: buttons.map((b) => Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: b,
+      height: barH + extraBottomPadding,
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4 + extraBottomPadding),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2210),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: const Border(
+          top: BorderSide(color: Color(0x66C49028), width: 1.5),
+          left: BorderSide(color: Color(0x66C49028), width: 1.5),
+          right: BorderSide(color: Color(0x66C49028), width: 1.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
           ),
-        )).toList(),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: buttons
+            .map((b) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: b,
+                  ),
+                ))
+            .toList(),
       ),
     );
   }
 
+  // ── Bidding action buttons ──────────────────────────────────────────────
   List<Widget> _biddingButtons(BuildContext ctx, GameL10n loc) {
     final bp = widget.game.biddingPhase;
     final gp = ctx.read<GameProvider>();
 
     if (bp == BiddingPhase.round1) {
-      final dealer = widget.game.dealerIndex;
-      final sane   = (dealer + 3) % 4; // player to dealer's left (CCW)
+      final dealer    = widget.game.dealerIndex;
+      final sane      = (dealer + 3) % 4;
       final canAshkal = (0 == dealer || 0 == sane);
 
-      // Kammelna-style row: صن · حكم · أشكال · سوى(defenders vs Hakam) · بس
       return [
         _GameBtn(label: gp.hasActiveHakamBid ? loc.qabalk : loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
         if (!gp.hasActiveHakamBid)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
-
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -637,19 +830,16 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       ];
     }
 
-    // Round 2 — Pass or Sawa (defenders lock the pending bid) — Kammelna/Jawaker.
     if (widget.game.hasRound2PendingBid) {
       final isHakam = widget.game.activeRound2PendingMode == GameMode.hakam;
       return [
-        if (isHakam)
-          _GameBtn(label: loc.qabalk, onTap: () => gp.humanBid(BidAction.sun)),
+        if (isHakam) _GameBtn(label: loc.qabalk, onTap: () => gp.humanBid(BidAction.sun)),
         _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
 
-    // Round 2 opening bids
     final isDealer = widget.game.roundState.dealerIndex == _humanSeat;
-    final isSane = (widget.game.roundState.dealerIndex + 3) % 4 == _humanSeat;
+    final isSane   = (widget.game.roundState.dealerIndex + 3) % 4 == _humanSeat;
 
     return [
       _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
@@ -663,33 +853,29 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     ];
   }
 
-  static const int _humanSeat = 0;
-
-
-
+  // ── Double/pass action buttons ─────────────────────────────────────────
   List<Widget> _doubleButtons(BuildContext ctx, GameL10n loc) {
-    final gp = ctx.read<GameProvider>();
+    final gp     = ctx.read<GameProvider>();
     final status = widget.game.doubleStatus;
-    final mode = widget.game.roundState.activeMode ?? GameMode.hakam;
+    final mode   = widget.game.roundState.activeMode ?? GameMode.hakam;
 
     void openDoublePicker(DoubleStatus d) {
       setState(() {
         _pendingDouble = d;
-        _activePicker = _DashboardPicker.doublePlay;
+        _activePicker  = _DashboardPicker.doublePlay;
       });
     }
 
-    // Buyer responses (Hakam chain only — Sun stops at one Double per rules).
     if (gp.isHumanBuyer) {
       if (status == DoubleStatus.doubled && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+          _GameBtn(label: loc.pass,   onTap: () => gp.humanSkipDouble()),
           _GameBtn(label: loc.triple, onTap: () => openDoublePicker(DoubleStatus.tripled)),
         ];
       }
       if (status == DoubleStatus.four && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+          _GameBtn(label: loc.pass,  onTap: () => gp.humanSkipDouble()),
           _GameBtn(label: loc.gahwa, onTap: () => gp.humanDouble(DoubleStatus.gahwa)),
         ];
       }
@@ -700,21 +886,18 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
     if (mode == GameMode.sun) {
       if (!gp.canDefenderDoubleInSun) {
-        return [
-          _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
-        ];
+        return [_GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble())];
       }
       if (status != DoubleStatus.none) return [];
       return [
-        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
         _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
       ];
     }
 
-    // Hakam — show only the next legal defender action (not Four/Gahwa up front).
     if (status == DoubleStatus.none) {
       return [
-        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
+        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
         _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
       ];
     }
@@ -726,6 +909,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     }
     return [];
   }
+
+  static const int _humanSeat = 0;
+
 
 
   List<Widget> _buildSuitPickerButtons(BuildContext ctx, GameL10n loc) {
@@ -770,10 +956,29 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     ];
 
     final scale = GameTableLayout.scale(context);
+    const extraBottomPadding = 14.0;
 
+    // Stepped console box: left/right margin = 14px, bottom margin = 0px, flat bottom corners to connect with below bar
     return Container(
-      margin: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-      height: (48 * scale).clamp(44.0, 56.0),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4 + extraBottomPadding),
+      height: (48 * scale).clamp(44.0, 56.0) + extraBottomPadding,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2210),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: const Border(
+          top: BorderSide(color: Color(0x66C49028), width: 1.5),
+          left: BorderSide(color: Color(0x66C49028), width: 1.5),
+          right: BorderSide(color: Color(0x66C49028), width: 1.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
       child: Row(
         children: List.generate(orderedTypes.length, (idx) {
           final t = orderedTypes[idx];
@@ -897,14 +1102,11 @@ class _GameBtn extends StatefulWidget {
   final String label;
   final Widget? leading;
   final bool isActive;
-  /// When true, never use the gold highlight (only grey tones, including press).
-  final bool forceDarkStyle;
   final VoidCallback onTap;
   const _GameBtn({
     required this.label,
     this.leading,
     this.isActive = false,
-    this.forceDarkStyle = false,
     required this.onTap,
   });
 
@@ -957,70 +1159,35 @@ class _GameBtnState extends State<_GameBtn>
     widget.onTap();
   }
 
-  static (LinearGradient, Color, Color) _style(bool isPressed) {
-    // Designer test screen match: Golden effect appears when button is selected (pressed).
-    if (isPressed) {
-      return (
-        const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFF2D08D), Color(0xFFC3912A)],
-        ),
-        const Color(0xFFE8C874), // Border
-        const Color(0xFF41210E), // Text
-      );
-    } else {
-      return (
-        const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF5A5A5A), Color(0xFF2D2D2D)],
-        ),
-        Colors.white.withValues(alpha: 0.12), // Border
-        Colors.white, // Text
-      );
-    }
-  }
-
-  /// Grey-only pills (no gold), with a slightly darker press state.
-  static (LinearGradient, Color, Color) _darkOnlyStyle(bool isPressed) {
-    if (isPressed) {
-      return (
-        const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF4A4A4A), Color(0xFF2A2A2A)],
-        ),
-        Colors.white.withValues(alpha: 0.22),
-        Colors.white,
-      );
-    }
-    return (
-      const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF5A5A5A), Color(0xFF2D2D2D)],
-      ),
-      Colors.white.withValues(alpha: 0.12),
-      Colors.white,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final pressedOrActive = _isPressed || widget.isActive;
-    final (gradient, borderColor, txtCol) = widget.forceDarkStyle
-        ? _darkOnlyStyle(_isPressed)
-        : _style(pressedOrActive);
-    final scale = GameTableLayout.scale(context);
+    final pressed = _isPressed || widget.isActive;
+    final layoutScale = GameTableLayout.scale(context);
     final baseFs = widget.label.length > 12 ? 12.0 : 14.0;
-    final textStyle = TextStyle(
-      fontSize: (baseFs * scale).clamp(11.0, 16.0),
-      fontWeight: FontWeight.w800,
-      color: txtCol,
-      height: 1.05,
+    final btnH = (40 * layoutScale).clamp(36.0, 44.0);
+
+    // 3D effect via multi-stop gradient instead of asymmetric borders
+    // (Flutter doesn't support borderRadius + non-uniform Border widths)
+    final faceGrad = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      stops: pressed
+          ? const [0.0, 0.05, 0.95, 1.0]
+          : const [0.0, 0.06, 0.85, 1.0],
+      colors: pressed
+          ? const [
+              Color(0xFFD4A830), // bright gold top edge
+              Color(0xFFB88820), // face top
+              Color(0xFF886010), // face bottom
+              Color(0xFF5A3A08), // darker bottom edge
+            ]
+          : const [
+              Color(0xFFEED080), // bright highlight top edge (simulates light)
+              Color(0xFFAA8848), // face top
+              Color(0xFF4A3018), // face bottom
+              Color(0xFF0A0602), // very dark bottom edge (simulates depth)
+            ],
     );
-    final btnH = (44 * scale).clamp(40.0, 52.0);
 
     return GestureDetector(
       onTapDown: _handleTapDown,
@@ -1029,30 +1196,49 @@ class _GameBtnState extends State<_GameBtn>
       onTap: _handleTap,
       child: ScaleTransition(
         scale: _scale,
-        child: Container(
-          height: btnH,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: gradient,
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.leading != null) ...[
-                   widget.leading!,
-                   const SizedBox(width: 6),
+        child: SizedBox(
+          height: btnH + 4,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 80),
+            margin: EdgeInsets.only(top: pressed ? 4.0 : 0.0),
+            height: btnH,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: faceGrad,
+              // Uniform border — safe with borderRadius
+              border: Border.all(
+                color: pressed
+                    ? const Color(0xFFC49028)
+                    : const Color(0xFF9A7820),
+                width: 1.0,
+              ),
+              boxShadow: pressed
+                  ? [BoxShadow(color: _kGSandGold.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 1)]
+                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 6, offset: const Offset(0, 5))],
+            ),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.leading != null) ...[
+                    widget.leading!,
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: (baseFs * layoutScale).clamp(11.0, 16.0),
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.05,
+                    ),
+                  ),
                 ],
-                Text(
-                  widget.label,
-                  textAlign: TextAlign.center,
-                  style: textStyle,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1060,6 +1246,9 @@ class _GameBtnState extends State<_GameBtn>
     );
   }
 }
+
+
+
 
 // -------------------------------------------------------------------------
 //  QAID (VIOLATION) BANNER — Kammelna-style red flash
@@ -1117,74 +1306,7 @@ class _QaidViolationBannerState extends State<_QaidViolationBanner>
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 80,
-      left: 24,
-      right: 24,
-      child: SlideTransition(
-        position: _slide,
-        child: FadeTransition(
-          opacity: _opacity,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFB71C1C), Color(0xFF7F0000)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withValues(alpha: 0.5),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-                border: Border.all(
-                  color: Colors.red.shade300.withValues(alpha: 0.6),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.gavel_rounded, color: Colors.white, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Illegal Play!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _labelMap.entries
-                              .firstWhere(
-                                (e) => widget.message.toLowerCase().contains(e.key.toLowerCase()),
-                                orElse: () => MapEntry('', widget.message),
-                              )
-                              .value,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 

@@ -198,9 +198,9 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
 
   double get _cardWidth => GameTableLayout.handCardSize(widget.scale).width;
   double get _cardHeight => GameTableLayout.handCardSize(widget.scale).height;
-  static const double _largeRotation = 0.05;
-  double get _arcLift => 14.0 * widget.scale;
-  double get _selLift => 46.0 * widget.scale;
+  static const double _largeRotation = 0.065; // stronger fan tilt per card
+  double get _arcLift => 20.0 * widget.scale;  // more dramatic parabolic rise at centre
+  double get _selLift => 56.0 * widget.scale;  // selected card pops up higher
 
   int? get _selectedIndex {
     if (widget.selectedCard == null) return null;
@@ -303,7 +303,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                   curve: Curves.easeOutCubic,
                   alignment: Alignment.bottomCenter,
                   turns: ((index - (n - 1) / 2) * _largeRotation) / (2 * 3.14159),
-                  child: highlightedCard,
+                  child: RepaintBoundary(child: highlightedCard),
                 ),
               );
 

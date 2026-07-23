@@ -27,11 +27,6 @@ class DealOverlayWidget extends StatelessWidget {
     final game  = context.watch<GameProvider>();
     final phase = game.phase;
 
-    // All-pass both rounds — show cancelled overlay before new deal
-    if (game.isRoundCancelled) {
-      return _RoundCancelledOverlay(newDealerName: game.cancelledNewDealerName);
-    }
-
     if (phase == GamePhase.dealing && !game.isRoundJustEnded) {
       return const _DealingSpinner();
     }
@@ -175,40 +170,12 @@ class _BuyerCardDisplayState extends State<_BuyerCardDisplay>
             child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Buyer label
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppColors.goldAccent.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  buyerIdx != null ? loc.buyerLine(buyerName) : loc.bidding,
-                  style: TextStyle(
-                    color: AppColors.goldAccent,
-                    fontSize: 11,
-                    fontFamily: 'Tajawal',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-
               // Buyer card — large, face-up
               PlayingCard(
                 card: buyerCard,
                 size: CardSize.large,
                 faceUp: true,
               ),
-
-              const SizedBox(height: 6),
-
-              // Phase label (bidding round)
-              _PhasePill(phase: phase, game: game),
             ],
           ),
         ),
@@ -244,7 +211,7 @@ class _PhasePill extends StatelessWidget {
         break;
       case GamePhase.doubleWindow:
         label = loc.doubleWindow;
-        color = const Color(0xFFE63946);
+        color = AppColors.goldAccent;
         break;
       default:
         return const SizedBox.shrink();
@@ -318,18 +285,32 @@ class _RoundCancelledOverlayState extends State<_RoundCancelledOverlay>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFFE63946).withValues(alpha: 0.18),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF332712),
+                  Color(0xFF261D0D),
+                ],
+              ),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: const Color(0xFFE63946).withValues(alpha: 0.6),
-                width: 1,
+                color: const Color(0xFFC49028).withValues(alpha: 0.6),
+                width: 1.2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Text(
               'الجلسة ملغية  •  موزع جديد: ${widget.newDealerName}',
               textDirection: TextDirection.rtl,
               style: const TextStyle(
-                color: Color(0xFFE63946),
+                color: Color(0xFFD4AF37),
                 fontSize: 12,
                 fontFamily: 'Tajawal',
                 fontWeight: FontWeight.w700,

@@ -152,10 +152,28 @@ class GameL10n {
     return _ar ? 'حكم $sym'.trim() : 'Hakam $sym'.trim();
   }
 
+  // ── Points & Rank ──
+  String get pointsBase => _ar ? 'الأساسي' : 'Base';
+  String get pointsRankGap => _ar ? 'فرق المستوى' : 'Rank Gap';
+  String get pointsStreakBonus => _ar ? 'مكافأة الفوز' : 'Streak Bonus';
+  String get botCapApplied => _ar ? '(الحد الأقصى للكمبيوتر)' : '(Bot Cap Applied)';
+  String get totalStars => _ar ? 'النجوم' : 'Total Stars';
+  String get totalMedals => _ar ? 'الميداليات' : 'Medals';
+  String get medalsUnchanged => _ar ? '0 (بدون تغيير)' : '0 (Unchanged)';
+  String medalsToNext(int num) => _ar ? '$num ميدالية للمستوى التالي' : '$num medals to next level';
+  String get rankProgress => _ar ? 'التقدم' : 'Progress';
+  String get rankUp => _ar ? 'ترقية!' : 'RANK UP!';
+  String get newRank => _ar ? 'مستوى جديد' : 'New Rank';
+
   /// Localize speech-bubble text produced by [GameProvider] (English tokens).
   String localizeBubble(String en) {
     if (!_ar) {
       if (en == 'PassR2') return 'Pass';
+      // Disabled for now per user request:
+      // if (en == 'Celebrate') return '🎉 Nice!';
+      // if (en == 'Oops') return '😅 Oops!';
+      // if (en == 'Surprised') return '😲 Wow!';
+      // if (en == 'GoodLuck') return '👍 Good game';
       return en;
     }
     if (en.startsWith('Hakam ') && en.length > 6) {
@@ -182,6 +200,11 @@ class GameL10n {
       '400' => 'أربعمية',
       'Baloot' => 'بلوت',
       'Akka' => 'أكة',
+      // Disabled for now per user request:
+      // 'Celebrate' => '🎉 كفو!',
+      // 'Oops' => '😅 أوف!',
+      // 'Surprised' => '😲 ما شاء الله!',
+      // 'GoodLuck' => '👍 بالتوفيق',
       _ => _tryTranslateCombinedProjects(en),
     };
   }

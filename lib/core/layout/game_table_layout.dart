@@ -35,7 +35,7 @@ class GameTableLayout {
   static double handFanBandHeight(double scale) => 186.0 * scale;
 
   /// Stack offset from bottom of [Expanded] play column to clear dashboard.
-  static double handStackBottom(double scale) => 90.0 * scale;
+  static double handStackBottom(double scale) => 120.0 * scale;
 
   /// Declared project mini-fan above the human hand.
   static double projectFanBottom(double scale) => 215.0 * scale;

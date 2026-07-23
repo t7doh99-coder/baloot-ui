@@ -1,12 +1,16 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
-import '../../../../data/models/card_model.dart' show GameMode, Suit;
-import '../../../../data/models/round_state_model.dart' show DoubleStatus, ProjectType, DeclaredProject;
+import '../../../../data/models/card_model.dart' show GameMode;
+import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../game_provider.dart';
+import '../../../../core/services/player_stats_service.dart';
+import '../../../../core/services/rank_calculator.dart';
+import 'rank_badge_widget.dart';
 
 // ══════════════════════════════════════════════════════════════════
 //  ROUND SCORE OVERLAY — Kammelna-style breakdown + Majlis charcoal theme
@@ -16,415 +20,166 @@ import '../game_provider.dart';
 //  • Exit / Play again below the card (not inside the border)
 // ══════════════════════════════════════════════════════════════════
 
-/// Localized strings aligned with Kammelna column labels (لنا / لهم / الأبناط…).
-class _RoundScoreStrings {
-  _RoundScoreStrings({required this.ar});
-
-  final bool ar;
-
-  String get title => ar ? 'لوحة النقاط' : 'Scoreboard';
-  String get game => ar ? 'اللعبة' : 'Game';
-  String get buyer => ar ? 'المشتري' : 'Buyer';
-  String get stakes => ar ? 'الدبل' : 'Stakes';
-  String get tricks => ar ? 'الأكلات' : 'Tricks';
-  String get ground => ar ? 'الأرض' : 'Ground';
-  String get projects => ar ? 'المشاريع' : 'Projects';
-  String get baloot => ar ? 'بلوت (ملك + بنت الحكم)' : 'Baloot (K+Q trump)';
-  /// Trick card points only (threshold 65/81); excludes project lines.
-  String get trickPoints => ar ? 'أبناط الورق (الأكل)' : 'Trick pts (cards)';
-  String get points => ar ? 'الأبناط' : 'Points';
-  String get khamsProjectsNote =>
-      ar ? 'مشاريع المشتري إلى المدافعين' : 'Buyer projects to defenders';
-  String get result => ar ? 'النتيجة' : 'Result';
-  String get them => ar ? 'لهم' : 'Them';
-  String get us => ar ? 'لنا' : 'Us';
-  String get ourTeam => ar ? 'فريقنا' : 'Our team';
-  String get theirTeam => ar ? 'فريقهم' : 'Their team';
-
-  String get exitGame => ar ? 'خروج' : 'Exit game';
-  String get playAgain => ar ? 'العب مرة أخرى' : 'Play again';
-
-  /// Buyer is our team (seat 0): we failed the purchase threshold.
-  String get labelKhamsOurs =>
-      ar ? 'شراءنا: خسران (خمس)' : 'Our purchase: Lost (Khams)';
-  /// Buyer is their team: their purchase failed (good for us as defenders).
-  String get labelKhamsTheirs =>
-      ar ? 'شراؤهم: خسران (خمس)' : 'Their purchase: Lost (Khams)';
-
-  /// Buyer is our team: we made Sun/Hakam threshold (normal round).
-  String get labelWonOurs =>
-      ar ? 'شراءنا: فائز (تجاوز الحد)' : 'Our purchase: Won (made threshold)';
-  /// Buyer is their team: they made threshold (defenders’ view).
-  String get labelWonTheirs =>
-      ar ? 'شراؤهم: فائز (تجاوز الحد)' : 'Their purchase: Won (made threshold)';
-
-  String get labelViolationPenalty => ar ? 'غرامة قيد — خسارة دور' : 'Qaid violation — round lost';
-
-  /// Our team bought and swept all tricks.
-  String get labelWonKaboutOurs =>
-      ar ? 'شراءنا: فائز (كبوت)' : 'Our purchase: Won (Kabout sweep)';
-  /// They bought and swept all tricks.
-  String get labelWonKaboutTheirs =>
-      ar ? 'شراؤهم: فائز (كبوت)' : 'Their purchase: Won (Kabout sweep)';
-
-  /// We bought; defenders took every trick (Kabout against buyer).
-  String get labelLostKaboutWeBought =>
-      ar ? 'شراءنا: خسران (كبوت للمدافعين)' : 'Our purchase: Lost (defenders took Kabout)';
-  /// They bought; we (defenders) took every trick.
-  String get labelLostKaboutTheyBought =>
-      ar ? 'شراؤهم: خسران (كبوت لنا كمدافعين)' : 'Their purchase: Lost (we defended Kabout)';
-
-  /// One line: threshold is trick Abnat only (no projects in the comparison).
-  String khamsThresholdShort(bool sunMode) => sunMode
-      ? (ar ? 'أبناط الورق فقط: الصن يحتاج فوق 65' : 'Cards only: Sun needs above 65')
-      : (ar ? 'أبناط الورق فقط: الحكم يحتاج فوق 81' : 'Cards only: Hakam needs above 81');
-
-  TextStyle footnoteStyle(
-    TextStyle Function({double size, FontWeight w, Color? color}) taj,
-  ) =>
-      taj(size: 10, w: FontWeight.w500, color: Colors.white.withValues(alpha: 0.5));
-
-  /// In-play Sawa — one short line (claimant gets remaining card points + ground).
-  String playSawaShortLine(int claimSeat, String buyerTeam) {
-    final claimTeam = claimSeat.isEven ? 'A' : 'B';
-    if (claimTeam == buyerTeam) {
-      return ar ? 'سوَا يد: الباقي لفريق المشتري' : 'Sawa: remainder to buyer';
-    }
-    return ar ? 'سوَا يد: الباقي للمدافعين' : 'Sawa: remainder to defenders';
-  }
-
-  String matchCaption(int teamA, int teamB) => ar
-      ? 'المباراة: لنا $teamA، لهم $teamB'
-      : 'Match: Us $teamA, Them $teamB';
-}
-
-class RoundScoreOverlay extends StatelessWidget {
+class RoundScoreOverlay extends StatefulWidget {
   const RoundScoreOverlay({super.key});
 
-  /// Majlis / game-table charcoal (same family as [HumanPlayerMajlisBar]).
-  static const _panelBg = Color(0xFF2C2C2C);
-  static const _innerBg = Color(0xFF232323);
-  static const _innerBorder = Color(0x1AFFFFFF);
-  static const _themColor = Color(0xFFE63946);
-  static const _usColor = Color(0xFF28802E);
-  static const _lossRed = Color(0xFFFF5252);
-  static const _titleGold = Color(0xFFC9A227);
+  @override
+  State<RoundScoreOverlay> createState() => _RoundScoreOverlayState();
+}
+
+class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProviderStateMixin {
+  late final AnimationController _trophyController;
+  late final AnimationController _particlesController;
+  final List<_ScoreParticle> _particles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _trophyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat(reverse: true);
+
+    _particlesController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat();
+
+    _initParticles();
+  }
+
+  void _initParticles() {
+    final rnd = math.Random();
+    final colors = [
+      const Color(0xFFC49028),
+      const Color(0xFF00E87A),
+      const Color(0xFFFF3D3D),
+      const Color(0xFFF0D47A),
+      const Color(0xFFFFFFFF),
+    ];
+    for (int i = 0; i < 32; i++) {
+      _particles.add(_ScoreParticle(
+        id: i,
+        x: 0.05 + rnd.nextDouble() * 0.9,
+        y: 0.3 + rnd.nextDouble() * 0.65,
+        size: 3.0 + rnd.nextDouble() * 4.5,
+        color: colors[rnd.nextInt(colors.length)],
+        speed: 0.2 + rnd.nextDouble() * 0.35,
+        isStar: rnd.nextBool(),
+        phase: rnd.nextDouble() * 1.0,
+      ));
+    }
+  }
+
+  @override
+  void dispose() {
+    _trophyController.dispose();
+    _particlesController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final isAr = context.watch<LocaleProvider>().isArabic;
-    final s = _RoundScoreStrings(ar: isAr);
     final r = game.lastRoundResult;
     final total = game.gameScore;
     if (r == null) return const SizedBox.shrink();
 
-    final buyerSide = r.buyerTeam == 'A' ? s.ourTeam : s.theirTeam;
-    /// Human is always seat 0 → Team A ([GameProvider]).
-    const humanTeam = 'A';
-    final humanIsBuyer = r.buyerTeam == humanTeam;
-
-    // Headlines: name *whose* purchase failed/won; tint from human POV (avoid misleading green/red).
-    final (contractText, contractColor) = () {
-      if (r.reason == 'qaid_penalty') {
-        return (s.labelViolationPenalty, _lossRed);
-      }
-      if (r.isKhams) {
-        if (humanIsBuyer) {
-          return (s.labelKhamsOurs, _lossRed);
-        }
-        return (s.labelKhamsTheirs, const Color(0xFF69F0AE));
-      }
-      if (r.isKabout) {
-        final buyerSwept = r.winningTeam == r.buyerTeam;
-        if (buyerSwept) {
-          if (humanIsBuyer) {
-            return (s.labelWonKaboutOurs, const Color(0xFF69F0AE));
-          }
-          return (s.labelWonKaboutTheirs, _lossRed);
-        }
-        if (humanIsBuyer) {
-          return (s.labelLostKaboutWeBought, _lossRed);
-        }
-        return (s.labelLostKaboutTheyBought, const Color(0xFF69F0AE));
-      }
-      if (humanIsBuyer) {
-        return (s.labelWonOurs, const Color(0xFF69F0AE));
-      }
-      // Normal: they only “won” the purchase (threshold). We still get defender
-      // points in the Result row — red here looked like swapped/losing Nashra.
-      return (s.labelWonTheirs, _titleGold);
-    }();
-
-    final groundA = r.lastTrickBonusTeam == 'A' ? 10 : 0;
-    final groundB = r.lastTrickBonusTeam == 'B' ? 10 : 0;
-    final trickA = r.teamATrickAbnat - groundA;
-    final trickB = r.teamBTrickAbnat - groundB;
-
-    final stakesEn = _stakesLabel(r.doubleStatus);
-    final stakes = _stakesLabelLocalized(stakesEn, isAr);
-    final g10n = GameL10n.of(context);
-    final trumpSym = switch (r.trumpSuit) {
-      Suit.hearts => '♥',
-      Suit.diamonds => '♦',
-      Suit.spades => '♠',
-      Suit.clubs => '♣',
-      null => '',
-    };
-    final gameLine = g10n.scoreboardGameLine(r.mode, trumpSym.isEmpty ? null : trumpSym);
-
-    TextStyle taj({
-      double size = 13,
-      FontWeight w = FontWeight.w500,
-      Color? color,
-    }) =>
-        GoogleFonts.readexPro(
-          fontSize: size,
-          fontWeight: w,
-          color: color ?? Colors.white.withValues(alpha: 0.88),
-          height: 1.25,
-        );
+    final isUsWon = r.teamAPoints >= r.teamBPoints;
 
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.62),
-        child: Center(
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.94, end: 1.0),
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            builder: (ctx, scale, child) =>
-                Transform.scale(scale: scale, child: child),
+        child: SafeArea(
+          child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 368),
+                constraints: const BoxConstraints(maxWidth: 440),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    DecoratedBox(
+                    // Status banner above scoreboard box
+                    _buildStatusBanner(isAr, isUsWon),
+                    const SizedBox(height: 16),
+                    Container(
                       decoration: BoxDecoration(
-                        color: _panelBg,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0xFF392C14),
+                            Color(0xFF2C2210),
+                          ],
+                        ),
                         border: Border.all(
-                          color: _titleGold.withValues(alpha: 0.45),
-                          width: 1.2,
+                          color: const Color(0xFFC49028).withValues(alpha: 0.45),
+                          width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.45),
+                            color: Colors.white.withValues(alpha: 0.12),
+                            offset: const Offset(0, 1),
+                            blurRadius: 2,
+                            blurStyle: BlurStyle.inner,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.55),
                             blurRadius: 24,
-                            offset: const Offset(0, 12),
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              s.title,
-                              style: GoogleFonts.readexPro(
-                                color: _titleGold,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.3,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            if (r.playSawaClaimSeat != null) ...[
-                              Text(
-                                s.playSawaShortLine(
-                                  r.playSawaClaimSeat!,
-                                  r.buyerTeam,
-                                ),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.readexPro(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: _titleGold.withValues(alpha: 0.85),
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
-                            Container(
-                              height: 1,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    _titleGold.withValues(alpha: 0.0),
-                                    _titleGold.withValues(alpha: 0.65),
-                                    _titleGold.withValues(alpha: 0.0),
+                            // ── Combined top black section (`_buildHeroPanel` + `_buildGameInfoCards`) with full-section particles ──
+                            Stack(
+                              children: [
+                                // 1. Black backgrounds stacked cleanly
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildHeroPanel(isAr, r, total, onlyBg: true),
+                                    _buildGameInfoCards(isAr, r, onlyBg: true),
                                   ],
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _innerBg,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: _innerBorder),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _statusRow(s.game, gameLine, taj: taj),
-                                  const SizedBox(height: 6),
-                                  _statusRow(s.buyer, buyerSide, taj: taj),
-                                  if (stakes != null) ...[
-                                    const SizedBox(height: 6),
-                                    _statusRow(s.stakes, stakes, taj: taj),
+                                // 2. Animated floating particles rising across the ENTIRE top black section
+                                Positioned.fill(
+                                  child: ClipRect(
+                                    child: AnimatedBuilder(
+                                      animation: _particlesController,
+                                      builder: (context, _) {
+                                        return CustomPaint(
+                                          painter: _ScoreParticlePainter(_particles, _particlesController.value),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                // 3. Crisp foreground content (`THEM 30`, `US 0`, `VS` coin, and the two inner cards)
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildHeroPanel(isAr, r, total, onlyContent: true),
+                                    _buildGameInfoCards(isAr, r, onlyContent: true),
                                   ],
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    contractText,
-                                    style: taj(
-                                      size: 14,
-                                      w: FontWeight.w800,
-                                      color: contractColor,
-                                    ),
-                                  ),
-                                  if (r.isKhams) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      s.khamsThresholdShort(r.mode == GameMode.sun),
-                                      style: s.footnoteStyle(taj),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 14),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _innerBg,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: _innerBorder),
-                              ),
-                              child: Column(
-                                children: [
-                                  _ScoreTableRow.header(
-                                    taj,
-                                    themLabel: s.them,
-                                    usLabel: s.us,
-                                  ),
-                                  _thinRule(),
-                                  _ScoreTableRow.data(
-                                    s.tricks,
-                                    trickB,
-                                    trickA,
-                                    taj,
-                                  ),
-                                  _ScoreTableRow.dataOptional(
-                                    s.ground,
-                                    groundB,
-                                    groundA,
-                                    taj,
-                                  ),
-                                  ...() {
-                                    if (r.teamAProjectAbnat == 0 && r.teamBProjectAbnat == 0) {
-                                      return [
-                                        _ScoreTableRow.dataOptional(s.projects, 0, 0, taj)
-                                      ];
-                                    }
-                                    final isAWinner = r.teamAProjectAbnat > 0;
-                                    final List<DeclaredProject> winningList = isAWinner ? r.teamAProjectsList : r.teamBProjectsList;
-                                    
-                                    final Map<ProjectType, int> projMap = {};
-                                    for (final p in winningList) {
-                                      projMap[p.type] = (projMap[p.type] ?? 0) + p.getAbnat(r.mode).toInt();
-                                    }
-                                    
-                                    return projMap.entries.map((entry) {
-                                      return _ScoreTableRow.dataOptional(
-                                        g10n.projectType(entry.key),
-                                        isAWinner ? 0 : entry.value,
-                                        isAWinner ? entry.value : 0,
-                                        taj,
-                                      );
-                                    }).toList();
-                                  }(),
-                                  // Baloot row: only shown when K+Q trump was declared
-                                  if (r.balootTeam != null)
-                                    _ScoreTableRow.baloot(
-                                      s.baloot,
-                                      themPts: r.balootTeam == 'B' ? 2 : 0,
-                                      usPts: r.balootTeam == 'A' ? 2 : 0,
-                                      taj: taj,
-                                    ),
-                                  if (r.isKhams) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      s.khamsProjectsNote,
-                                      textAlign: TextAlign.center,
-                                      style: taj(
-                                        size: 10,
-                                        w: FontWeight.w500,
-                                        color:
-                                            Colors.white.withValues(alpha: 0.45),
-                                      ),
-                                    ),
-                                  ],
-                                  _thinRule(),
-                                  _ScoreTableRow.data(
-                                    s.trickPoints,
-                                    r.teamBTrickAbnat,
-                                    r.teamATrickAbnat,
-                                    taj,
-                                    emphasize: true,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                      horizontal: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.06),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: _titleGold
-                                            .withValues(alpha: 0.22),
-                                      ),
-                                    ),
-                                    child: _ScoreTableRow.data(
-                                      s.result,
-                                      r.teamBPoints,
-                                      r.teamAPoints,
-                                      taj,
-                                      isFinal: true,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              s.matchCaption(total.teamA, total.teamB),
-                              style: taj(
-                                size: 11,
-                                w: FontWeight.w600,
-                                color: Colors.white.withValues(alpha: 0.42),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+
+                            // ── Stats table ──
+                            _buildStatsTable(isAr, r),
+
+                            // ── Result row ──
+                            _buildResultRow(isAr, r),
                           ],
                         ),
                       ),
@@ -439,220 +194,572 @@ class RoundScoreOverlay extends StatelessWidget {
     );
   }
 
-  static String? _stakesLabelLocalized(String? en, bool ar) {
-    if (en == null) return null;
-    if (!ar) return en;
-    return switch (en) {
-      'Double' => 'دبل',
-      'Triple' => 'تربل',
-      'Four' => 'فور',
-      'Gahwa' => 'قهوة',
-      _ => en,
-    };
-  }
-
-  static String? _stakesLabel(DoubleStatus d) {
-    return switch (d) {
-      DoubleStatus.none => null,
-      DoubleStatus.doubled => 'Double',
-      DoubleStatus.tripled => 'Triple',
-      DoubleStatus.four => 'Four',
-      DoubleStatus.gahwa => 'Gahwa',
-    };
-  }
-}
-
-Widget _statusRow(
-  String label,
-  String value, {
-  required TextStyle Function({
-    double size,
-    FontWeight w,
-    Color? color,
-  }) taj,
-}) {
-  return RichText(
-    text: TextSpan(
-      style: taj(size: 13, w: FontWeight.w500),
-      children: [
-        TextSpan(
-          text: '$label: ',
-          style: taj(
-            size: 13,
-            w: FontWeight.w600,
-            color: Colors.white.withValues(alpha: 0.55),
-          ),
-        ),
-        TextSpan(
-          text: value,
-          style: taj(size: 13, w: FontWeight.w700),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _thinRule() => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Divider(
-        height: 1,
-        thickness: 0.5,
-        color: Colors.white.withValues(alpha: 0.08),
-      ),
-    );
-
-class _ScoreTableRow extends StatelessWidget {
-  const _ScoreTableRow._({
-    required this.label,
-    required this.themText,
-    required this.usText,
-    required this.taj,
-    this.header = false,
-    this.emphasize = false,
-    this.isFinal = false,
-  });
-
-  final String label;
-  final String themText;
-  final String usText;
-  final TextStyle Function({
-    double size,
-    FontWeight w,
-    Color? color,
-  }) taj;
-  final bool header;
-  final bool emphasize;
-  final bool isFinal;
-
-  factory _ScoreTableRow.header(
-    TextStyle Function({
-      double size,
-      FontWeight w,
-      Color? color,
-    }) taj, {
-    required String themLabel,
-    required String usLabel,
-  }) {
-    return _ScoreTableRow._(
-      label: '',
-      themText: themLabel,
-      usText: usLabel,
-      taj: taj,
-      header: true,
-    );
-  }
-
-  factory _ScoreTableRow.data(
-    String label,
-    int them,
-    int us,
-    TextStyle Function({
-      double size,
-      FontWeight w,
-      Color? color,
-    }) taj, {
-    bool emphasize = false,
-    bool isFinal = false,
-  }) {
-    return _ScoreTableRow._(
-      label: label,
-      themText: '$them',
-      usText: '$us',
-      taj: taj,
-      emphasize: emphasize,
-      isFinal: isFinal,
-    );
-  }
-
-  factory _ScoreTableRow.dataOptional(
-    String label,
-    int them,
-    int us,
-    TextStyle Function({
-      double size,
-      FontWeight w,
-      Color? color,
-    }) taj,
-  ) {
-    return _ScoreTableRow._(
-      label: label,
-      themText: them > 0 ? '$them' : '—',
-      usText: us > 0 ? '$us' : '—',
-      taj: taj,
-    );
-  }
-
-  /// Special Baloot row: gold label, +2 for declaring team, — for the other.
-  /// [themPts] and [usPts] should each be either 0 or 2.
-  factory _ScoreTableRow.baloot(
-    String label, {
-    required int themPts,
-    required int usPts,
-    required TextStyle Function({
-      double size,
-      FontWeight w,
-      Color? color,
-    }) taj,
-  }) {
-    return _ScoreTableRow._(
-      label: '👑 $label',
-      themText: themPts > 0 ? '+$themPts' : '—',
-      usText: usPts > 0 ? '+$usPts' : '—',
-      taj: taj,
-      emphasize: false,
-      isFinal: false,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final labelStyle = taj(
-      size: header ? 11 : 12.5,
-      w: header ? FontWeight.w700 : FontWeight.w600,
-      color: header
-          ? Colors.white.withValues(alpha: 0.5)
-          : Colors.white.withValues(alpha: 0.72),
-    );
-    final valSize = isFinal ? 17.0 : emphasize ? 14.0 : 13.0;
-    final valWeight =
-        emphasize || isFinal ? FontWeight.w800 : FontWeight.w600;
-
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: header ? 2 : 5),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Text(
-              label,
-              style: labelStyle,
+  Widget _buildStatusBanner(bool isAr, bool isUsWon) {
+    return AnimatedBuilder(
+      animation: _trophyController,
+      builder: (context, _) {
+        final t = math.sin(_trophyController.value * math.pi * 2);
+        final offset = t * -4.0;
+        return Transform.translate(
+          offset: Offset(0, offset),
+          child: Text(
+            isUsWon
+                ? (isAr ? 'فريقك فاز' : 'YOUR TEAM WON')
+                : (isAr ? 'فريقك خسر' : 'YOUR TEAM LOST'),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.readexPro(
+              color: isUsWon ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D),
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 3.5,
+              shadows: [
+                BoxShadow(
+                  color: (isUsWon ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D)).withValues(alpha: 0.8),
+                  blurRadius: 16,
+                ),
+                BoxShadow(
+                  color: (isUsWon ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D)).withValues(alpha: 0.4),
+                  blurRadius: 32,
+                ),
+              ],
             ),
           ),
-          Expanded(
-            flex: 4,
-            child: Text(
-              themText,
-              textAlign: TextAlign.center,
-              style: taj(
-                size: valSize,
-                w: valWeight,
-                color: header
-                    ? RoundScoreOverlay._themColor.withValues(alpha: 0.9)
-                    : RoundScoreOverlay._themColor.withValues(alpha: 0.95),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeroPanel(bool isAr, dynamic r, dynamic total, {bool onlyBg = false, bool onlyContent = false}) {
+    if (onlyBg) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0E0B05),
+              Color(0xFF080603),
+            ],
+          ),
+        ),
+        child: Opacity(
+          opacity: 0,
+          child: _buildHeroPanel(isAr, r, total, onlyContent: true),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: onlyContent ? const BoxDecoration(color: Colors.transparent) : const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF0E0B05),
+            Color(0xFF080603),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          if (!onlyContent && !onlyBg)
+            Positioned.fill(
+              child: ClipRect(
+                child: AnimatedBuilder(
+                  animation: _particlesController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _ScoreParticlePainter(_particles, _particlesController.value),
+                    );
+                  },
+                ),
+              ),
+            ),
+          // Top border shimmer
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 2,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    Color(0xFFFF3D3D),
+                    Color(0xFFC9A84C),
+                    Color(0xFF00E87A),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
+          // Main scores and trophy content
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 24),
+            child: Row(
+              children: [
+                // THEM side (Team B)
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        isAr ? 'لهم' : 'THEM',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFFFF3D3D),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 3.5,
+                          shadows: [
+                            BoxShadow(
+                              color: const Color(0xFFFF3D3D).withValues(alpha: 0.6),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${r.teamBPoints}',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFFFF3D3D),
+                          fontSize: 52,
+                          fontWeight: FontWeight.w900,
+                          height: 1.0,
+                          shadows: [
+                            BoxShadow(
+                              color: const Color(0xFFFF3D3D).withValues(alpha: 0.8),
+                              blurRadius: 18,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFFFF3D3D).withValues(alpha: 0.3),
+                              blurRadius: 36,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAr ? '${total.teamB} الإجمالي' : '${total.teamB} TOTAL',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFFC9A84C).withValues(alpha: 0.8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Center VS
+                AnimatedBuilder(
+                  animation: _trophyController,
+                  builder: (context, child) {
+                    final t = math.sin(_trophyController.value * math.pi * 2);
+                    final offset = t * -5.0;
+                    final angle = t * (2.0 * math.pi / 180.0);
+                    return Transform.translate(
+                      offset: Offset(0, offset),
+                      child: Transform.rotate(
+                        angle: angle,
+                        child: Image.asset(
+                          'assets/images/2d_vs_icon.png',
+                          width: 68,
+                          height: 68,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // US side (Team A)
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        isAr ? 'فريقنا' : 'US',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFF00E87A),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 3.5,
+                          shadows: [
+                            BoxShadow(
+                              color: const Color(0xFF00E87A).withValues(alpha: 0.6),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${r.teamAPoints}',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFF00E87A),
+                          fontSize: 52,
+                          fontWeight: FontWeight.w900,
+                          height: 1.0,
+                          shadows: [
+                            BoxShadow(
+                              color: const Color(0xFF00E87A).withValues(alpha: 0.8),
+                              blurRadius: 18,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF00E87A).withValues(alpha: 0.3),
+                              blurRadius: 36,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAr ? '${total.teamA} الإجمالي' : '${total.teamA} TOTAL',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFFC9A84C).withValues(alpha: 0.8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameInfoCards(bool isAr, dynamic r, {bool onlyBg = false, bool onlyContent = false}) {
+    if (onlyBg) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0A0805),
+        ),
+        child: Opacity(
+          opacity: 0,
+          child: _buildGameInfoCards(isAr, r, onlyContent: true),
+        ),
+      );
+    }
+
+    final modeText = r.mode == GameMode.sun ? (isAr ? 'صن' : 'Sun') : (isAr ? 'حكم' : 'Hakam');
+    final buyerSide = r.buyerTeam == 'A' ? (isAr ? 'فريقنا' : 'Our team') : (isAr ? 'فريقهم' : 'Their team');
+    final buyerColor = r.buyerTeam == 'A' ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: onlyContent ? const BoxDecoration(color: Colors.transparent) : const BoxDecoration(
+        color: Color(0xFF0A0805),
+      ),
+      child: Row(
+        children: [
+          // Left card: Game Type
           Expanded(
-            flex: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF141008),
+                    Color(0xFF0E0B05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFC49028).withValues(alpha: 0.35), width: 1.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isAr ? 'نوع اللعبة' : 'GAME TYPE',
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFC9A84C),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    modeText,
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFD4AF37),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      shadows: [
+                        BoxShadow(
+                          color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Right card: Buyer
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF141008),
+                    Color(0xFF0E0B05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFC49028).withValues(alpha: 0.35), width: 1.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isAr ? 'المشتري' : 'BUYER',
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFC9A84C),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    buyerSide,
+                    style: GoogleFonts.readexPro(
+                      color: buyerColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      shadows: [
+                        BoxShadow(
+                          color: buyerColor.withValues(alpha: 0.5),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsTable(bool isAr, dynamic r) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C0A06),
+      ),
+      child: Column(
+        children: [
+          // Table header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFC49028).withValues(alpha: 0.12),
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFFC49028).withValues(alpha: 0.25)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isAr ? 'الأكلات' : 'Tricks',
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFC9A84C).withValues(alpha: 0.8),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 70,
+                  child: Text(
+                    isAr ? 'لهم' : 'THEM',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFFFF3D3D),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 70,
+                  child: Text(
+                    isAr ? 'فريقنا' : 'US',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.readexPro(
+                      color: const Color(0xFF00E87A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Row 1: Tricks
+          _buildTableRow(
+            isAr ? 'الأكلات' : 'Tricks',
+            '${r.teamBTrickAbnat}',
+            '${r.teamATrickAbnat}',
+          ),
+          // Row 2: Projects
+          _buildTableRow(
+            isAr ? 'المشاريع' : 'Projects',
+            '${r.teamBProjectAbnat}',
+            '${r.teamAProjectAbnat}',
+          ),
+          // Row 3: Trick points
+          _buildTableRow(
+            isAr ? 'أبناط الأكل' : 'Trick points',
+            '${r.teamBPoints}',
+            '${r.teamAPoints}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableRow(String label, String themVal, String usVal) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: const Color(0xFFC9A84C).withValues(alpha: 0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
             child: Text(
-              usText,
+              label,
+              style: GoogleFonts.readexPro(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              themVal,
               textAlign: TextAlign.center,
-              style: taj(
-                size: valSize,
-                w: valWeight,
-                color: header
-                    ? RoundScoreOverlay._usColor.withValues(alpha: 0.9)
-                    : RoundScoreOverlay._usColor.withValues(alpha: 0.95),
+              style: GoogleFonts.readexPro(
+                color: const Color(0xFFFF3D3D),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              usVal,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.readexPro(
+                color: const Color(0xFF00E87A),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultRow(bool isAr, dynamic r) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2210),
+        border: Border(
+          top: BorderSide(color: const Color(0xFFC49028).withValues(alpha: 0.45), width: 1.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              isAr ? 'نتيجة الجولة' : 'ROUND RESULT',
+              style: GoogleFonts.readexPro(
+                color: const Color(0xFFC49028),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.0,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              '${r.teamBPoints}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.readexPro(
+                color: const Color(0xFFFF3D3D),
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                shadows: [
+                  BoxShadow(
+                    color: const Color(0xFFFF3D3D).withValues(alpha: 0.6),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              '${r.teamAPoints}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.readexPro(
+                color: const Color(0xFF00E87A),
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                shadows: [
+                  BoxShadow(
+                    color: const Color(0xFF00E87A).withValues(alpha: 0.6),
+                    blurRadius: 10,
+                  ),
+                ],
               ),
             ),
           ),
@@ -662,12 +769,74 @@ class _ScoreTableRow extends StatelessWidget {
   }
 }
 
+class _ScoreParticle {
+  final int id;
+  final double x;
+  final double y;
+  final double size;
+  final Color color;
+  final double speed;
+  final bool isStar;
+  final double phase;
+
+  _ScoreParticle({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.color,
+    required this.speed,
+    required this.isStar,
+    required this.phase,
+  });
+}
+
+class _ScoreParticlePainter extends CustomPainter {
+  final List<_ScoreParticle> particles;
+  final double progress;
+
+  _ScoreParticlePainter(this.particles, this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in particles) {
+      final t = (progress * p.speed + p.phase) % 1.0;
+      final yPos = size.height * (0.95 - t * 0.9);
+      final xPos = p.x * size.width;
+      final opacity = (1.0 - t).clamp(0.0, 1.0);
+
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = p.color.withValues(alpha: opacity * 0.85);
+
+      if (p.isStar) {
+        canvas.save();
+        canvas.translate(xPos, yPos);
+        canvas.rotate(math.pi / 4);
+        canvas.drawRect(Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size), paint);
+        canvas.restore();
+      } else {
+        canvas.drawCircle(Offset(xPos, yPos), p.size / 2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScoreParticlePainter oldDelegate) => true;
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  GAME OVER OVERLAY — full screen when [GamePhase.gameOver]
 // ══════════════════════════════════════════════════════════════════
 
-class GameOverOverlay extends StatelessWidget {
+class GameOverOverlay extends StatefulWidget {
   const GameOverOverlay({super.key});
+
+  @override
+  State<GameOverOverlay> createState() => _GameOverOverlayState();
+}
+
+class _GameOverOverlayState extends State<GameOverOverlay> {
 
   @override
   Widget build(BuildContext context) {
@@ -685,6 +854,8 @@ class GameOverOverlay extends StatelessWidget {
         : humanWon
             ? loc.youWin
             : loc.youLose;
+
+    final outcome = game.lastMatchOutcome;
 
     return Positioned.fill(
       child: Container(
@@ -725,6 +896,16 @@ class GameOverOverlay extends StatelessWidget {
                     ),
                   const SizedBox(height: 20),
                   _StarRow(won: humanWon || gahwa),
+                  const SizedBox(height: 22),
+                  
+                  if (outcome != null)
+                    _buildPointsBreakdown(context, outcome, loc),
+                  
+                  if (outcome != null) ...[
+                    const SizedBox(height: 20),
+                    _buildRankProgress(context, outcome, loc),
+                  ],
+                  
                   const SizedBox(height: 22),
                   Container(
                     padding: const EdgeInsets.all(18),
@@ -831,6 +1012,145 @@ class GameOverOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPointsBreakdown(BuildContext context, MatchOutcome outcome, GameL10n loc) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1810),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.goldAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          _buildBreakdownRow(loc.pointsBase, '+${outcome.result.basePoints}'),
+          if (outcome.result.rankGapBonus != 0)
+            _buildBreakdownRow(loc.pointsRankGap, '${outcome.result.rankGapBonus > 0 ? '+' : ''}${outcome.result.rankGapBonus}'),
+          if (outcome.result.streakBonus > 0)
+            _buildBreakdownRow(loc.pointsStreakBonus, '+${outcome.result.streakBonus}'),
+          if (outcome.result.wasCapped)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(loc.botCapApplied, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+            ),
+          const Divider(color: Colors.white24, height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              Column(
+                children: [
+                  Text(loc.totalStars, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '${outcome.result.blueStarsChange > 0 ? '+' : ''}${outcome.result.blueStarsChange}',
+                        style: TextStyle(
+                          color: outcome.result.blueStarsChange > 0 ? AppColors.goldAccent : Colors.redAccent,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.star, color: AppColors.goldAccent, size: 20),
+                    ],
+                  ),
+                ],
+              ),
+              Column(
+                children: [
+                  Text(loc.totalMedals, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '+${outcome.result.medalsChange}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.emoji_events, color: Colors.orangeAccent, size: 20),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRankProgress(BuildContext context, MatchOutcome outcome, GameL10n loc) {
+    final progress = RankCalculator.progressToNextSubLevel(outcome.newMedals);
+    final medalsNeeded = RankCalculator.medalsToNextSubLevel(outcome.newMedals);
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1810),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(loc.rankProgress, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              if (outcome.rankedUp)
+                Text(loc.rankUp, style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              RankBadgeWidget(rank: outcome.newRank, compact: true),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white10,
+                        valueColor: AlwaysStoppedAnimation<Color>(outcome.newRank.badgeColor),
+                        minHeight: 8,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      medalsNeeded == 0 ? 'Max Rank' : loc.medalsToNext(medalsNeeded),
+                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:provider/provider.dart';
@@ -14,6 +15,18 @@ import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart'
     show CardBack, CardSize, PlayingCard, cardBackForSeat, playingCardHeightForWidth;
+
+// ── Sandstone Dark palette ─────────
+const _kGBgCanvas   = Color(0xFF1E1808);
+const _kGBgCard     = Color(0xFF2C2210);
+const _kGBgElevated = Color(0xFF392C14);
+const _kGSandGold   = Color(0xFFC49028);
+const _kGSandDark   = Color(0xFF886018);
+const _kGTextPrim   = Color(0xFFF8EDD8);
+const _kGTextSec    = Color(0xFFC8A868);
+const _kGSandBorder = Color(0x42C49028);
+const _kGCrimson    = Color(0xFF8B2020);
+// ───────────────────────────────────
 
 // ══════════════════════════════════════════════════════════════════
 //  PLAYER SEAT WIDGET  — Jawaker-style circular avatar
@@ -361,29 +374,93 @@ class _SeatPlayerInfoBox extends StatelessWidget {
     context.watch<LocaleProvider>();
     final loc = GameL10n.of(context);
     final game = context.watch<GameProvider>();
-    final modeText = _gameModeLine(game, loc);
     final highlighted = isActive;
 
-    // Designer [`_PlayerInfoChip`] `compact: true` — exact colors & radii.
-    final chip = Container(
+    // ── Resolve the footer label ─────────────────────────────────────
+    // Priority: sawa > bid (bidding phase) > bid (playing phase) > project
+    // Dealer is always shown as secondary label if no higher-priority label is set.
+    // footerBg always matches the card color above it (highlighted ? crimson : dark).
+    String? footerLabel;
+    // Base card color mirrors main card so footer blends with it
+    Color footerBg = highlighted
+        ? _kGCrimson.withValues(alpha: 0.88)
+        : _kGBgCard.withValues(alpha: 0.92);
+    Color footerTextColor = _kGSandGold;
+    Color footerAccentColor = _kGSandGold;
+
+    final sawaClaimSeat = game.sawaRevealClaimSeat;
+    final showSawaDrawer = game.isSawaRevealPlaying && sawaClaimSeat == seatIndex;
+
+    if (showSawaDrawer) {
+      footerLabel = loc.sawa;
+      footerBg = highlighted
+          ? _kGCrimson.withValues(alpha: 0.88)
+          : const Color(0xFF1A2E1A);
+      footerTextColor = const Color(0xFF81C784);
+      footerAccentColor = const Color(0xFF81C784);
+    } else if (game.phase == GamePhase.bidding) {
+      final bp = game.biddingPhase;
+      if (bp == BiddingPhase.round1 || bp == BiddingPhase.hakamConfirmation) {
+        if (seatIndex == game.activeRound1HakamSeat) {
+          footerLabel = loc.hakam;
+        }
+      } else if (bp == BiddingPhase.round2) {
+        if (seatIndex == game.activeRound2PendingBuyerSeat) {
+          final pendingMode = game.activeRound2PendingMode;
+          footerLabel = pendingMode == GameMode.sun ? loc.sun : loc.hakam;
+        }
+      }
+    } else if (seatIndex == game.buyerIndex &&
+        (game.phase == GamePhase.playing ||
+         game.phase == GamePhase.doubleWindow ||
+         game.phase == GamePhase.scoring)) {
+      if (game.roundState.isAshkal) {
+        footerLabel = loc.ashkal;
+      } else if (game.roundState.activeMode == GameMode.sun) {
+        footerLabel = loc.sun;
+      } else {
+        footerLabel = loc.hakam;
+      }
+    }
+
+    // Dealer always shows when no higher-priority label is active —
+    // this is independent of the phase (works during bidding, playing, etc.)
+    String? secondaryFooterLabel;
+    if (footerLabel == null && !showSawaDrawer && seatIndex == game.dealerIndex) {
+      footerLabel = loc.dealer;
+      // footerBg already set to match card color above
+      footerTextColor = const Color(0xFFFFD700);
+      footerAccentColor = _kGSandDark;
+    } else if (footerLabel != null && seatIndex == game.dealerIndex && footerLabel != loc.dealer) {
+      secondaryFooterLabel = loc.dealer;
+    }
+
+    final hasFooter = footerLabel != null;
+
+    // ── Card shape ───────────────────────────────────────────────────
+    const double kRadius = 16.0;
+    const double kFooterRadius = 10.0;
+
+    final cardBorderColor = highlighted
+        ? _kGSandGold.withValues(alpha: 0.90)
+        : _kGSandBorder.withValues(alpha: 0.70);
+    final cardBorderWidth = highlighted ? 1.4 : 1.0;
+
+    // Top content section — always fully rounded around Dwight
+    final topSection = Container(
       clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
       decoration: BoxDecoration(
         color: highlighted
-            ? const Color(0xB070120E)
-            : const Color(0x991F120F),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: highlighted
-              ? const Color(0xE0E4C267)
-              : const Color(0x66FFFFFF),
-          width: highlighted ? 1.4 : 1,
-        ),
+            ? _kGCrimson.withValues(alpha: 0.92)
+            : _kGBgCard.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(kRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.white.withValues(alpha: 0.10),
+            offset: const Offset(0, 1),
+            blurRadius: 2,
+            blurStyle: BlurStyle.inner,
           ),
         ],
       ),
@@ -413,165 +490,153 @@ class _SeatPlayerInfoBox extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.94),
+                  style: const TextStyle(
+                    color: _kGTextPrim,
                     fontSize: 8.5,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'Tajawal',
                   ),
                 ),
               ),
-
               if (isBuyer) ...[
                 const SizedBox(width: 2),
-                const Icon(Icons.star,
-                    color: Color(0xFFFFD700), size: 9),
+                const Icon(Icons.star, color: Color(0xFFFFD700), size: 9),
               ],
             ],
           ),
-          // The old dark badge is removed from here
         ],
       ),
     );
 
+    // Floating Glass Pill / Overlapping Badge (Option 1 - 2026 Trend)
+    final pillBadge = hasFooter
+        ? Container(
+            width: 62,
+            height: 18,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: footerBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _kGSandGold.withValues(alpha: 0.85),
+                width: 1.1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              footerLabel!.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: footerTextColor,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Tajawal',
+                letterSpacing: 0.6,
+                height: 1,
+              ),
+            ),
+          )
+        : null;
+
+    final secondaryPillBadge = secondaryFooterLabel != null
+        ? Container(
+            width: 62,
+            height: 18,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _kGBgCard.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFFFD700).withValues(alpha: 0.85),
+                width: 1.1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              secondaryFooterLabel.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFFFD700),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Tajawal',
+                letterSpacing: 0.6,
+                height: 1,
+              ),
+            ),
+          )
+        : null;
+
+    // Outer card wrapper — single unified border around the whole shape
+    final cardContent = Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: cardBorderColor, width: cardBorderWidth),
+        boxShadow: [
+          BoxShadow(
+            color: highlighted
+                ? _kGSandGold.withValues(alpha: 0.18)
+                : Colors.black.withValues(alpha: 0.22),
+            blurRadius: highlighted ? 8 : 10,
+            spreadRadius: highlighted ? 0.5 : 0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: topSection,
+    );
+
+    // Base card with twin stacked floating pills when both mode and dealer are present
+    final Widget baseCard = (hasFooter || secondaryPillBadge != null)
+        ? Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              cardContent,
+              if (secondaryPillBadge != null)
+                Positioned(
+                  bottom: -30,
+                  child: secondaryPillBadge,
+                ),
+              if (pillBadge != null)
+                Positioned(
+                  bottom: -8,
+                  child: pillBadge,
+                ),
+            ],
+          )
+        : cardContent;
+
     final chipFrame = designerNarrowWidth != null
-        ? SizedBox(width: designerNarrowWidth, child: chip)
-        : chip;
-
-    // ── Kammelna Sawa drawer (during hand-reveal animation) ─────────────
-    Widget? sawaBadge;
-    final sawaClaimSeat = game.sawaRevealClaimSeat;
-    final showSawaDrawer =
-        game.isSawaRevealPlaying && sawaClaimSeat == seatIndex;
-    if (showSawaDrawer) {
-      sawaBadge = _KamelnaBidBadge(
-        label: loc.sawa,
-        suit: null,
-        backgroundColor: const Color(0xFFC8E6C9).withValues(alpha: 0.95),
-        borderColor: const Color(0xFF2E7D32),
-        isHighlighted: true,
-        textColorOverride: const Color(0xFF1B5E20),
-      );
-    }
-
-    // ── Kamelna-style "Drawer" Bid Badge ─────────────
-    // Shows DURING bidding (persistent) and DURING play.
-    Widget? bidBadge;
-
-    // ── During BIDDING: persistent badge on whoever placed a bid ──
-    if (!showSawaDrawer && game.phase == GamePhase.bidding) {
-      final bp = game.biddingPhase;
-      String? badgeLabel;
-
-      if (bp == BiddingPhase.round1 || bp == BiddingPhase.hakamConfirmation) {
-        if (seatIndex == game.activeRound1HakamSeat) {
-          badgeLabel = loc.hakam;
-        }
-      } else if (bp == BiddingPhase.round2) {
-        if (seatIndex == game.activeRound2PendingBuyerSeat) {
-          final pendingMode = game.activeRound2PendingMode;
-          badgeLabel = pendingMode == GameMode.sun ? loc.sun : loc.hakam;
-        }
-      }
-
-      if (badgeLabel != null) {
-        bidBadge = _KamelnaBidBadge(
-          label: badgeLabel,
-          suit: null,
-          backgroundColor: const Color(0xFF1B5E20),
-          borderColor: const Color(0xFF66BB6A),
-          isHighlighted: true,
-          textColorOverride: Colors.white,
-        );
-      }
-    }
-
-    // ── During PLAY / DOUBLE / SCORING: badge on the buyer ──
-    if (!showSawaDrawer &&
-        bidBadge == null &&
-        seatIndex == game.buyerIndex &&
-        (game.phase == GamePhase.playing ||
-         game.phase == GamePhase.doubleWindow ||
-         game.phase == GamePhase.scoring)) {
-      final String label;
-      if (game.roundState.isAshkal) {
-        label = loc.ashkal;
-      } else if (game.roundState.activeMode == GameMode.sun) {
-        label = loc.sun;
-      } else {
-        label = loc.hakam;
-      }
-
-      bidBadge = _KamelnaBidBadge(
-        label: label,
-        suit: null,
-        backgroundColor: const Color(0xFF1B5E20),
-        borderColor: const Color(0xFF66BB6A),
-        isHighlighted: true,
-        textColorOverride: Colors.white,
-      );
-    }
-
-    Widget? dealerBadge;
-    if (!showSawaDrawer && seatIndex == game.dealerIndex) {
-      dealerBadge = _KamelnaBidBadge(
-        label: loc.dealer,
-        suit: null,
-        icon: Icons.style, // Cards icon
-        backgroundColor: const Color(0xFFD4AF37).withValues(alpha: 0.15),
-        borderColor: const Color(0xFFD4AF37),
-        isHighlighted: true,
-        textColorOverride: const Color(0xFFD4AF37),
-      );
-    }
-
-    Widget? projectBadge;
-    if (game.phase == GamePhase.playing && game.trickNumber == 1) {
-       final projects = game.roundState.declaredProjects
-           .where((p) => p.playerIndex == seatIndex && p.type != ProjectType.baloot)
-           .toList();
-           
-       if (projects.isNotEmpty) {
-          final names = projects.map((p) {
-            if (p.type == ProjectType.fourHundred) return '400';
-            if ([ProjectType.hundred, ProjectType.fourJacks, ProjectType.sixCardRun, ProjectType.sevenCardRun, ProjectType.eightCardRun].contains(p.type)) {
-              return '100';
-            }
-            if (p.type == ProjectType.fifty) return '50';
-            return 'Sera';
-          }).toList();
-          final text = names.join(' & ');
-          
-          projectBadge = _KamelnaBidBadge(
-            label: loc.localizeBubble(text),
-            suit: null,
-            backgroundColor: const Color(0xFFE0E0E0),
-            borderColor: const Color(0xFFBDBDBD),
-            isHighlighted: true,
-            textColorOverride: const Color(0xFF424242),
-          );
-       }
-    }
+        ? SizedBox(width: designerNarrowWidth, child: baseCard)
+        : baseCard;
 
     final bubble = game.bubbles[seatIndex];
-
     final bool isLeft = orientation == SeatOrientation.left;
     final bool isRight = orientation == SeatOrientation.right;
     final bool isTop = orientation == SeatOrientation.top;
-
     final bool tailOnLeft = isLeft || isTop;
 
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [
-        // Draw badges FIRST so their flat tops are hidden behind the chipFrame
-        ..._buildBottomBadges(sawaBadge: sawaBadge, projectBadge: projectBadge, bidBadge: bidBadge, dealerBadge: dealerBadge),
-        // Draw the main player box on top
         chipFrame,
         if (bubble != null)
           Positioned(
-            top: 10, // Align with avatar center
+            top: 10,
             left: (isLeft || isTop) ? 65.0 : null,
             right: isRight ? 65.0 : null,
             child: SpeechBubbleOverlay(
@@ -582,131 +647,10 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       ],
     );
   }
-
-  List<Widget> _buildBottomBadges({
-    Widget? sawaBadge,
-    Widget? projectBadge,
-    Widget? bidBadge,
-    Widget? dealerBadge,
-  }) {
-    final badges = <Widget>[];
-    if (sawaBadge != null) badges.add(sawaBadge);
-    if (projectBadge != null) badges.add(projectBadge);
-    if (bidBadge != null) badges.add(bidBadge);
-    if (dealerBadge != null) badges.add(dealerBadge);
-
-    final positionedBadges = <Widget>[];
-    for (int i = badges.length - 1; i >= 0; i--) {
-      final offset = -15 - (i * 13).toDouble();
-      positionedBadges.add(Positioned(
-        bottom: offset,
-        child: badges[i],
-      ));
-    }
-    return positionedBadges;
-  }
 }
 
-class _KamelnaBidBadge extends StatelessWidget {
-  final String label;
-  final Suit? suit;
-  final IconData? icon;
-  final Color backgroundColor;
-  final Color borderColor;
-  final bool isHighlighted;
-  final Color? textColorOverride;
 
-  const _KamelnaBidBadge({
-    required this.label,
-    this.suit,
-    this.icon,
-    required this.backgroundColor,
-    required this.borderColor,
-    this.isHighlighted = false,
-    this.textColorOverride,
-  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 68,
-      padding: const EdgeInsets.only(top: 5, bottom: 2, left: 2, right: 2),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(12),
-          bottomRight: Radius.circular(12),
-        ),
-        border: Border(
-          left: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
-          right: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
-          bottom: BorderSide(color: borderColor, width: isHighlighted ? 1.2 : 0.8),
-          top: BorderSide.none,
-        ),
-        boxShadow: [
-          if (isHighlighted)
-            BoxShadow(
-              color: borderColor.withValues(alpha: 0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null) ...[
-            Icon(
-              icon,
-              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.85)),
-              size: 10,
-            ),
-            const SizedBox(width: 3),
-          ],
-          if (suit != null) ...[
-            Text(
-              _suitSymbol(suit!),
-              style: TextStyle(
-                color: (suit == Suit.hearts || suit == Suit.diamonds)
-                    ? const Color(0xFFEF5350)
-                    : Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                height: 1,
-              ),
-            ),
-            const SizedBox(width: 3),
-          ],
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: textColorOverride ?? (isHighlighted ? Colors.white : Colors.white.withValues(alpha: 0.85)),
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Tajawal',
-              letterSpacing: context.watch<LocaleProvider>().isArabic ? 0 : 0.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _suitSymbol(Suit s) {
-    switch (s) {
-      case Suit.hearts: return '♥';
-      case Suit.diamonds: return '♦';
-      case Suit.spades: return '♠';
-      case Suit.clubs: return '♣';
-    }
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════
 //  PLAYER AVATAR RING  — dark sphere + gold timer ring
@@ -818,16 +762,27 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
             children: [
-              // ── Gold ring + comet ───────────────────────────────
-              CustomPaint(
-                size: Size(totalSz, totalSz),
-                painter: _RingPainter(
-                  progress: progress,
-                  ringThickness: ringT,
-                  teamColor: widget.teamColor,
-                  isActive: widget.isActive,
-                  flicker: flicker,
-                ),
+              // ── Gold arc timer ring (outer) ─────────────────────
+              SizedBox(
+                width: totalSz,
+                height: totalSz,
+                child: widget.isActive
+                    ? CircularProgressIndicator(
+                        value: progress <= 0 ? 0.0 : progress.clamp(0.001, 1.0),
+                        strokeWidth: 3.2,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: const Color(0xFFD4A017).withValues(alpha: 0.15),
+                        color: const Color(0xFFD4A017),
+                      )
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFD4A017).withValues(alpha: 0.35),
+                            width: 1.8,
+                          ),
+                        ),
+                      ),
               ),
 
               // ── Dark sphere ─────────────────────────────────────
@@ -931,9 +886,9 @@ class _DarkSphere extends StatelessWidget {
           center: Alignment(-0.28, -0.38),
           radius: 0.85,
           colors: [
-            Color(0xFF383860),
-            Color(0xFF141428),
-            Color(0xFF060610),
+            _kGBgElevated,
+            _kGBgCard,
+            _kGBgCanvas,
           ],
           stops: [0.0, 0.55, 1.0],
         ),

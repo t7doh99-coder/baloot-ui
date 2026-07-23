@@ -1,16 +1,29 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
+import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
+import '../../../core/services/game_audio_service.dart';
+import '../../../core/services/player_stats_service.dart';
+import '../../../core/services/points_calculator.dart';
+import '../../../core/services/rank_calculator.dart';
+import '../../../data/models/bot_difficulty.dart';
+import '../../../data/models/bot_personality.dart';
 import '../../../data/models/card_model.dart';
 import '../../../data/models/card_play_model.dart';
+import '../../../data/models/player_model.dart';
+import '../../../data/models/player_stats.dart';
+import '../../../data/models/rank_tier.dart';
 import '../../../data/models/round_state_model.dart';
-import '../domain/baloot_game_controller.dart';
+import '../domain/baloot_game_controller.dart' show GamePhase, BalootGameController;
 import '../domain/engines/project_detector.dart';
 import '../domain/managers/turn_manager.dart' show TrickResult;
 import '../domain/engines/scoring_engine.dart' show RoundScoreResult;
 import '../domain/managers/bidding_manager.dart';
 import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
+import '../../../core/services/game_audio_service.dart';
 
 // ══════════════════════════════════════════════════════════════════
 //  GAME PROVIDER — Presentation-layer ViewModel
@@ -103,8 +116,22 @@ class LastRoundResult {
 
 class GameProvider extends ChangeNotifier {
   // ── Engine ──
-  final BalootGameController _engine;
+  BalootGameController _engine;
   final Random _rng;
+
+  // ── Audio Service ──
+  final GameAudioService _audioService = GameAudioService();
+  GameAudioService get audioService => _audioService;
+
+  void setLanguage(String langCode) {
+    if (_audioService.langCode != langCode) {
+      _audioService.setLanguage(langCode);
+      notifyListeners();
+    }
+  }
+
+  // ── Difficulty ──
+  BotDifficulty _lastDifficulty = BotDifficulty.medium;
 
   // ── Player names (seat 0 = human) — always initialised, safe before startGame() ──
   static const List<String> _playerNames = ['You', 'Jim', 'Michael', 'Dwight'];
@@ -117,7 +144,7 @@ class GameProvider extends ChangeNotifier {
   // ── Bot delay timer ──
   Timer? _botTimer;
   DateTime? _botTurnStartedAt;  // tracks when bot turn began for ring animation
-  int _botTurnMaxMs = 1200;     // mirrors the random bot delay used in _scheduleNextAction
+  int _botTurnDurationMs = 0;
 
   // ── Human turn start (for smooth sub-second timer ring) ──
   DateTime? _humanTurnStartedAt;
@@ -137,8 +164,6 @@ class GameProvider extends ChangeNotifier {
   int _prevCompletedTricks = 0;
   int _prevDealerIndex = -1;
   BiddingPhase _prevBiddingPhase = BiddingPhase.round1;
-
-  bool _singleRoundMode = false;
 
   // ── Qaid Violation notification (Kammelna-style banner) ──
   String? _qaidViolationMessage;
@@ -174,11 +199,33 @@ class GameProvider extends ChangeNotifier {
 
   GameProvider({Random? random})
       : _engine = BalootGameController(random: random ?? Random()),
-        _rng = random ?? Random();
+        _rng = random ?? Random() {
+    _initStats();
+  }
+
+  // ── Player Stats ──
+  PlayerStats _playerStats = PlayerStats();
+  MatchOutcome? _lastMatchOutcome;
+
+  Future<void> _initStats() async {
+    _playerStats = await PlayerStatsService.loadStats();
+    notifyListeners();
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  PUBLIC STATE GETTERS
   // ══════════════════════════════════════════════════════════════════
+
+  PlayerStats get playerStats => _playerStats;
+  MatchOutcome? get lastMatchOutcome => _lastMatchOutcome;
+
+  Future<void> updatePlayerName(String newName) async {
+    _playerStats = _playerStats.copyWith(playerName: newName);
+    notifyListeners();
+    await PlayerStatsService.saveStats(_playerStats);
+  }
+
+  RankTier get playerRank => RankCalculator.getRankFromMedals(_playerStats.medals);
 
   GamePhase get phase => _engine.gamePhase;
   int _targetScore = 152;
@@ -241,7 +288,7 @@ class GameProvider extends ChangeNotifier {
     final started = seat == 0 ? _humanTurnStartedAt : _botTurnStartedAt;
     if (started == null) return 1.0;
     final elapsedMs = DateTime.now().difference(started).inMilliseconds;
-    // Both human and bot use the same 10-second visual window
+    // Both human and bot use the same 10-second visual window so all timer rings move at identical speed
     return (1.0 - elapsedMs / (_turnDuration * 1000)).clamp(0.0, 1.0);
   }
 
@@ -426,13 +473,13 @@ class GameProvider extends ChangeNotifier {
   /// Trigger a fake project reveal for testing the UI animation.
   void triggerTestProjectReveal() {
     _testDeclaredProjects = [
-      DeclaredProject(
+      const DeclaredProject(
         playerIndex: 2, // Partner's seat, to clearly see the avatar animation
         type: ProjectType.sera,
         cards: [
-          const CardModel(suit: Suit.spades, rank: Rank.seven),
-          const CardModel(suit: Suit.spades, rank: Rank.eight),
-          const CardModel(suit: Suit.spades, rank: Rank.nine),
+          CardModel(suit: Suit.spades, rank: Rank.seven),
+          CardModel(suit: Suit.spades, rank: Rank.eight),
+          CardModel(suit: Suit.spades, rank: Rank.nine),
         ],
       )
     ];
@@ -528,6 +575,35 @@ class GameProvider extends ChangeNotifier {
     return List.unmodifiable(_sawaRevealHands![seat]);
   }
 
+  void clearLastRoundResult() {
+    _lastRoundResult = null;
+    notifyListeners();
+  }
+
+  void setMockRoundResult() {
+    _lastRoundResult = const LastRoundResult(
+      teamAPoints: 21,
+      teamBPoints: 5,
+      teamAAbnat: 106,
+      teamBAbnat: 24,
+      teamATrickAbnat: 96,
+      teamBTrickAbnat: 24,
+      lastTrickBonusTeam: 'A',
+      teamAProjectAbnat: 0,
+      teamBProjectAbnat: 0,
+      isKhams: false,
+      isKabout: false,
+      winningTeam: 'A',
+      buyerTeam: 'A',
+      mode: GameMode.sun,
+      trumpSuit: null,
+      doubleStatus: DoubleStatus.none,
+      teamAProjectsList: [],
+      teamBProjectsList: [],
+    );
+    notifyListeners();
+  }
+
   void dismissProjectReveal() {
     _projectRevealSeat = null;
     notifyListeners();
@@ -538,16 +614,43 @@ class GameProvider extends ChangeNotifier {
   int get lastHumanThrowHandCount => _lastHumanThrowHandCount;
 
   /// Player names.
-  String playerName(int seat) => _playerNames[seat % _playerNames.length];
+  String playerName(int seat) {
+    if (seat == 0) return _playerStats.playerName;
+    if (_audioService.langCode != 'ar') {
+      return _playerNames[seat % _playerNames.length]; // 'You', 'Jim', 'Michael', 'Dwight'
+    }
+    try {
+      return _engine.playerNames[seat % 4];
+    } catch (_) {
+      return _playerNames[seat % _playerNames.length];
+    }
+  }
+
+  /// Player rank badges (for bot seats).
+  String playerRankBadge(int seat) {
+    if (seat == 0) return 'Human';
+    try {
+      return _engine.botIdentityOf(seat).rankBadge;
+    } catch (_) {
+      return 'Good';
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  GAME LIFECYCLE
   // ══════════════════════════════════════════════════════════════════
 
   /// Start a new game. Call this once after creating the provider.
-  void startGame() {
+  void startGame({BotDifficulty difficulty = BotDifficulty.medium}) {
+    _lastDifficulty = difficulty;
     _targetScore = 152;
     _lastTrickMiniBySeat = null;
+
+    // Re-initialize engine with selected difficulty
+    _engine = BalootGameController(
+      random: _rng,
+      botDifficulty: difficulty,
+    );
 
     _engine.startNewGame(_playerNames);
     _prevPhase = _engine.gamePhase;
@@ -567,13 +670,14 @@ class GameProvider extends ChangeNotifier {
   void restartGame() {
     _cancelTimers();
     _bubbles.clear();
-    startGame();
+    startGame(difficulty: _lastDifficulty);
   }
 
   /// Leave the table (e.g. Exit from round scoreboard). Cancels timers; engine
   /// state is left as-is until the next [startGame].
   void leaveTable() {
     _cancelTimers();
+    _audioService.stop();
     _clearSawaRevealState();
     _lastRoundResult = null;
     _roundJustEnded = false;
@@ -629,6 +733,7 @@ class GameProvider extends ChangeNotifier {
     _cancelTimers();
     try {
       _engine.skipDoubleWindow();
+      _showBubble(0, 'Pass');
       _afterEngineAction();
     } catch (e) {
       debugPrint('[GameProvider] humanSkipDouble error: $e');
@@ -707,6 +812,23 @@ class GameProvider extends ChangeNotifier {
     final ok = canDeclareProjects;
     if (!ok || _turnTimer == null) return;
     try {
+      final projects = playerProjects;
+      if (projectIndex >= 0 && projectIndex < projects.length) {
+        final p = projects[projectIndex];
+        String token = '';
+        switch (p.type) {
+          case ProjectType.fourHundred: token = '400'; break;
+          case ProjectType.hundred:
+          case ProjectType.fourJacks:
+          case ProjectType.sixCardRun:
+          case ProjectType.sevenCardRun:
+          case ProjectType.eightCardRun: token = '100'; break;
+          case ProjectType.fifty: token = '50'; break;
+          case ProjectType.sera: token = 'Sera'; break;
+          case ProjectType.baloot: token = 'Baloot'; break;
+        }
+        if (token.isNotEmpty) _audioService.playBubble(token);
+      }
       _engine.declareProject(0, projectIndex);
       notifyListeners();
     } catch (e) {
@@ -731,6 +853,7 @@ class GameProvider extends ChangeNotifier {
   void humanClaimSawa() {
     if (phase != GamePhase.playing || !canSawa) return;
     if (_turnTimer == null) return; // Ignore input during system pauses/animations
+    _showBubble(0, 'Sawa');
     _startSawaReveal(0);
   }
 
@@ -840,6 +963,22 @@ class GameProvider extends ChangeNotifier {
     final trickJustCompleted =
         newPhase == GamePhase.playing && newCompletedTricks > _prevCompletedTricks;
     _prevCompletedTricks = newCompletedTricks;
+
+    if (trickJustCompleted) {
+      final lastTrick = _engine.lastTrickResult;
+      if (lastTrick != null) {
+        final winnerTeam = (lastTrick.winnerIndex % 2 == 0) ? 'A' : 'B';
+        final abnat = lastTrick.totalAbnat;
+        if (abnat >= 15) {
+          for (int seat = 1; seat < 4; seat++) {
+            final botTeam = (seat % 2 == 0) ? 'A' : 'B';
+            if (botTeam != winnerTeam) {
+              _checkBotExpressions(seat, event: 'lost_critical_trick', abnatLost: abnat);
+            }
+          }
+        }
+      }
+    }
 
     if (roundJustScored) {
       _prevCompletedTricks = 0;
@@ -995,13 +1134,39 @@ class GameProvider extends ChangeNotifier {
       // Human's turn — start timer
       _startTurnTimer();
     } else {
-      // Bot's turn — schedule with realistic delay
-      final delay = 600 + _rng.nextInt(900); // 600–1500ms
+      // Bot's turn — difficulty-aware realistic delay
+      final delay = _calculateBotDelay();
+      _botTurnDurationMs = delay;
       _botTurnStartedAt = DateTime.now();
-      _botTurnMaxMs = delay;
       _botTimer = Timer(Duration(milliseconds: delay), () {
         _executeBotTurn(seat);
       });
+    }
+  }
+
+  /// Difficulty-scaled bot thinking delay (per baloot_bot_spec).
+  ///
+  /// Easy:   3000–5000ms  (slow, beginner)
+  /// Medium: 1500–3000ms  (+15% "thinking" turns at 4000–6000ms)
+  /// Hard:   800–2000ms   (+20% fast snap 500–900ms, +15% fake hesitation 4000–7000ms)
+  int _calculateBotDelay() {
+    final roll = _rng.nextDouble();
+    switch (_lastDifficulty) {
+      case BotDifficulty.easy:
+        return 3000 + _rng.nextInt(2001);        // 3000–5000ms
+      case BotDifficulty.medium:
+        if (roll < 0.15) {                        // 15% "thinking" turns
+          return 4000 + _rng.nextInt(2001);       // 4000–6000ms
+        }
+        return 1500 + _rng.nextInt(1501);         // 1500–3000ms
+      case BotDifficulty.hard:
+        if (roll < 0.20) {                        // 20% fast snap
+          return 500 + _rng.nextInt(401);         // 500–900ms
+        }
+        if (roll < 0.35) {                        // next 15% fake hesitation
+          return 4000 + _rng.nextInt(3001);       // 4000–7000ms
+        }
+        return 800 + _rng.nextInt(1201);          // 800–2000ms
     }
   }
 
@@ -1011,7 +1176,6 @@ class GameProvider extends ChangeNotifier {
     if (current != seat) return;
 
     final phaseBefore = _engine.gamePhase;
-    final trickBefore = trickNumber;
     final dealerBefore = roundState.dealerIndex;
 
     try {
@@ -1040,6 +1204,8 @@ class GameProvider extends ChangeNotifier {
           final lastCard = _engine.lastPlayedCardBySeat(seat);
           if (lastCard != null && _engine.isAkka(lastCard)) {
             _showBubble(seat, 'Akka');
+          } else {
+            _checkBotExpressions(seat, event: 'turn');
           }
         }
       }
@@ -1114,6 +1280,7 @@ class GameProvider extends ChangeNotifier {
   void _startTurnTimer() {
     _timerSeconds = _turnDuration;
     _humanTurnStartedAt = DateTime.now(); // start ms-based smooth tracking
+    _audioService.playYourTurn();
     notifyListeners();
 
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -1159,6 +1326,7 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
 
   void _showBubble(int seat, String text) {
+    _audioService.playBubble(text);
     _bubbleTimers[seat]?.cancel();
     _bubbles[seat] = PlayerBubble(
       seatIndex: seat,
@@ -1207,6 +1375,56 @@ class GameProvider extends ChangeNotifier {
     }).where((s) => s.isNotEmpty).toList();
     
     _showBubble(seatIndex, names.join(' & '));
+
+    final has400 = projects.any((p) => p.type == ProjectType.fourHundred);
+    if (has400) {
+      final opp1 = (seatIndex + 1) % 4;
+      final opp2 = (seatIndex + 3) % 4;
+      if (opp1 != 0) _checkBotExpressions(opp1, event: 'opponent_400');
+      if (opp2 != 0) _checkBotExpressions(opp2, event: 'opponent_400');
+    }
+  }
+
+  void _checkBotExpressions(int seat, {required String event, int? abnatLost}) {
+    return; // Disabled for now per user request
+    if (seat == 0 || _engine.isGameOver) return;
+    final diff = _lastDifficulty;
+    final roll = _rng.nextDouble();
+
+    if (diff == BotDifficulty.easy) {
+      // Spec §1.6: 20% chance to send ANY expression on any turn, not contextually
+      if (event == 'turn' && roll < 0.20) {
+        const exprs = ['Celebrate', 'Oops', 'Surprised', 'GoodLuck'];
+        _showBubble(seat, exprs[_rng.nextInt(exprs.length)]);
+      }
+      return;
+    }
+
+    if (diff == BotDifficulty.medium) {
+      // Spec §2.7: Contextually appropriate 40% of the time (60% no expression)
+      if (roll >= 0.40) return;
+      if (event == 'kaboot') {
+        _showBubble(seat, 'Celebrate');
+      } else if (event == 'lost_critical_trick' && (abnatLost ?? 0) >= 15) {
+        _showBubble(seat, 'Oops');
+      } else if (event == 'opponent_400') {
+        _showBubble(seat, 'Surprised');
+      }
+      return;
+    }
+
+    if (diff == BotDifficulty.hard) {
+      // Spec §3: Contextually perfect, timed naturally
+      if (event == 'kaboot' && roll < 0.80) {
+        _showBubble(seat, 'Celebrate');
+      } else if (event == 'lost_critical_trick' && (abnatLost ?? 0) >= 15 && roll < 0.50) {
+        _showBubble(seat, 'Oops');
+      } else if (event == 'opponent_400' && roll < 0.85) {
+        _showBubble(seat, 'Surprised');
+      } else if (event == 'turn' && roll < 0.05) {
+        _showBubble(seat, 'GoodLuck');
+      }
+    }
   }
 
   void _syncLastTrickMini() {
@@ -1256,6 +1474,49 @@ class GameProvider extends ChangeNotifier {
       teamAProjectsList: d.teamAProjectsList,
       teamBProjectsList: d.teamBProjectsList,
     );
+
+    if (_engine.isGameOver) {
+      if (_engine.gameWinner == 'A') {
+        _audioService.playYouWin();
+      } else {
+        _audioService.playYouLose();
+      }
+      
+      _handleMatchOver(); // Calculate points!
+    } else if (d.isKabout) {
+      _audioService.playKabloot();
+      for (int seat = 1; seat < 4; seat++) {
+        final botTeam = (seat % 2 == 0) ? 'A' : 'B';
+        if (botTeam == d.winningTeam) {
+          _checkBotExpressions(seat, event: 'kaboot');
+        }
+      }
+    }
+  }
+
+  Future<void> _handleMatchOver() async {
+    final bool humanWon = didHumanWinGame;
+    
+    // Simulate bot ranks: normally we would get this from a backend,
+    // but for offline play, we assume bots are slightly below or same as player.
+    final RankTier oppRank = _playerStats.medals > 500 
+        ? RankCalculator.getRankFromMedals(_playerStats.medals - 200)
+        : playerRank;
+
+    final result = PointsCalculator.calculateMatchPoints(
+      result: humanWon ? GameResult.win : GameResult.loss,
+      playerStats: _playerStats,
+      playerRank: playerRank,
+      opponentRank: oppRank,
+      applyBotCap: true, // Always capped because we only play bots right now
+    );
+
+    _lastMatchOutcome = await PlayerStatsService.applyMatchResult(
+      stats: _playerStats,
+      result: result,
+      gameResult: humanWon ? GameResult.win : GameResult.loss,
+    );
+    notifyListeners();
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1355,6 +1616,7 @@ class GameProvider extends ChangeNotifier {
     for (final t in _bubbleTimers.values) {
       t.cancel();
     }
+    _audioService.dispose();
     super.dispose();
   }
 }

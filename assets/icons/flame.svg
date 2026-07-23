@@ -1,0 +1,112 @@
+<svg
+      width="200"
+      height="200"
+      viewBox="0 0 160 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <!-- Outer flame gradient -->
+        <radialGradient id="flameOuter" cx="50%" cy="80%" r="65%">
+          <stop offset="0%" stop-color="#F97316" />
+          <stop offset="55%" stop-color="#DC2626" />
+          <stop offset="100%" stop-color="#7F1D1D" />
+        </radialGradient>
+
+        <!-- Mid flame gradient -->
+        <radialGradient id="flameMid" cx="50%" cy="75%" r="60%">
+          <stop offset="0%" stop-color="#FDE68A" />
+          <stop offset="45%" stop-color="#F97316" />
+          <stop offset="100%" stop-color="#C2410C" />
+        </radialGradient>
+
+        <!-- Inner flame gradient -->
+        <radialGradient id="flameInner" cx="50%" cy="70%" r="55%">
+          <stop offset="0%" stop-color="#FFFBEB" />
+          <stop offset="40%" stop-color="#FDE68A" />
+          <stop offset="100%" stop-color="#F59E0B" />
+        </radialGradient>
+
+        <!-- Core tip -->
+        <radialGradient id="flameCore" cx="50%" cy="60%" r="50%">
+          <stop offset="0%" stop-color="#FFFFFF" />
+          <stop offset="100%" stop-color="#FEF3C7" />
+        </radialGradient>
+
+        <!-- Base glow -->
+        <radialGradient id="baseGlow" cx="50%" cy="30%" r="50%">
+          <stop offset="0%" stop-color="#FCD34D" stop-opacity="0.9" />
+          <stop offset="55%" stop-color="#F97316" stop-opacity="0.45" />
+          <stop offset="100%" stop-color="#7F1D1D" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+
+      <!-- Base glow pool -->
+      <ellipse
+        cx="80" cy="175" rx="52" ry="18"
+        fill="url(#baseGlow)"
+      />
+
+      <!-- Outer flame (largest, darkest red-orange) -->
+      <path
+        d="
+          M80 22
+          C80 22  112 55  118 88
+          C124 118  116 140  108 155
+          C100 168  88  174  80  174
+          C72  174  60  168  52  155
+          C44  140  36  118  42  88
+          C48  55   80  22   80  22 Z
+        "
+        fill="url(#flameOuter)"
+      />
+
+      <!-- Mid flame -->
+      <path
+        d="
+          M80 42
+          C80 42  104 70  109 97
+          C114 122  108 142  101 154
+          C95  164  87  169  80  169
+          C73  169  65  164  59  154
+          C52  142  46  122  51  97
+          C56  70   80  42   80  42 Z
+        "
+        fill="url(#flameMid)"
+      />
+
+      <!-- Inner flame -->
+      <path
+        d="
+          M80 62
+          C80 62  97  83  101 105
+          C105 125  101 143  96  153
+          C91  162  85  166  80  166
+          C75  166  69  162  64  153
+          C59  143  55  125  59  105
+          C63  83   80  62   80  62 Z
+        "
+        fill="url(#flameInner)"
+      />
+
+      <!-- Core tip -->
+      <path
+        d="
+          M80 78
+          C80 78  90  95  92  112
+          C94  128  90  144  85  153
+          C83  158  81  161  80  162
+          C79  161  77  158  75  153
+          C70  144  66  128  68  112
+          C70  95   80  78   80  78 Z
+        "
+        fill="url(#flameCore)"
+      />
+
+      <!-- Ember particles -->
+      <circle cx="72" cy="155" r="3.5" fill="#FCD34D" />
+      <circle cx="88" cy="148" r="3"   fill="#FCA5A5" />
+      <circle cx="76" cy="152" r="2.5" fill="#FDE68A" />
+      <circle cx="85" cy="158" r="2"   fill="#FCD34D" />
+      <circle cx="80" cy="145" r="2"   fill="#FB923C" />
+    </svg>

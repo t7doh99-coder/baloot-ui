@@ -13,6 +13,7 @@ import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
 import 'engines/sawa_probability_engine.dart';
 import '../../../data/models/bot_difficulty.dart';
+import '../../../data/models/bot_personality.dart';
 import '../../../core/utils/game_logger.dart';
 
 /// The game phase the controller is currently in.
@@ -34,6 +35,9 @@ class BalootGameController implements IBalootController {
 
   // Game-level state
   late List<String> _playerNames;
+  @override
+  List<String> get playerNames => List.unmodifiable(_playerNames);
+
   int _teamAScore = 0;
   int _teamBScore = 0;
   int _dealerIndex = 0;
@@ -68,7 +72,11 @@ class BalootGameController implements IBalootController {
     BotDifficulty botDifficulty = BotDifficulty.medium,
   })  : _rng = random ?? Random() {
     _botEngine = BotEngine(difficulty: botDifficulty, random: _rng);
+    _botEngine.assignIdentities();
   }
+
+  /// Expose bot identity for UI (names, rank badges).
+  BotIdentity botIdentityOf(int seat) => _botEngine.identityOf(seat);
 
   /// Points and flags from the last completed round (cleared on new round).
   RoundScoreResult? get lastRoundScoreResult => _lastRoundScoreResult;
@@ -220,7 +228,13 @@ class BalootGameController implements IBalootController {
     }
     logger.clear();
     logger.log('--- NEW GAME STARTED ---');
-    _playerNames = playerNames;
+    _botEngine.assignIdentities();
+    _playerNames = [
+      playerNames[0],
+      _botEngine.identityOf(1).name,
+      _botEngine.identityOf(2).name,
+      _botEngine.identityOf(3).name,
+    ];
     _teamAScore = 0;
     _teamBScore = 0;
     _targetScore = 152; // Kammelna strict classic score
@@ -257,6 +271,7 @@ class BalootGameController implements IBalootController {
     logger.log('Score: Team A $_teamAScore - $_teamBScore Team B');
     _lastRoundScoreResult = null;
     _lastPlaySawaClaimSeat = null;
+    _botEngine.resetMemories();
     _deckManager = DeckManager(random: _rng);
     _deckManager.createDeck();
     _deckManager.shuffle();
@@ -599,6 +614,12 @@ class BalootGameController implements IBalootController {
       _checkBalootDeclaration(seatIndex, card);
     }
 
+    // Feed card into bot memory system
+    final Suit? leadSuit = _turnManager!.currentTrick.isNotEmpty
+        ? _turnManager!.currentTrick.first.card.suit
+        : null;
+    _botEngine.recordCardPlayed(card, seatIndex, leadSuit);
+
     // Play the card and advance the turn.
     final trickResult = _turnManager!.playCard(seatIndex, card, advanceTurn: true);
     logger.log('Seat $seatIndex played ${card.displayName}');
@@ -619,6 +640,8 @@ class BalootGameController implements IBalootController {
 
   /// Handles trick completion separately if needed, but playCard evaluates tricks synchronously.
   void _handleTrickResult(TrickResult trickResult) {
+    // Feed trick result into bot memory
+    _botEngine.recordTrickResult(trickResult.winnerIndex);
     // Trick complete
       logger.log('Trick completed. Winner: Seat ${trickResult.winnerIndex}');
       _roundState = _roundState.copyWith(

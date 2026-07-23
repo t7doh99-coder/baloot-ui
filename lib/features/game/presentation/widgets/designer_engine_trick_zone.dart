@@ -202,34 +202,33 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
   ];
 
   static const Map<DesignerTrickSeat, Offset> _throwStartOffsets = {
-    DesignerTrickSeat.left: Offset(-112, -12),
-    // Start from partner name-box area.
-    DesignerTrickSeat.top: Offset(0, -180),
-    DesignerTrickSeat.right: Offset(112, -12),
-    // Start deep from user's hand zone ΓÇö matches the actual card position
-    // so there's no visible teleport when the card leaves the hand.
-    DesignerTrickSeat.bottom: Offset(0, 270),
+    // Wider starts so each seat's card visibly travels from its player area
+    DesignerTrickSeat.left:   Offset(-145, -8),
+    DesignerTrickSeat.top:    Offset(0, -210),
+    DesignerTrickSeat.right:  Offset(145, -8),
+    // Deep from the hand — card peels cleanly off the fan before flicking up
+    DesignerTrickSeat.bottom: Offset(0, 310),
   };
 
   static const Map<DesignerTrickSeat, double> _throwStartAngles = {
-    DesignerTrickSeat.left: -0.20,
-    DesignerTrickSeat.top: 0.10,
-    DesignerTrickSeat.right: 0.20,
-    DesignerTrickSeat.bottom: 0.12,
+    DesignerTrickSeat.left:   -0.28,   // card is held sideways by left bot
+    DesignerTrickSeat.top:     0.15,   // partner's slight lean
+    DesignerTrickSeat.right:   0.28,   // mirror of left
+    DesignerTrickSeat.bottom:  0.10,   // human hand tilt
   };
   static const Map<DesignerTrickSeat, double> _throwArcStrength = {
-    // Per-seat arc feel tuning for more natural throws.
-    DesignerTrickSeat.left: 0.15,
-    DesignerTrickSeat.top: 0.22,
-    DesignerTrickSeat.right: 0.14,
-    DesignerTrickSeat.bottom: 0.19,
+    // Higher values = more pronounced parabolic arc mid-flight
+    DesignerTrickSeat.left:   0.24,
+    DesignerTrickSeat.top:    0.32,
+    DesignerTrickSeat.right:  0.24,
+    DesignerTrickSeat.bottom: 0.28,
   };
   static const Map<DesignerTrickSeat, double> _throwSideCurve = {
-    // Small lateral curve (+ right, - left) to avoid identical trajectories.
-    DesignerTrickSeat.left: -6.0,
-    DesignerTrickSeat.top: 0.0,
-    DesignerTrickSeat.right: 6.0,
-    DesignerTrickSeat.bottom: 0.0,
+    // Slight S-curve so cards don't fly in a perfectly straight line
+    DesignerTrickSeat.left:   -10.0,
+    DesignerTrickSeat.top:      2.0,
+    DesignerTrickSeat.right:   10.0,
+    DesignerTrickSeat.bottom:   0.0,
   };
   static const Map<DesignerTrickSeat, Offset> _winnerPileOffsets = {
     DesignerTrickSeat.top: Offset(0, -100),    // Blue circle for Michael
@@ -290,13 +289,13 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       });
   }
 
-  // Per-seat throw duration ΓÇö bottom is fastest (user's flick), top is
+  // Per-seat throw duration — bottom is fastest (user's flick), top is
   // slowest (travels the longest distance).
   static const Map<DesignerTrickSeat, Duration> _throwDurations = {
-    DesignerTrickSeat.bottom: Duration(milliseconds: 750),
-    DesignerTrickSeat.right: Duration(milliseconds: 680),
-    DesignerTrickSeat.left: Duration(milliseconds: 680),
-    DesignerTrickSeat.top: Duration(milliseconds: 750),
+    DesignerTrickSeat.bottom: Duration(milliseconds: 480),  // crisp flick feel
+    DesignerTrickSeat.right: Duration(milliseconds: 520),
+    DesignerTrickSeat.left: Duration(milliseconds: 520),
+    DesignerTrickSeat.top: Duration(milliseconds: 580),     // travels furthest
   };
 
   void _ensureThrowControllersInitialized() {
@@ -441,18 +440,18 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       final variation = ((i * 7 + totalCount * 3) % 5) + 1;
       final sign = ((i + totalCount) % 2 == 0) ? 1.0 : -1.0;
 
-      // Directional push from incoming card + perpendicular scatter.
-      final dxDelta = (pushDirX * (3.0 + variation * 0.8)) +
+      // Stronger directional push + more scatter for a natural Kammelna look
+      final dxDelta = (pushDirX * (5.0 + variation * 1.2)) +
+          (sign * (2.5 + variation * 0.9));
+      final dyDelta = (pushDirY * (4.0 + variation * 0.9)) +
           (sign * (1.5 + variation * 0.6));
-      final dyDelta = (pushDirY * (2.5 + variation * 0.6)) +
-          (sign * (0.8 + variation * 0.4));
-      // Strong angle rotation ΓÇö each card rotates differently.
-      final angleDelta = sign * (0.04 + (((i + totalCount) % 3) * 0.025));
+      // More pronounced angle rotation per impact
+      final angleDelta = sign * (0.07 + (((i + totalCount) % 3) * 0.038));
 
       _tableImpactPoses[i] = _StaticImpactPose(
-        dx: (prev.dx + dxDelta).clamp(-18.0, 18.0),
-        dy: (prev.dy + dyDelta).clamp(-12.0, 8.0),
-        angle: (prev.angle + angleDelta).clamp(-0.45, 0.45),
+        dx: (prev.dx + dxDelta).clamp(-24.0, 24.0),
+        dy: (prev.dy + dyDelta).clamp(-16.0, 12.0),
+        angle: (prev.angle + angleDelta).clamp(-0.55, 0.55),
       );
     }
     _tableImpactPoses[totalCount - 1] = const _StaticImpactPose();
@@ -542,6 +541,7 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       );
 
     _isCollecting = true;
+    _collectController.duration = const Duration(milliseconds: 600);
     _collectController.forward(from: 0);
   }
 
@@ -717,34 +717,28 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
                   ? _bottomThrowStartAngle
                   : _throwStartAngles[seat] ?? 0.0;
 
-              // ΓöÇΓöÇ Parabolic arc (natural curve, not straight line) ΓöÇΓöÇ
               final distanceY = (targetDy - start.dy).abs();
-              final arcStrength = _throwArcStrength[seat] ?? 0.18;
+              final arcStrength = _throwArcStrength[seat] ?? 0.24;
               final arcBoost = switch (seat) {
-                DesignerTrickSeat.top => 1.28,
-                DesignerTrickSeat.bottom => 1.45,
-                DesignerTrickSeat.left => 1.0,
-                DesignerTrickSeat.right => 1.0,
+                DesignerTrickSeat.top    => 1.45,
+                DesignerTrickSeat.bottom => 1.60,
+                DesignerTrickSeat.left   => 1.15,
+                DesignerTrickSeat.right  => 1.15,
               };
-              final arcLift =
-                  (distanceY * arcStrength * arcBoost).clamp(10.0, 38.0);
+              final arcLift = (distanceY * arcStrength * arcBoost).clamp(14.0, 55.0);
               final arcY = -arcLift * (4 * travelT * (1 - travelT));
               final sideCurve = (_throwSideCurve[seat] ?? 0.0) *
                   (4 * travelT * (1 - travelT));
 
-              // ΓöÇΓöÇ Position: smooth single-curve trajectory ΓöÇΓöÇ
               final dx =
                   start.dx + ((targetDx - start.dx) * travelT) + sideCurve;
               final dy = start.dy + ((targetDy - start.dy) * travelT) + arcY;
 
-              // ΓöÇΓöÇ Angle: base interpolation + subtle flight spin ΓöÇΓöÇ
-              // sin(╧Ç┬╖t) peaks at midpoint ΓÇö card spins slightly mid-flight
-              // then settles perfectly to the target angle.
               const spinAmounts = {
-                DesignerTrickSeat.bottom: 0.12,
-                DesignerTrickSeat.right: -0.06,
-                DesignerTrickSeat.left: 0.06,
-                DesignerTrickSeat.top: -0.05,
+                DesignerTrickSeat.bottom: 0.22,
+                DesignerTrickSeat.right: -0.12,
+                DesignerTrickSeat.left: 0.12,
+                DesignerTrickSeat.top: -0.10,
               };
               final spin =
                   (spinAmounts[seat] ?? 0.0) * math.sin(travelT * math.pi);
@@ -754,24 +748,16 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
                   ((targetAngle - startAngle) * settleT) +
                   spin;
 
-              // ΓöÇΓöÇ Depth scale: smooth bell curve (rises mid-flight) ΓöÇΓöÇ
-              // sin(╧Ç┬╖travelT) peaks at 0.5 ΓåÆ card "lifts toward camera"
-              // at the apex of its arc, then settles back to 1.0.
-              // Bottom gets a bigger pulse since it travels the furthest.
-              final depthAmount = seat == DesignerTrickSeat.bottom ? 0.14 : 0.10;
+              final depthAmount = seat == DesignerTrickSeat.bottom ? 0.20 : 0.15;
               final depthPulse = math.sin(travelT * math.pi) * depthAmount;
 
-              // ΓöÇΓöÇ Landing thump ΓöÇΓöÇ
-              // In the last 15%: card compresses on impact then snaps
-              // back ΓÇö single hard bump like slamming a card on felt.
               double thumpScale = 0.0;
               double thumpDy = 0.0;
-              if (travelT > 0.85) {
-                final p = (travelT - 0.85) / 0.15; // 0ΓåÆ1 in last 15%
-                // Sharp dip then rebound: sin(╧Ç┬╖p) peaks at p=0.5
+              if (travelT > 0.82) {
+                final p = (travelT - 0.82) / 0.18;
                 final bump = math.sin(p * math.pi);
-                thumpScale = -0.07 * bump; // compress 7% at peak
-                thumpDy = 4.0 * bump; // overshoot 4px past target
+                thumpScale = -0.12 * bump;
+                thumpDy = 6.0 * bump;
               }
 
               final scale = 1.0 + depthPulse + thumpScale;
@@ -882,7 +868,7 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
         AnimatedBuilder(
           animation: _collectController,
           builder: (context, _) {
-            final t = Curves.easeInOutCubic.transform(_collectController.value);
+            final t = Curves.easeInCubic.transform(_collectController.value);
             final winnerSeat = widget.collectWinnerSeat;
             final winnerTeamBack = winnerSeat == null
                 ? pc.CardBack.red
@@ -897,15 +883,15 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
                     entry.startDx + ((entry.targetDx - entry.startDx) * t);
                 final dy =
                     entry.startDy + ((entry.targetDy - entry.startDy) * t);
-                // Base angle unwinds to 0, plus a per-card spin wobble
-                // that gives the gathering a dynamic, swirling feel.
-                final spinSpeed = 1.5 + (entry.index * 0.7);
-                final spinAmp = 0.15 + (entry.index * 0.05);
+                // Unwind angle rapidly toward 0 + a spiraling wobble as they gather
+                final spinSpeed = 2.0 + (entry.index * 0.6);
+                final spinAmp = 0.20 + (entry.index * 0.06);
                 final collectSpin =
-                    math.sin(t * math.pi * spinSpeed) * spinAmp * (1 - t);
+                    math.sin(t * math.pi * spinSpeed) * spinAmp * (1 - t * 1.2).clamp(0.0, 1.0);
                 final angle = entry.startAngle * (1 - t) + collectSpin;
-                final scale = 1.0 - (0.74 * t);
-                final faceUp = t < 0.72;
+                // Scale shrinks faster then levels out — cards "suck in" to pile
+                final scale = 1.0 - (0.82 * Curves.easeInCubic.transform(t));
+                final faceUp = t < 0.55;  // flip earlier for a cleaner reveal
                 final bw = 72.0 + (80.0 - 72.0) * t;
                 final bh = 100.0 + (120.0 - 100.0) * t;
                 return _EngineTrickCardAt(
@@ -969,23 +955,25 @@ class _EngineTrickCardAt extends StatelessWidget {
       offset: Offset(dx, dy),
       child: Transform.rotate(
         angle: angle,
-        child: SizedBox(
-          width: w,
-          height: h,
-          child: FittedBox(
-            fit: BoxFit.contain,
+          child: RepaintBoundary(
             child: SizedBox(
-              width: pc.CardSize.medium.width,
-              height: pc.CardSize.medium.height,
-              child: pc.PlayingCard(
-                card: card,
-                size: pc.CardSize.medium,
-                faceUp: faceUp,
-                back: faceDownBack,
+              width: w,
+              height: h,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                  width: pc.CardSize.medium.width,
+                  height: pc.CardSize.medium.height,
+                  child: pc.PlayingCard(
+                    card: card,
+                    size: pc.CardSize.medium,
+                    faceUp: faceUp,
+                    back: faceDownBack,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
       ),
     );
   }

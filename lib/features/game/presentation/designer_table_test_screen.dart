@@ -5,6 +5,19 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:playing_cards/playing_cards.dart';
 
+// ── Sandstone Dark palette (matches home / settings / alerts screens) ─────────
+const _kGBgCanvas   = Color(0xFF1E1808); // deepest bg
+const _kGBgCard     = Color(0xFF2C2210); // card surface
+const _kGBgElevated = Color(0xFF392C14); // elevated surface
+const _kGSandGold   = Color(0xFFC49028); // primary gold
+const _kGSandDark   = Color(0xFF886018); // deeper gold
+const _kGTextPrim   = Color(0xFFF8EDD8); // primary text (cream)
+const _kGTextSec    = Color(0xFFC8A868); // secondary text (muted gold)
+const _kGSandBorder = Color(0x42C49028); // border (26% gold)
+const _kGCrimson    = Color(0xFF8B2020); // highlighted seat bg
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 /// Designer / Baloot-dev majlis table UI (demo: `playing_cards`, SVG maps, motion).
 /// Open from the real game via **Test mode** in the top bar.
 class DesignerTableTestScreen extends StatefulWidget {
@@ -453,21 +466,17 @@ class _HudButton extends StatelessWidget {
             ? const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFFF9F9F9), Color(0xFFECECEC)],
+                colors: [_kGBgElevated, _kGBgCard],
               )
             : const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF585858), Color(0xFF2D2D2D)],
+                colors: [_kGBgElevated, _kGBgCard],
               ),
-        border: Border.all(
-          color: lightStyle
-              ? const Color(0xFFD3D3D3)
-              : Colors.white.withValues(alpha: 0.14),
-        ),
+        border: Border.all(color: _kGSandBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: lightStyle ? 0.10 : 0.25),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -479,19 +488,14 @@ class _HudButton extends StatelessWidget {
           Icon(
             icon,
             size: 20,
-            color: iconColor ??
-                (lightStyle
-                    ? const Color(0xFF6F6F6F)
-                    : Colors.white.withValues(alpha: 0.95)),
+            color: iconColor ?? _kGTextPrim,
           ),
           if (label != null) ...[
             const SizedBox(height: 2),
             Text(
               label!,
-              style: TextStyle(
-                color: lightStyle
-                    ? const Color(0xFF6F6F6F)
-                    : Colors.white.withValues(alpha: 0.86),
+              style: const TextStyle(
+                color: _kGTextSec,
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
               ),
@@ -529,9 +533,9 @@ class _ScoreHud extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF4F4F4F), Color(0xFF262626)],
+          colors: [_kGBgElevated, _kGBgCard],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        border: Border.all(color: _kGSandBorder),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -542,7 +546,7 @@ class _ScoreHud extends StatelessWidget {
               children: [
                 Expanded(child: _scoreCell(leftLabel, leftScore)),
                 Container(
-                    width: 1, color: Colors.white.withValues(alpha: 0.12)),
+                    width: 1, color: _kGSandBorder),
                 Expanded(child: _scoreCell(rightLabel, rightScore)),
               ],
             ),
@@ -560,8 +564,8 @@ Widget _scoreCell(String label, String score) {
     children: [
       Text(
         label,
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.9),
+        style: const TextStyle(
+          color: _kGTextSec,
           fontSize: 9,
           fontWeight: FontWeight.w700,
           height: 1,
@@ -571,7 +575,7 @@ Widget _scoreCell(String label, String score) {
       Text(
         score,
         style: const TextStyle(
-          color: Colors.white,
+          color: _kGTextPrim,
           fontSize: 16,
           fontWeight: FontWeight.w800,
           height: 1,
@@ -603,12 +607,12 @@ class _BottomControlsBar extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF5B5B5B), Color(0xFF2E2E2E)],
+              colors: [_kGBgElevated, _kGBgCard],
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            border: Border.all(color: _kGSandBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
+                color: Colors.black.withValues(alpha: 0.35),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -626,12 +630,12 @@ class _BottomControlsBar extends StatelessWidget {
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      color: const Color(0xFF4B412E),
+                      color: _kGBgElevated,
                     ),
                     child: const Text(
                       'مبتدئ',
                       style: TextStyle(
-                        color: Color(0xFFE8D7B2),
+                        color: _kGTextSec,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -646,17 +650,16 @@ class _BottomControlsBar extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
-                    color: const Color(0xFF454545),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.14)),
+                    color: _kGBgCard,
+                    border: Border.all(color: _kGSandBorder),
                   ),
                   child: Row(
                     children: [
                       const CircleAvatar(
                         radius: 12,
-                        backgroundColor: Color(0xFF6B6B6B),
+                        backgroundColor: _kGBgElevated,
                         child: Icon(Icons.person_rounded,
-                            size: 14, color: Colors.white),
+                            size: 14, color: _kGTextSec),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -665,7 +668,7 @@ class _BottomControlsBar extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: _kGTextPrim,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -689,15 +692,15 @@ class _BottomControlsBar extends StatelessWidget {
                       gradient: const LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0xFF7B7B7B), Color(0xFF373737)],
+                        colors: [_kGSandGold, _kGSandDark],
                       ),
                       border:
-                          Border.all(color: const Color(0xFFE0C56E), width: 2),
+                          Border.all(color: _kGSandGold, width: 2),
                     ),
                     child: const Text(
                       '6',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: _kGBgCanvas,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         height: 1,
@@ -750,11 +753,11 @@ class _BottomHudIcon extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFE7E7E7), Color(0xFFBFBFBF)],
+          colors: [_kGBgElevated, _kGBgCard],
         ),
-        border: Border.all(color: const Color(0xFF8A8A8A)),
+        border: Border.all(color: _kGSandBorder),
       ),
-      child: Icon(icon, size: 19, color: const Color(0xFF3B3B3B)),
+      child: Icon(icon, size: 19, color: _kGTextSec),
     );
   }
 }
@@ -787,24 +790,22 @@ class _ActionButton extends StatelessWidget {
                 ? const LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xFFF2D08D), Color(0xFFC3912A)],
+                    colors: [_kGSandGold, _kGSandDark],
                   )
                 : const LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xFF5A5A5A), Color(0xFF2D2D2D)],
+                    colors: [_kGBgElevated, _kGBgCard],
                   ),
             border: Border.all(
-              color: highlighted
-                  ? const Color(0xFFE8C874)
-                  : Colors.white.withValues(alpha: 0.12),
+              color: highlighted ? _kGSandGold : _kGSandBorder,
             ),
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: highlighted ? const Color(0xFF41210E) : Colors.white,
+                color: highlighted ? _kGBgCanvas : _kGTextPrim,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -1161,17 +1162,17 @@ class _PlayerInfoChip extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         decoration: BoxDecoration(
-          color:
-              highlighted ? const Color(0xB070120E) : const Color(0x991F120F),
+          color: highlighted
+              ? _kGCrimson.withValues(alpha: 0.70)
+              : _kGBgCard.withValues(alpha: 0.60),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color:
-                highlighted ? const Color(0xE0E4C267) : const Color(0x66FFFFFF),
+            color: highlighted ? _kGSandGold.withValues(alpha: 0.88) : _kGSandBorder,
             width: highlighted ? 1.4 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1187,8 +1188,8 @@ class _PlayerInfoChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.94),
+              style: const TextStyle(
+                color: _kGTextPrim,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
               ),
@@ -1197,7 +1198,7 @@ class _PlayerInfoChip extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.14),
+                color: highlighted ? _kGSandGold : _kGSandBorder,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -1205,7 +1206,7 @@ class _PlayerInfoChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.86),
+                  color: highlighted ? _kGBgCanvas : _kGTextSec,
                   fontSize: 7,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1222,16 +1223,17 @@ class _PlayerInfoChip extends StatelessWidget {
         vertical: compact ? 6 : 7,
       ),
       decoration: BoxDecoration(
-        color: highlighted ? const Color(0xB070120E) : const Color(0x991F120F),
+        color: highlighted
+            ? _kGCrimson.withValues(alpha: 0.70)
+            : _kGBgCard.withValues(alpha: 0.60),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color:
-              highlighted ? const Color(0xE0E4C267) : const Color(0x66FFFFFF),
+          color: highlighted ? _kGSandGold.withValues(alpha: 0.88) : _kGSandBorder,
           width: highlighted ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1249,7 +1251,7 @@ class _PlayerInfoChip extends StatelessWidget {
               Text(
                 name,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.94),
+                  color: _kGTextPrim,
                   fontSize: compact ? 10 : 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1261,17 +1263,13 @@ class _PlayerInfoChip extends StatelessWidget {
                   vertical: 2,
                 ),
                 decoration: BoxDecoration(
-                  color: highlighted
-                      ? const Color(0xFFD4AF37)
-                      : Colors.white.withValues(alpha: 0.14),
+                  color: highlighted ? _kGSandGold : _kGSandBorder,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   badge,
                   style: TextStyle(
-                    color: highlighted
-                        ? const Color(0xFF41210E)
-                        : Colors.white.withValues(alpha: 0.86),
+                    color: highlighted ? _kGBgCanvas : _kGTextSec,
                     fontSize: compact ? 8 : 9,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1285,7 +1283,7 @@ class _PlayerInfoChip extends StatelessWidget {
               width: compact ? 7 : 9,
               height: compact ? 7 : 9,
               decoration: const BoxDecoration(
-                color: Color(0xFFF4C86E),
+                color: _kGSandGold,
                 shape: BoxShape.circle,
               ),
             ),
@@ -1316,13 +1314,13 @@ class _SeatAvatar extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: highlighted
-              ? const [Color(0xFFF5CF7C), Color(0xFFB77A1D)]
-              : const [Color(0xFFE8D8C0), Color(0xFFAD8D6D)],
+              ? const [_kGSandGold, _kGSandDark]
+              : const [_kGBgElevated, _kGBgCard],
         ),
       ),
       child: Icon(
         Icons.person_rounded,
-        color: const Color(0xFF4A2414),
+        color: highlighted ? _kGBgCanvas : _kGTextSec,
         size: size * 0.58,
       ),
     );
