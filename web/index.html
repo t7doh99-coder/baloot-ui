@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <!-- iPhone Safari: full layout + safe-area insets for notches / home indicator -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Royal Baloot — premium VIP card game.">
+  <meta name="theme-color" content="#000000">
+
+  <!-- iOS / PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <!-- black-translucent: edge-to-edge; status bar blends with dark UI -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Royal Baloot">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Royal Baloot</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Stable full-screen host for Flutter canvas on iOS Safari */
+    html {
+      height: 100%;
+      background-color: #000000;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background-color: #000000;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* flutter-view / flt-scene-host are created by the engine */
+    flt-glass-pane, flt-scene-host, flutter-view {
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

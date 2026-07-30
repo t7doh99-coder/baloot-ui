@@ -1,0 +1,10 @@
+{
+  "description": "This interactive scoreboard application enhances gaming experiences by providing a visually stunning 3D scoreboard that tracks and displays player scores in real-time.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

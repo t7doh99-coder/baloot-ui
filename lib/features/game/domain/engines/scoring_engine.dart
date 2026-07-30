@@ -1,0 +1,581 @@
+import '../../../../data/models/card_model.dart';
+import '../../../../data/models/round_state_model.dart';
+
+/// Result of scoring a completed round, with full breakdown for overlay UI.
+class RoundScoreResult {
+  final int teamAPoints; // Scoreboard points awarded
+  final int teamBPoints;
+  final int teamARawAbnat; // Total Abnat (tricks + ground + projects)
+  final int teamBRawAbnat;
+  final bool isKhams;
+  final bool isKabout;
+  final String winningTeam; // 'A' or 'B'
+  final String? reason; // 'khams', 'kabout', 'kabout_ace', 'normal'
+
+  // Breakdown fields for Kamelna-style overlay
+  final int teamATrickAbnat; // Card points from tricks only (no ground, no projects)
+  final int teamBTrickAbnat;
+  final String? lastTrickBonusTeam; // 'A', 'B', or null
+  final int teamAProjectAbnat;
+  final int teamBProjectAbnat;
+  final GameMode mode;
+  final String buyerTeam;
+  final DoubleStatus doubleStatus;
+  final List<DeclaredProject> teamAProjectsList;
+  final List<DeclaredProject> teamBProjectsList;
+
+  const RoundScoreResult({
+    required this.teamAPoints,
+    required this.teamBPoints,
+    required this.teamARawAbnat,
+    required this.teamBRawAbnat,
+    required this.isKhams,
+    required this.isKabout,
+    required this.winningTeam,
+    this.reason,
+    this.teamATrickAbnat = 0,
+    this.teamBTrickAbnat = 0,
+    this.lastTrickBonusTeam,
+    this.teamAProjectAbnat = 0,
+    this.teamBProjectAbnat = 0,
+    this.mode = GameMode.hakam,
+    this.buyerTeam = 'A',
+    this.doubleStatus = DoubleStatus.none,
+    this.teamAProjectsList = const [],
+    this.teamBProjectsList = const [],
+  });
+}
+
+/// Pure scoring math per BALOOT_RULES.md Section 8.
+///
+/// Handles:
+/// - Raw Abnat -> scoreboard point conversion
+/// - Sun formula: round(abnat / 10) * 2 (Standard / §8.5; no special case for .5)
+/// - Hakam formula: Jawaker rounding (.5 rounds DOWN)
+/// - Khams (buyer loses), Kabout (all-trick sweep)
+/// - Double system base values + project multipliers
+/// - Game end check (152 points or Gahwa)
+class ScoringEngine {
+  const ScoringEngine();
+
+  /// Convert raw Abnat to scoreboard points.
+  ///
+  /// Sun (Standard): abnaat ÷ 5 (i.e. multiply by 2 first, then ÷ 10)
+  ///   65 → 13, 60 → 12, 70 → 14 (total always = 26)
+  /// Hakam: round(abnaat ÷ 10) with .5 rounding DOWN
+  int abnatToScoreboard(int abnat, GameMode mode) {
+    if (mode == GameMode.sun) {
+      // Standard Sun: abnaat ÷ 5 (equivalent to (abnaat × 2) ÷ 10)
+      // This avoids the .5 rounding bug from the old round(x/10)*2 formula.
+      // Example: 65 abnaat → 65/5 = 13 ✓ (old formula gave 14 ✗)
+      return (abnat / 5).round();
+    }
+    // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
+    return _jawakerRound(abnat / 10);
+  }
+
+  /// Jawaker-style rounding: exactly .5 rounds DOWN, .6+ rounds UP.
+  /// 15.5 -> 15, 15.6 -> 16
+  int _jawakerRound(double value) {
+    final fractional = value - value.truncate();
+    if ((fractional - 0.5).abs() < 0.0001) {
+      return value.truncate(); // .5 rounds DOWN
+    }
+    return value.round();
+  }
+
+  /// Calculate the full round score.
+  ///
+  /// [teamAAbnat], [teamBAbnat]: raw Abnat from tricks (including last trick bonus).
+  /// [teamATricksCount], [teamBTricksCount]: actual trick win counts (for Kabout).
+  /// [lastTrickBonusTeam]: which team won the last trick ('A', 'B', or null).
+  RoundScoreResult calculateRoundScore({
+    required int teamAAbnat,
+    required int teamBAbnat,
+    required GameMode mode,
+    required String buyerTeam,
+    required int teamATricksCount,
+    required int teamBTricksCount,
+    String? lastTrickBonusTeam,
+    int teamAProjectAbnat = 0,
+    int teamBProjectAbnat = 0,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+    DoubleStatus doubleStatus = DoubleStatus.none,
+    bool isKabout = false,
+    bool buyerCardIsAce = false,
+    String? projectWinningTeam,
+    String? doubleCallerTeam,
+    List<DeclaredProject> teamAProjectsList = const [],
+    List<DeclaredProject> teamBProjectsList = const [],
+  }) {
+    // teamAAbnat / teamBAbnat are TRICK card points only (including ground).
+    // Projects are handled separately via their own scoreboard point values.
+    final trickAbnatA = teamAAbnat;
+    final trickAbnatB = teamBAbnat;
+
+    // Effective project Abnat (for scoreboard display only — NOT used in math)
+    int effectiveProjectA = 0;
+    int effectiveProjectB = 0;
+    if (projectWinningTeam == 'A') {
+      effectiveProjectA = teamAProjectAbnat;
+    } else if (projectWinningTeam == 'B') {
+      effectiveProjectB = teamBProjectAbnat;
+    }
+
+    // Shared breakdown context passed into sub-functions
+    RoundScoreResult _withBreakdown(RoundScoreResult base) {
+      int finalProjA = effectiveProjectA;
+      int finalProjB = effectiveProjectB;
+
+      // Rule 14.4: Stolen projects in Khams.
+      // Update breakdown Abnat to match the stolen points logic in _scoreKhams.
+      if (base.isKhams) {
+        if (buyerTeam == 'A') {
+          // Team A (Buyer) projects are stolen by Team B (Defenders)
+          finalProjA = 0;
+          finalProjB = teamBProjectAbnat + teamAProjectAbnat;
+        } else {
+          // Team B (Buyer) projects are stolen by Team A (Defenders)
+          finalProjB = 0;
+          finalProjA = teamAProjectAbnat + teamBProjectAbnat;
+        }
+      }
+
+      // Kabout rule (Standard/Jawaker/pagat.com):
+      // A team must win at least ONE trick for their projects to count.
+      // The Kabout loser won 0 tricks → their projects are nullified.
+      if (base.isKabout) {
+        if (base.winningTeam == 'A') {
+          finalProjB = 0; // Team B (loser) won 0 tricks → projects nullified
+        } else {
+          finalProjA = 0; // Team A (loser) won 0 tricks → projects nullified
+        }
+      }
+
+      return RoundScoreResult(
+        teamAPoints: base.teamAPoints,
+        teamBPoints: base.teamBPoints,
+        teamARawAbnat: trickAbnatA,
+        teamBRawAbnat: trickAbnatB,
+        isKhams: base.isKhams,
+        isKabout: base.isKabout,
+        winningTeam: base.winningTeam,
+        reason: base.reason,
+        teamATrickAbnat: trickAbnatA,
+        teamBTrickAbnat: trickAbnatB,
+        lastTrickBonusTeam: lastTrickBonusTeam,
+        teamAProjectAbnat: finalProjA,
+        teamBProjectAbnat: finalProjB,
+        mode: mode,
+        buyerTeam: buyerTeam,
+        doubleStatus: doubleStatus,
+        teamAProjectsList: teamAProjectsList,
+        teamBProjectsList: teamBProjectsList,
+      );
+    }
+
+    if (isKabout) {
+      return _withBreakdown(_scoreKabout(
+        teamAAbnat: trickAbnatA,
+        teamBAbnat: trickAbnatB,
+        buyerCardIsAce: buyerCardIsAce,
+        teamATricksWon: teamATricksCount,
+        teamBTricksWon: teamBTricksCount,
+        mode: mode,
+        buyerTeam: buyerTeam,
+        doubleStatus: doubleStatus,
+        projectWinningTeam: projectWinningTeam,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPoints,
+        balootTeam: balootTeam,
+      ));
+    }
+
+    // --- Determine round winner (using TOTAL Abnaat including projects and Baloot) ---
+    // The tie check (Sawa Type 3) happens on the final abnaat after all bonuses are added.
+    final buyerTrickAbnat = buyerTeam == 'A' ? trickAbnatA : trickAbnatB;
+    final defenderTrickAbnat = buyerTeam == 'A' ? trickAbnatB : trickAbnatA;
+
+    final totalBuyerAbnat = buyerTrickAbnat +
+        (buyerTeam == 'A' ? effectiveProjectA : effectiveProjectB) +
+        (buyerTeam == balootTeam ? 20 : 0); // Baloot is 20 abnaat (2 scoreboard pts)
+    
+    final totalDefenderAbnat = defenderTrickAbnat +
+        (buyerTeam == 'A' ? effectiveProjectB : effectiveProjectA) +
+        ((buyerTeam == 'A' ? 'B' : 'A') == balootTeam ? 20 : 0);
+
+    bool buyerWins;
+    bool isTie = false;
+    
+    if (totalBuyerAbnat == totalDefenderAbnat) {
+      isTie = true;
+      // Tie rules (Standard & Tournaments):
+      // 1. Normal play (no double): Buyer MUST win more than half. A tie means buyer loses (Khams).
+      // 2. Doubled play: The team that CALLED the highest double/triple/four LOSES the tie.
+      if (doubleStatus != DoubleStatus.none) {
+        buyerWins = (doubleCallerTeam != buyerTeam);
+      } else {
+        buyerWins = false; // Normal play: buyer loses tie
+      }
+    } else {
+      buyerWins = totalBuyerAbnat > totalDefenderAbnat;
+    }
+
+    // --- Khams (buyer loses) ---
+    if (!buyerWins) {
+      return _withBreakdown(_scoreKhams(
+        mode: mode,
+        buyerTeam: buyerTeam,
+        teamAAbnat: trickAbnatA,
+        teamBAbnat: trickAbnatB,
+        doubleStatus: doubleStatus,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPoints,
+        balootTeam: balootTeam,
+      ));
+    }
+
+    // --- Normal scoring (buyer wins) ---
+    return _withBreakdown(_scoreNormal(
+      mode: mode,
+      buyerTeam: buyerTeam,
+      teamAAbnat: trickAbnatA,
+      teamBAbnat: trickAbnatB,
+      doubleStatus: doubleStatus,
+      projectWinningTeam: projectWinningTeam,
+      teamAProjectScoreboard: teamAProjectScoreboard,
+      teamBProjectScoreboard: teamBProjectScoreboard,
+      balootPoints: balootPoints,
+      balootTeam: balootTeam,
+    ));
+  }
+
+
+  RoundScoreResult _scoreKabout({
+    required int teamAAbnat,
+    required int teamBAbnat,
+    required bool buyerCardIsAce,
+    required int teamATricksWon,
+    required int teamBTricksWon,
+    required GameMode mode,
+    required String buyerTeam,
+    DoubleStatus doubleStatus = DoubleStatus.none,
+    String? projectWinningTeam,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    // Client / Jawaker-Kamelna: Sun Kabout = 44 + projects, Hakam Kabout = 25 + projects
+    // Ace doubles the Kabout base. Double/Triple/Four multiplies the Kabout base.
+    final baseKabout = mode == GameMode.hakam ? 25 : 44;
+    final aceMultiplier = buyerCardIsAce ? 2 : 1;
+    final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
+    final kaboutPts = baseKabout * aceMultiplier * doubleMultiplier;
+    final winnerIsA = teamATricksWon == 8;
+    final winnerTeam = winnerIsA ? 'A' : 'B';
+
+    int aPts = winnerIsA ? kaboutPts : 0;
+    int bPts = winnerIsA ? 0 : kaboutPts;
+
+    // Project scoreboard points (Abnat conversion is skipped for Kabout; add explicitly)
+    final pm = _projectMultiplier(doubleStatus);
+    
+    // Kabout rule (Standard/Jawaker/pagat.com):
+    // A team must win at least ONE trick for their projects to count.
+    // The Kabout loser won 0 tricks → their projects are NULLIFIED (not stolen).
+    // Only the WINNER's own projects count (if they also won project priority).
+    if (projectWinningTeam == winnerTeam) {
+      // Winner has project priority AND won all tricks → their projects count
+      if (winnerTeam == 'A') {
+        aPts += teamAProjectScoreboard * pm;
+      } else {
+        bPts += teamBProjectScoreboard * pm;
+      }
+    }
+    // If the LOSER won project priority, their projects are nullified (0 tricks)
+    // and the winner's projects were already nullified by losing priority.
+    // → No project points for anyone.
+
+    // Baloot: Only the Kabout WINNER's Baloot counts.
+    // The loser won 0 tricks → their Baloot is nullified (same rule as projects).
+    if (balootPoints > 0 && balootTeam == winnerTeam) {
+      if (winnerTeam == 'A') aPts += balootPoints;
+      if (winnerTeam == 'B') bPts += balootPoints;
+    }
+
+    return RoundScoreResult(
+      teamAPoints: aPts,
+      teamBPoints: bPts,
+      teamARawAbnat: teamAAbnat,
+      teamBRawAbnat: teamBAbnat,
+      isKhams: false,
+      isKabout: true,
+      winningTeam: winnerIsA ? 'A' : 'B',
+      reason: buyerCardIsAce ? 'kabout_ace' : 'kabout',
+    );
+  }
+
+  RoundScoreResult _scoreKhams({
+    required GameMode mode,
+    required String buyerTeam,
+    required int teamAAbnat,
+    required int teamBAbnat,
+    required DoubleStatus doubleStatus,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    final defenderTeam = buyerTeam == 'A' ? 'B' : 'A';
+    int defenderPts;
+
+    if (doubleStatus != DoubleStatus.none) {
+      defenderPts = _doubleBaseValue(doubleStatus, mode);
+    } else {
+      defenderPts = mode == GameMode.sun ? 26 : 16;
+    }
+
+    // Project stealing (Standard/Jawaker/pagat.com):
+    // Defenders get Khams base + ALL declared project scoreboard points
+    // (both their own projects AND the buyer's stolen projects).
+    // Baloot is ALSO stolen — all points go to defender. Buyer gets ZERO.
+    int aBonus = 0, bBonus = 0;
+    final multiplier = _projectMultiplier(doubleStatus);
+    
+    // Total sequence projects on the board (one of these is 0 due to priority filtering)
+    final totalProjectSb = teamAProjectScoreboard + teamBProjectScoreboard;
+    
+    if (defenderTeam == 'A') {
+      aBonus = totalProjectSb * multiplier;
+    } else {
+      bBonus = totalProjectSb * multiplier;
+    }
+
+    // Baloot: When buyer loses (Khams), Baloot 2 pts go to the DEFENDER,
+    // not the declaring team. (Standard/Jawaker/pagat.com confirm this.)
+    if (balootPoints > 0) {
+      if (defenderTeam == 'A') {
+        aBonus += balootPoints;
+      } else {
+        bBonus += balootPoints;
+      }
+    }
+
+    int aTotal = aBonus;
+    int bTotal = bBonus;
+    if (defenderTeam == 'A') {
+      aTotal += defenderPts;
+    } else {
+      bTotal += defenderPts;
+    }
+
+    return RoundScoreResult(
+      teamAPoints: aTotal,
+      teamBPoints: bTotal,
+      teamARawAbnat: teamAAbnat,
+      teamBRawAbnat: teamBAbnat,
+      isKhams: true,
+      isKabout: false,
+      winningTeam: defenderTeam,
+      reason: 'khams',
+    );
+  }
+
+  RoundScoreResult _scoreNormal({
+    required GameMode mode,
+    required String buyerTeam,
+    required int teamAAbnat,
+    required int teamBAbnat,
+    required DoubleStatus doubleStatus,
+    String? projectWinningTeam,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    int aPts, bPts;
+
+    if (doubleStatus != DoubleStatus.none) {
+      // With double: winner gets base value, loser gets 0.
+      // Project scoreboard pts added separately (Abnat conversion bypassed).
+      final basePts = _doubleBaseValue(doubleStatus, mode);
+      aPts = buyerTeam == 'A' ? basePts : 0;
+      bPts = buyerTeam == 'B' ? basePts : 0;
+
+      final multiplier = _projectMultiplier(doubleStatus);
+      if (projectWinningTeam == 'A') {
+        aPts += teamAProjectScoreboard * multiplier;
+      } else if (projectWinningTeam == 'B') {
+        bPts += teamBProjectScoreboard * multiplier;
+      }
+    } else {
+      // No double: convert TRICK Abnaat to scoreboard points.
+      // Per Standard: Sun always totals 26, Hakam always totals 16.
+      // We ALWAYS calculate the BUYER'S score first to ensure rounding consistency
+      // (Buyer rounds DOWN on .5 in Hakam) and then derive the defender as the remainder.
+      final modeTotal = mode == GameMode.sun ? 26 : 16;
+      if (buyerTeam == 'A') {
+        aPts = abnatToScoreboard(teamAAbnat, mode);
+        bPts = modeTotal - aPts;
+      } else {
+        bPts = abnatToScoreboard(teamBAbnat, mode);
+        aPts = modeTotal - bPts;
+      }
+
+      // Add project scoreboard points for the winning team
+      if (projectWinningTeam == 'A') {
+        aPts += teamAProjectScoreboard;
+      } else if (projectWinningTeam == 'B') {
+        bPts += teamBProjectScoreboard;
+      }
+    }
+
+    // Baloot is always 2 pts (never derived from Abnat, immune to doubling)
+    if (balootTeam == 'A') aPts += balootPoints;
+    if (balootTeam == 'B') bPts += balootPoints;
+
+    return RoundScoreResult(
+      teamAPoints: aPts,
+      teamBPoints: bPts,
+      teamARawAbnat: teamAAbnat,
+      teamBRawAbnat: teamBAbnat,
+      isKhams: false,
+      isKabout: false,
+      winningTeam: buyerTeam,
+      reason: 'normal',
+    );
+  }
+
+  /// Base round reward when Double is active.
+  /// Jawaker/Kamelna: 16 × multiplier (32/48/64).
+  int _doubleBaseValue(DoubleStatus status, GameMode mode) {
+    if (status == DoubleStatus.none) return 0;
+    if (mode == GameMode.sun) {
+      // Sun Double is always 52 (26 * 2). No Triple/Four in Sun per Rule 7.1.
+      return status == DoubleStatus.doubled ? 52 : 0;
+    }
+    // Hakam: 16 * multiplier (32/48/64)
+    switch (status) {
+      case DoubleStatus.doubled:
+        return 32;
+      case DoubleStatus.tripled:
+        return 48;
+      case DoubleStatus.four:
+        return 64;
+      case DoubleStatus.gahwa:
+        return 152; // Winner gets 152 points (instant game win)
+      default:
+        return 0;
+    }
+  }
+
+  /// Project multiplier: scales with Double level per Standard/Jawaker rules.
+  /// Double = ×2, Triple = ×3, Four = ×4.
+  /// Baloot (2 pts) is NEVER multiplied — it is handled separately.
+  int _projectMultiplier(DoubleStatus status) {
+    switch (status) {
+      case DoubleStatus.none:
+        return 1;
+      case DoubleStatus.doubled:
+        return 2;
+      case DoubleStatus.tripled:
+        return 3;
+      case DoubleStatus.four:
+        return 4;
+      case DoubleStatus.gahwa:
+        return 1;
+    }
+  }
+
+  /// Card point multiplier for Kabout calculation.
+  int _cardDoubleMultiplier(DoubleStatus status) {
+    switch (status) {
+      case DoubleStatus.none:
+        return 1;
+      case DoubleStatus.doubled:
+        return 2;
+      case DoubleStatus.tripled:
+        return 3;
+      case DoubleStatus.four:
+        return 4;
+      case DoubleStatus.gahwa:
+        return 1;
+    }
+  }
+
+  bool isGameOver(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
+    if (lastDouble == DoubleStatus.gahwa) return true;
+
+    final reachedTarget = teamATotal >= 152 || teamBTotal >= 152;
+    if (!reachedTarget) return false;
+
+    // Sudden-Death Tie-Breaker (BALOOT_RULES.md Section 14.3):
+    // If exact tie above target score, game continues.
+    if (teamATotal == teamBTotal) return false;
+
+    return true;
+  }
+
+  String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
+    if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
+
+    if (teamATotal > teamBTotal) return 'A';
+    if (teamBTotal > teamATotal) return 'B';
+
+    return null; // Should be unreachable due to isGameOver tie-check
+  }
+
+  /// Calculate score for a Qaid (Violation) penalty.
+  /// Per BALOOT_RULES.md Section 14.5:
+  /// Award Kabout score (44 Sun / 25 Hakam) + active project points to the winning team.
+  RoundScoreResult calculateViolationScore({
+    required GameMode mode,
+    required String winningTeam,
+    required DoubleStatus doubleStatus,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    final baseKabout = mode == GameMode.hakam ? 25 : 44;
+    final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
+    final kaboutPts = baseKabout * doubleMultiplier;
+
+    int aPts = winningTeam == 'A' ? kaboutPts : 0;
+    int bPts = winningTeam == 'B' ? kaboutPts : 0;
+
+    // Award winning team's projects (multiplied by x2 if doubled)
+    final pm = _projectMultiplier(doubleStatus);
+    if (winningTeam == 'A') {
+      aPts += teamAProjectScoreboard * pm;
+    } else {
+      bPts += teamBProjectScoreboard * pm;
+    }
+
+    // Baloot: In a violation, all points (including Baloot) go to the winner.
+    if (balootPoints > 0 && balootTeam != null) {
+      if (winningTeam == 'A') {
+        aPts += balootPoints;
+      } else {
+        bPts += balootPoints;
+      }
+    }
+
+    return RoundScoreResult(
+      teamAPoints: aPts,
+      teamBPoints: bPts,
+      teamARawAbnat: 0,
+      teamBRawAbnat: 0,
+      isKhams: false,
+      isKabout: true,
+      winningTeam: winningTeam,
+      reason: 'qaid_penalty',
+    );
+  }
+}

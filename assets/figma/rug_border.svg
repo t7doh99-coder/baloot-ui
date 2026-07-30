@@ -1,0 +1,130 @@
+<svg viewBox="0 0 266 508" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Corner rosette (18,18) -->
+  <circle cx="18" cy="18" r="9" fill="none" stroke="#C1A36E" stroke-width="0.8"/>
+  <circle cx="18" cy="18" r="4.95" fill="none" stroke="#C1A36E" stroke-width="0.5"/>
+  <circle cx="18" cy="18" r="2" fill="#C1A36E"/>
+  <line x1="22.95" y1="18" x2="13.05" y2="18" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="21.50" y1="21.50" x2="14.50" y2="14.50" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="18" y1="22.95" x2="18" y2="13.05" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="14.50" y1="21.50" x2="21.50" y2="14.50" stroke="#C1A36E" stroke-width="0.5"/>
+
+  <!-- Corner rosette (248,18) -->
+  <circle cx="248" cy="18" r="9" fill="none" stroke="#C1A36E" stroke-width="0.8"/>
+  <circle cx="248" cy="18" r="4.95" fill="none" stroke="#C1A36E" stroke-width="0.5"/>
+  <circle cx="248" cy="18" r="2" fill="#C1A36E"/>
+  <line x1="252.95" y1="18" x2="243.05" y2="18" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="251.50" y1="21.50" x2="244.50" y2="14.50" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="248" y1="22.95" x2="248" y2="13.05" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="244.50" y1="21.50" x2="251.50" y2="14.50" stroke="#C1A36E" stroke-width="0.5"/>
+
+  <!-- Corner rosette (18,490) -->
+  <circle cx="18" cy="490" r="9" fill="none" stroke="#C1A36E" stroke-width="0.8"/>
+  <circle cx="18" cy="490" r="4.95" fill="none" stroke="#C1A36E" stroke-width="0.5"/>
+  <circle cx="18" cy="490" r="2" fill="#C1A36E"/>
+  <line x1="22.95" y1="490" x2="13.05" y2="490" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="21.50" y1="493.50" x2="14.50" y2="486.50" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="18" y1="494.95" x2="18" y2="485.05" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="14.50" y1="493.50" x2="21.50" y2="486.50" stroke="#C1A36E" stroke-width="0.5"/>
+
+  <!-- Corner rosette (248,490) -->
+  <circle cx="248" cy="490" r="9" fill="none" stroke="#C1A36E" stroke-width="0.8"/>
+  <circle cx="248" cy="490" r="4.95" fill="none" stroke="#C1A36E" stroke-width="0.5"/>
+  <circle cx="248" cy="490" r="2" fill="#C1A36E"/>
+  <line x1="252.95" y1="490" x2="243.05" y2="490" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="251.50" y1="493.50" x2="244.50" y2="486.50" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="248" y1="494.95" x2="248" y2="485.05" stroke="#C1A36E" stroke-width="0.5"/>
+  <line x1="244.50" y1="493.50" x2="251.50" y2="486.50" stroke="#C1A36E" stroke-width="0.5"/>
+
+  <!-- Top border diamonds (horizontal, cy=18) -->
+  <polygon points="54,18 60,15 66,18 60,21" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="60" cy="18" r="1.2" fill="#C1A36E"/>
+  <polygon points="94,18 100,15 106,18 100,21" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="100" cy="18" r="1.2" fill="#C1A36E"/>
+  <polygon points="127,18 133,15 139,18 133,21" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="133" cy="18" r="1.2" fill="#C1A36E"/>
+  <polygon points="160,18 166,15 172,18 166,21" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="166" cy="18" r="1.2" fill="#C1A36E"/>
+  <polygon points="200,18 206,15 212,18 206,21" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="206" cy="18" r="1.2" fill="#C1A36E"/>
+
+  <!-- Bottom border diamonds (horizontal, cy=490) -->
+  <polygon points="54,490 60,487 66,490 60,493" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="60" cy="490" r="1.2" fill="#C1A36E"/>
+  <polygon points="94,490 100,487 106,490 100,493" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="100" cy="490" r="1.2" fill="#C1A36E"/>
+  <polygon points="127,490 133,487 139,490 133,493" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="133" cy="490" r="1.2" fill="#C1A36E"/>
+  <polygon points="160,490 166,487 172,490 166,493" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="166" cy="490" r="1.2" fill="#C1A36E"/>
+  <polygon points="200,490 206,487 212,490 206,493" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="206" cy="490" r="1.2" fill="#C1A36E"/>
+
+  <!-- Left border diamonds (vertical, cx=18) -->
+  <polygon points="18,54 21,60 18,66 15,60" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="60" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,104 21,110 18,116 15,110" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="110" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,154 21,160 18,166 15,160" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="160" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,204 21,210 18,216 15,210" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="210" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,254 21,260 18,266 15,260" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="260" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,304 21,310 18,316 15,310" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="310" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,354 21,360 18,366 15,360" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="360" r="1.2" fill="#C1A36E"/>
+  <polygon points="18,404 21,410 18,416 15,410" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="18" cy="410" r="1.2" fill="#C1A36E"/>
+
+  <!-- Right border diamonds (vertical, cx=248) -->
+  <polygon points="248,54 251,60 248,66 245,60" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="60" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,104 251,110 248,116 245,110" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="110" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,154 251,160 248,166 245,160" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="160" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,204 251,210 248,216 245,210" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="210" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,254 251,260 248,266 245,260" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="260" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,304 251,310 248,316 245,310" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="310" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,354 251,360 248,366 245,360" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="360" r="1.2" fill="#C1A36E"/>
+  <polygon points="248,404 251,410 248,416 245,410" fill="none" stroke="#C1A36E" stroke-width="0.7"/>
+  <circle cx="248" cy="410" r="1.2" fill="#C1A36E"/>
+
+  <!-- Connecting lines along top edge -->
+  <line x1="27"  y1="18" x2="45"  y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="75"  y1="18" x2="85"  y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="115" y1="18" x2="120" y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="146" y1="18" x2="155" y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="180" y1="18" x2="195" y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="221" y1="18" x2="239" y2="18" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <!-- Connecting lines along bottom edge -->
+  <line x1="27"  y1="490" x2="45"  y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="75"  y1="490" x2="85"  y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="115" y1="490" x2="120" y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="146" y1="490" x2="155" y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="180" y1="490" x2="195" y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="221" y1="490" x2="239" y2="490" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <!-- Connecting lines along left edge -->
+  <line x1="18" y1="27"  x2="18" y2="45"  stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="75"  x2="18" y2="85"  stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="125" x2="18" y2="140" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="175" x2="18" y2="195" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="225" x2="18" y2="245" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="275" x2="18" y2="295" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="325" x2="18" y2="345" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="18" y1="375" x2="18" y2="395" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <!-- Connecting lines along right edge -->
+  <line x1="248" y1="27"  x2="248" y2="45"  stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="75"  x2="248" y2="85"  stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="125" x2="248" y2="140" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="175" x2="248" y2="195" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="225" x2="248" y2="245" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="275" x2="248" y2="295" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="325" x2="248" y2="345" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+  <line x1="248" y1="375" x2="248" y2="395" stroke="rgba(193,163,110,0.35)" stroke-width="0.5"/>
+</svg>

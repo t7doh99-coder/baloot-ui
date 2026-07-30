@@ -1,0 +1,19 @@
+# Netlify: connect this repo and use the defaults below, or deploy by dragging
+# the `build/web` folder after running: flutter build web --release
+#
+# If the site is served from a subpath (e.g. example.com/game/), build with:
+#   flutter build web --release --base-href=/game/
+
+[build]
+  command = "bash scripts/netlify-build.sh"
+  publish = "build/web"
+
+[build.environment]
+  # Flutter SDK channel: stable | beta | (or a version tag like 3.27.0)
+  FLUTTER_VERSION = "stable"
+
+# SPA: real files (JS, wasm, assets) are served first; unknown paths → index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

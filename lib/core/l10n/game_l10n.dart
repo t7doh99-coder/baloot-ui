@@ -1,0 +1,240 @@
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
+
+import '../../data/models/card_model.dart' show GameMode;
+import '../../data/models/round_state_model.dart' show ProjectType;
+import 'locale_provider.dart';
+
+/// In-game UI strings (table, HUD, overlays). Toggle via [LocaleProvider] on home/settings.
+class GameL10n {
+  GameL10n._(this._ar);
+
+  final bool _ar;
+
+  bool get isArabic => _ar;
+
+  static GameL10n of(BuildContext context) {
+    return GameL10n._(context.watch<LocaleProvider>().isArabic);
+  }
+
+  static GameL10n read(BuildContext context) {
+    return GameL10n._(context.read<LocaleProvider>().isArabic);
+  }
+
+  // ── Action bar ──
+  /// Round 1 pass — apps often use بس (Standard-style).
+  String get pass => _ar ? 'بس' : 'Pass';
+  /// Round 2 only — Jawaker/Standard often use ولا instead of باس.
+  String get passRound2 => _ar ? 'ولا' : 'Pass';
+  String get hakam => _ar ? 'حكم' : 'Hakam';
+  /// Round 2: choose a new trump (not buyer-card suit). Same action as suit-picker Hakam.
+  String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
+  String get sun => _ar ? 'صن' : 'Sun';
+  String get qablak => _ar ? 'قبلك' : 'Qablak';
+  String get sawa => _ar ? 'سوا' : 'Sawa';
+  /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
+  String get sawaBidShort => sawa;
+  /// Master-hand claim during tricks (سوى اليد).
+  String get sawaHandsTooltip =>
+      _ar ? 'سوا اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';
+  String get ashkal => _ar ? 'أشكل' : 'Ashkal';
+  String get confirmHakam => _ar ? 'تأكيد الحكم' : 'Confirm Hakam';
+  String get switchToSun => _ar ? 'يقلب صن' : 'Switch to Sun';
+  String get projects => _ar ? 'المشاريع' : 'Projects';
+  String get cancel => _ar ? 'إلغاء' : 'Cancel';
+  String get closed => _ar ? 'مقفل' : 'Closed';
+  String get open => _ar ? 'مفتوح' : 'Open';
+  String get doubleWord => _ar ? 'دبل' : 'Double';
+  String get triple => _ar ? 'تربل' : 'Triple';
+  String get four => _ar ? 'فور' : 'Four';
+  String get gahwa => _ar ? 'قهوة' : 'Gahwa';
+  String get qaid => _ar ? 'قيدها' : 'Qaid';
+  String get falseQaidMessage => _ar ? 'ادعاء قيد خاطئ! خسارة الجولة' : 'False Qaid claim! Round lost';
+  String get correctQaidMessage => _ar ? 'قيد صحيح! خصمك خسر الجولة' : 'Valid Qaid! Opponent lost the round';
+  String get startGame => _ar ? 'ابدأ اللعب' : 'Start Game';
+
+  // ── Top HUD menu ──
+  String get them => _ar ? 'لهم' : 'Them';
+  String get us => _ar ? 'لنا' : 'Us';
+  String get leave => _ar ? 'مغادرة' : 'Leave';
+  String get wallpaper => _ar ? 'الخلفية' : 'Wallpaper';
+  String get testMode => _ar ? 'وضع تجريبي' : 'Test Mode';
+  String get sound => _ar ? 'صوت' : 'Sound';
+  String get emotes => _ar ? 'ملصقات' : 'Emotes';
+
+  // ── Majlis player bar ──
+  String get dealer => _ar ? 'الموزع' : 'Dealer';
+  String get buyer => _ar ? 'المشتري' : 'Buyer';
+
+  // ── Project & Game Log Overlays ──
+  String get declareProjects => _ar ? 'إعلان المشاريع' : 'Declare Projects';
+  String get noProjectsFound => _ar ? 'لا توجد مشاريع في يدك' : 'No projects found in your hand';
+  String get skip => _ar ? 'تخطي' : 'Skip';
+  String get declared => _ar ? 'معلنة' : 'Declared';
+  String get abnat => _ar ? 'أبناط' : 'Abnat';
+  String get gameLogCopied => _ar ? 'تم نسخ السجل!' : 'Game log copied to clipboard!';
+  String get copyGameLog => _ar ? 'نسخ سجل اللعب' : 'Copy Game Log';
+
+  String modeLabel(String engineLabel) {
+    if (!_ar) return engineLabel;
+    return switch (engineLabel) {
+      'Sun' => 'صن',
+      'Hakam' => 'حكم',
+      '—' => '—',
+      _ => engineLabel,
+    };
+  }
+
+  String botName(String name) {
+    if (_ar) return name;
+    return switch (name) {
+      'طلال' => 'Talal',
+      'فهد' => 'Fahad',
+      'فيصل' => 'Faisal',
+      'سلمان' => 'Salman',
+      'سعود' => 'Saud',
+      'نواف' => 'Nawaf',
+      'ريان' => 'Rayan',
+      'ماجد' => 'Majed',
+      'خالد' => 'Khaled',
+      _ => name,
+    };
+  }
+
+  // ── Deal overlay ──
+  String get dealing => _ar ? 'جاري التوزيع...' : 'Dealing...';
+  String get dealingShort => _ar ? 'توزيع' : 'Dealing';
+  String get confirmShort => _ar ? 'حكم؟' : 'Hakam?';
+  String get bidRound1Short => _ar ? 'مزاد ١' : 'Bid · R1';
+  String get bidRound2Short => _ar ? 'مزاد ٢' : 'Bid · R2';
+  String get doubleShort => _ar ? 'دبل' : 'Double';
+  String get gameOverShort => _ar ? 'انتهت اللعبة' : 'Game over';
+  String get bidding => _ar ? 'المزاد' : 'Bidding';
+  String buyerLine(String name) => _ar ? 'المشتري: $name' : 'Buyer: $name';
+  String get bidRound1 => _ar ? 'المزاد — الجولة ١' : 'Bid Round 1';
+  String get bidRound2 => _ar ? 'المزاد — الجولة ٢' : 'Bid Round 2';
+  String get confirmOrSwitch => _ar ? 'تأكيد الحكم أو صن؟' : 'Confirm or Switch?';
+  String get doubleWindow => _ar ? 'مرحلة الدبل' : 'Double Window';
+
+  // ── Game over ──
+  String get gahwaTitle => _ar ? 'قهوة' : 'Gahwa';
+  String get youWin => _ar ? 'فزت!' : 'You win!';
+  String get youLose => _ar ? 'خسرت' : 'You lose';
+  String teamReachedTarget(bool teamIsUs, int target) {
+    if (_ar) {
+      return teamIsUs ? 'فريقنا وصل $target' : 'فريقهم وصل $target';
+    }
+    return teamIsUs ? 'Team Us reached $target' : 'Team Them reached $target';
+  }
+
+  String get finalScore => _ar ? 'النتيجة النهائية' : 'Final score';
+  String lastRoundPts(int a, int b) =>
+      _ar ? 'آخر جولة +$a / +$b' : 'Last round +$a / +$b';
+  String get exitGame => _ar ? 'خروج' : 'Exit game';
+  String get playAgain => _ar ? 'العب مرة أخرى' : 'Play again';
+
+  // ── Projects (picker) ──
+  String projectType(ProjectType t) {
+    if (!_ar) {
+      return switch (t) {
+        ProjectType.sera => 'Sera',
+        ProjectType.fifty => '50',
+        ProjectType.hundred => '100',
+        ProjectType.sixCardRun => '150',
+        ProjectType.sevenCardRun => '200',
+        ProjectType.eightCardRun => '250',
+        ProjectType.fourJacks => '4J',
+        ProjectType.fourHundred => '400',
+        ProjectType.baloot => 'Baloot',
+      };
+    }
+    return switch (t) {
+      ProjectType.sera => 'سرا',
+      ProjectType.fifty => 'خمسين',
+      ProjectType.hundred => 'مية',
+      ProjectType.sixCardRun => 'مية وخمسين',
+      ProjectType.sevenCardRun => 'ميتين',
+      ProjectType.eightCardRun => 'ميتين وخمسين',
+      ProjectType.fourJacks => 'أربع أولاد',
+      ProjectType.fourHundred => 'أربعمية',
+      ProjectType.baloot => 'بلوت',
+    };
+  }
+
+  // ── Scoreboard header line (mode + trump) ──
+  String scoreboardGameLine(GameMode mode, String? trumpSymbol) {
+    if (mode == GameMode.sun) return _ar ? 'صن' : 'Sun';
+    final sym = trumpSymbol ?? '';
+    return _ar ? 'حكم $sym'.trim() : 'Hakam $sym'.trim();
+  }
+
+  // ── Points & Rank ──
+  String get pointsBase => _ar ? 'الأساسي' : 'Base';
+  String get pointsRankGap => _ar ? 'فرق المستوى' : 'Rank Gap';
+  String get pointsStreakBonus => _ar ? 'مكافأة الفوز' : 'Streak Bonus';
+  String get botCapApplied => _ar ? '(الحد الأقصى للكمبيوتر)' : '(Bot Cap Applied)';
+  String get totalStars => _ar ? 'النجوم' : 'Total Stars';
+  String get totalMedals => _ar ? 'الميداليات' : 'Medals';
+  String get medalsUnchanged => _ar ? '0 (بدون تغيير)' : '0 (Unchanged)';
+  String medalsToNext(int num) => _ar ? '$num ميدالية للمستوى التالي' : '$num medals to next level';
+  String get rankProgress => _ar ? 'التقدم' : 'Progress';
+  String get rankUp => _ar ? 'ترقية!' : 'RANK UP!';
+  String get newRank => _ar ? 'مستوى جديد' : 'New Rank';
+
+  /// Localize speech-bubble text produced by [GameProvider] (English tokens).
+  String localizeBubble(String en) {
+    if (!_ar) {
+      if (en == 'PassR2') return 'Pass';
+      // Disabled for now per user request:
+      // if (en == 'Celebrate') return '🎉 Nice!';
+      // if (en == 'Oops') return '😅 Oops!';
+      // if (en == 'Surprised') return '😲 Wow!';
+      // if (en == 'GoodLuck') return '👍 Good game';
+      return en;
+    }
+    if (en.startsWith('Hakam Sani ') && en.length > 11) {
+      return 'حكم ثاني ${en.substring(11)}';
+    }
+    if (en.startsWith('Hakam ') && en.length > 6) {
+      return 'حكم ${en.substring(6)}';
+    }
+    if (en.startsWith('Thani ') && en.length > 6) {
+      return 'ثاني ${en.substring(6)}';
+    }
+    return switch (en) {
+      'Pass' => 'بس',
+      'PassR2' => 'ولا',
+      'Hakam' => 'حكم',
+      'Sun' => 'صن',
+      'Qabalk' => 'قبلك',
+      'Sawa' => 'سوا',
+      'Awal' => 'أول',
+      'Hakam Sani' => 'حكم ثاني',
+      'Ashkal' => 'أشكل',
+      'Double' => 'دبل',
+      'Triple' => 'تربل',
+      'Four' => 'فور',
+      'Gahwa' => 'قهوة',
+      'Qaid' => 'قيدها',
+      'Sera' => 'سرا',
+      '50' => 'خمسين',
+      '100' => 'مية',
+      '400' => 'أربعمية',
+      'Baloot' => 'بلوت',
+      'Akka' => 'أكة',
+      // Disabled for now per user request:
+      // 'Celebrate' => '🎉 كفو!',
+      // 'Oops' => '😅 أوف!',
+      // 'Surprised' => '😲 ما شاء الله!',
+      // 'GoodLuck' => '👍 بالتوفيق',
+      _ => _tryTranslateCombinedProjects(en),
+    };
+  }
+
+  String _tryTranslateCombinedProjects(String en) {
+    if (en.contains(' & ')) {
+      return en.split(' & ').map((p) => localizeBubble(p.trim())).join(' و ');
+    }
+    return en;
+  }
+}
