@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:meta/meta.dart';
 import '../../../../data/models/card_model.dart';
 
 /// Manages the 32-card Baloot deck: creation, shuffling, Kut (cut),
@@ -16,6 +17,14 @@ class DeckManager {
 
   /// The revealed buyer card (Mustari). Null before dealInitial().
   CardModel? get buyerCard => _buyerCard;
+
+  @visibleForTesting
+  void setBuyerCardForTest(CardModel c) => _buyerCard = c;
+
+  @visibleForTesting
+  void setDeckForTest(List<CardModel> customDeck) {
+    _deck = List.from(customDeck);
+  }
 
   /// Current hands for each player (index 0-3).
   List<List<CardModel>> get hands => _hands;

@@ -73,7 +73,7 @@ class GameTableMajlisHud extends StatelessWidget {
             },
             itemBuilder: (context) {
               const iconColor = Color(0xFFF2D08D); // game gold
-              const textStyle = TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800);
+              final textStyle = TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600, fontFamily: GoogleFonts.readexPro().fontFamily, letterSpacing: 0);
               
               Widget buildItem(IconData icon, String text, int value) {
                 return InkWell(
@@ -132,7 +132,7 @@ class GameTableMajlisHud extends StatelessWidget {
                               divider,
                               buildItem(Icons.wallpaper_rounded, loc.wallpaper, 1),
                               divider,
-                              buildItem(game.isGodModeEnabled ? Icons.visibility_off : Icons.visibility, game.isGodModeEnabled ? 'Hide All Cards' : 'Reveal All Cards', 98),
+                              buildItem(game.isGodModeEnabled ? Icons.visibility_off : Icons.visibility, game.isGodModeEnabled ? (context.read<LocaleProvider>().isArabic ? 'إخفاء الأوراق' : 'Hide All Cards') : (context.read<LocaleProvider>().isArabic ? 'كشف الأوراق' : 'Reveal All Cards'), 98),
                               divider,
                               buildItem(Icons.copy_all_rounded, loc.copyGameLog, 99),
                               divider,
@@ -153,7 +153,7 @@ class GameTableMajlisHud extends StatelessWidget {
           ),
           ),
             SizedBox(
-              width: 150,
+              width: 140,
               child: _MajlisScoreHud(
                 leftLabel: loc.them,
                 leftScore: score.teamB,
@@ -275,9 +275,10 @@ Widget _scoreCell(String label, int score) {
         label,
         style: const TextStyle(
           color: _kGTextSec,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
           height: 1,
+          letterSpacing: 0,
         ),
       ),
       const SizedBox(height: 1),
@@ -298,9 +299,10 @@ Widget _scoreCell(String label, int score) {
           '$score',
           key: ValueKey<int>(score),
           style: TextStyle(
+            letterSpacing: 0,
             color: _kGTextPrim,
-            fontSize: 16,
-            fontWeight: FontWeight.w900, // Thicker font weight for extra pop
+            fontSize: 18,
+            fontWeight: FontWeight.w700, // Reduced from w900 for Arabic readability
             height: 1,
             shadows: [
               Shadow(

@@ -1,20 +1,23 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class TestScreen6 extends StatefulWidget {
+import 'package:provider/provider.dart';
+import 'package:baloot_game/core/l10n/locale_provider.dart';
+
+class GameModeResultScreen extends StatefulWidget {
   final bool isArabic;
 
-  const TestScreen6({
+  const GameModeResultScreen({
     super.key,
     required this.isArabic,
   });
 
   @override
-  State<TestScreen6> createState() => _TestScreen6State();
+  State<GameModeResultScreen> createState() => _GameModeResultScreenState();
 }
 
-class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin {
+class _GameModeResultScreenState extends State<GameModeResultScreen> with TickerProviderStateMixin {
   late AnimationController _trophyController;
   late AnimationController _shimmerController;
   late AnimationController _particlesController;
@@ -215,7 +218,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                           color: const Color(0xFFFF3D3D),
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 3.5,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3.5,
                           shadows: [
                             BoxShadow(
                               color: const Color(0xFFFF3D3D).withValues(alpha: 0.6),
@@ -251,7 +254,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                         style: GoogleFonts.readexPro(
                           fontSize: 10,
                           color: const Color(0xFFFF3D3D).withValues(alpha: 0.45),
-                          letterSpacing: 1.5,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.5,
                         ),
                       ),
                     ],
@@ -290,7 +293,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                           color: const Color(0xFF00E87A),
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 3.5,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3.5,
                           shadows: [
                             BoxShadow(
                               color: const Color(0xFF00E87A).withValues(alpha: 0.6),
@@ -326,7 +329,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                         style: GoogleFonts.readexPro(
                           fontSize: 10,
                           color: const Color(0xFF00E87A).withValues(alpha: 0.45),
-                          letterSpacing: 1.5,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.5,
                         ),
                       ),
                     ],
@@ -357,7 +360,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
               color: isUsWon ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D),
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              letterSpacing: 3.5,
+              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3.5,
               shadows: [
                 BoxShadow(
                   color: (isUsWon ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D)).withValues(alpha: 0.8),
@@ -416,7 +419,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                       color: const Color(0xFFC9A84C),
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 2.0,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.0,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -472,7 +475,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                       color: const Color(0xFFC9A84C),
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 2.0,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.0,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -524,7 +527,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                       color: const Color(0xFFC9A84C).withValues(alpha: 0.35),
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 2.5,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.5,
                     ),
                   ),
                 ),
@@ -537,7 +540,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                       color: const Color(0xFFFF3D3D),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 2.0,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.0,
                       shadows: [
                         BoxShadow(
                           color: const Color(0xFFFF3D3D).withValues(alpha: 0.5),
@@ -556,7 +559,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                       color: const Color(0xFF00E87A),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 2.0,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.0,
                       shadows: [
                         BoxShadow(
                           color: const Color(0xFF00E87A).withValues(alpha: 0.5),
@@ -606,7 +609,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                 color: const Color(0xFF7A6A48),
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                letterSpacing: 0.5,
+                letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.5,
               ),
             ),
           ),
@@ -697,7 +700,7 @@ class _TestScreen6State extends State<TestScreen6> with TickerProviderStateMixin
                     color: const Color(0xFFC9A84C),
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 2.5,
+                    letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2.5,
                     shadows: [
                       BoxShadow(
                         color: const Color(0xFFC9A84C).withValues(alpha: 0.5),
@@ -805,3 +808,5 @@ class _HeroParticlePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _HeroParticlePainter oldDelegate) => true;
 }
+
+

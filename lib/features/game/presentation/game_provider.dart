@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
 import '../../../core/services/game_audio_service.dart';
@@ -83,7 +84,7 @@ class LastRoundResult {
   final Suit? trumpSuit;
   final DoubleStatus doubleStatus;
 
-  /// In-play master-card Sawa ended the round (Kammelna); null = normal play-out.
+  /// In-play master-card Sawa ended the round (Standard); null = normal play-out.
   final int? playSawaClaimSeat;
 
   final List<DeclaredProject> teamAProjectsList;
@@ -124,9 +125,18 @@ class GameProvider extends ChangeNotifier {
   GameAudioService get audioService => _audioService;
 
   void setLanguage(String langCode) {
-    if (_audioService.langCode != langCode) {
-      _audioService.setLanguage(langCode);
+    if (_audioService.langCode == langCode) return;
+    _audioService.setLanguage(langCode);
+    // Never notify during build — that races on low-end devices and can
+    // abort the rest of [startGame] / timer scheduling.
+    final phase = WidgetsBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
       notifyListeners();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_audioService.langCode == langCode) notifyListeners();
+      });
     }
   }
 
@@ -165,21 +175,21 @@ class GameProvider extends ChangeNotifier {
   int _prevDealerIndex = -1;
   BiddingPhase _prevBiddingPhase = BiddingPhase.round1;
 
-  // ── Qaid Violation notification (Kammelna-style banner) ──
+  // ── Qaid Violation notification (Standard-style banner) ──
   String? _qaidViolationMessage;
   int? _qaidViolationSeat;
 
-  // ── Qaid Claim result (Kammelna manual flag button) ──
+  // ── Qaid Claim result (Standard manual flag button) ──
   String? _qaidClaimResult; // 'correct' or 'false'
   String? _qaidClaimMessage;
 
-  // ── Project Reveal at Trick 2 (Kammelna-style: per-turn, sequential) ──
+  // ── Project Reveal at Trick 2 (Standard-style: per-turn, sequential) ──
   /// Which single seat is currently revealing its project (null = none).
   int? _projectRevealSeat;
   /// Seats that have already revealed during this Trick 2.
   final Set<int> _revealedProjectSeats = {};
 
-  /// Kammelna-style Sawa: سوا badge + all hands face-up (~5s), then engine ends round.
+  /// Standard-style Sawa: سوا badge + all hands face-up (~5s), then engine ends round.
   Timer? _sawaRevealTimer;
   List<List<CardModel>>? _sawaRevealHands;
   int? _sawaRevealClaimSeat;
@@ -221,6 +231,12 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> updatePlayerName(String newName) async {
     _playerStats = _playerStats.copyWith(playerName: newName);
+    notifyListeners();
+    await PlayerStatsService.saveStats(_playerStats);
+  }
+
+  Future<void> updatePlayerAvatar(String path) async {
+    _playerStats = _playerStats.copyWith(customAvatarPath: path);
     notifyListeners();
     await PlayerStatsService.saveStats(_playerStats);
   }
@@ -316,7 +332,7 @@ class GameProvider extends ChangeNotifier {
   bool get canDeclareProjects {
     if (phase != GamePhase.playing || trickNumber != 1) return false;
     
-    // Kammelna Rule: Can declare anytime in Trick 1 as long as you haven't played your card yet.
+    // Standard Rule: Can declare anytime in Trick 1 as long as you haven't played your card yet.
     final hasPlayedCard = roundState.currentTrick.any((p) => p.playerIndex == 0);
     return !hasPlayedCard;
   }
@@ -337,6 +353,11 @@ class GameProvider extends ChangeNotifier {
   bool get hasActiveHakamBid =>
       phase == GamePhase.notStarted ? false : _engine.hasActiveHakamBid;
 
+  /// Defending player (seat 0) may call **Sawa** on an active opponent bid (§4.4).
+  bool get canHumanBidSawa {
+    return _engine.allowedActions(0).contains(BidAction.sawa);
+  }
+
   bool get hasRound2PendingBid =>
       phase == GamePhase.notStarted ? false : _engine.hasRound2PendingBid;
 
@@ -351,22 +372,6 @@ class GameProvider extends ChangeNotifier {
 
   Suit? get activeRound2PendingTrump =>
       phase == GamePhase.notStarted ? null : _engine.activeRound2PendingTrump;
-
-  /// Defending player (seat 0) may call **Sawa** on an active opponent bid (§4.4).
-  bool get canHumanBidSawa {
-    if (phase != GamePhase.bidding || currentPlayerIndex != 0) return false;
-    if (hasActiveHakamBid) {
-      final h = activeRound1HakamSeat;
-      if (h == null) return false;
-      return (0 % 2) != (h % 2);
-    }
-    if (hasRound2PendingBid) {
-      final p = activeRound2PendingBuyerSeat;
-      if (p == null) return false;
-      return (0 % 2) != (p % 2);
-    }
-    return false;
-  }
 
   /// Which seat is the dealer.
   int get dealerIndex => roundState.dealerIndex;
@@ -513,7 +518,7 @@ class GameProvider extends ChangeNotifier {
   String? get qaidClaimResult => _qaidClaimResult;
   String? get qaidClaimMessage => _qaidClaimMessage;
 
-  /// Whether the human player can currently claim Qaid (Kammelna manual flag).
+  /// Whether the human player can currently claim Qaid (Standard manual flag).
   bool get canClaimQaid => _engine.canClaimQaid(0);
 
   /// Clear the Qaid notification (called after UI shows it).
@@ -530,7 +535,7 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Human claims Qaid (seat 0) — Kammelna manual violation reporting.
+  /// Human claims Qaid (seat 0) — Standard manual violation reporting.
   /// Per BALOOT_RULES.md §14.5:
   /// - If opponent actually violated → opponent gets Kabout penalty
   /// - If false claim → accuser (human) gets Kabout penalty
@@ -558,7 +563,7 @@ class GameProvider extends ChangeNotifier {
     _afterEngineAction();
   }
 
-  /// Whether to show a project reveal for a specific seat (Kammelna per-turn).
+  /// Whether to show a project reveal for a specific seat (Standard per-turn).
   bool get showProjectReveal => _projectRevealSeat != null;
 
   /// The specific seat currently revealing its project (null = none).
@@ -640,8 +645,27 @@ class GameProvider extends ChangeNotifier {
   //  GAME LIFECYCLE
   // ══════════════════════════════════════════════════════════════════
 
+  // When true, timers / bot turns are not scheduled. Used while the loading
+  // screen finishes the opening deal so bots don't bid before the table opens.
+  bool _autoPlaySuspended = false;
+
+  /// True once the opening deal has finished and the table can be shown.
+  /// Loading screen waits for this before leaving.
+  bool get isMatchReady =>
+      phase != GamePhase.notStarted && phase != GamePhase.dealing;
+
   /// Start a new game. Call this once after creating the provider.
-  void startGame({BotDifficulty difficulty = BotDifficulty.medium}) {
+  ///
+  /// When [suspendAutoPlay] is true (loading-screen prep), the dealing timer
+  /// and bot turns are not started — call [onTableReady] after the table mounts.
+  void startGame({
+    BotDifficulty difficulty = BotDifficulty.medium,
+    bool suspendAutoPlay = false,
+  }) {
+    // Cancel any leftover timers from a previous session first.
+    _cancelTimers();
+    _autoPlaySuspended = suspendAutoPlay;
+
     _lastDifficulty = difficulty;
     _targetScore = 152;
     _lastTrickMiniBySeat = null;
@@ -661,9 +685,91 @@ class GameProvider extends ChangeNotifier {
     _selectedCard = null;
     _roundJustEnded = false;
     _roundCancelled = false;
+    _isMatchOverOverlayReady = false;
     _clearSawaRevealState();
+
+    // Schedule dealing→bidding BEFORE notifyListeners. On low-end phones a
+    // heavy listener rebuild can throw; if we notified first, the dealing
+    // timer would never be armed and the match stays on "جاري التوزيع...".
+    if (!_autoPlaySuspended) {
+      _scheduleNextAction();
+    }
     notifyListeners();
+  }
+
+  /// Prepare a match while the loading screen is visible: start the engine,
+  /// finish the opening deal, but do NOT start bot turns yet.
+  ///
+  /// Call [onTableReady] from [GameTableScreen] after it mounts.
+  Future<void> prepareMatchForTable({
+    BotDifficulty difficulty = BotDifficulty.medium,
+  }) async {
+    startGame(difficulty: difficulty, suspendAutoPlay: true);
+
+    if (_engine.gamePhase == GamePhase.dealing) {
+      try {
+        _engine.startNewRound();
+        _prevPhase = _engine.gamePhase;
+        _prevBiddingPhase = _engine.roundState.biddingPhase;
+        notifyListeners();
+      } catch (e, st) {
+        debugPrint('[GameProvider] prepareMatch deal failed: $e\n$st');
+      }
+    }
+
+    // Yield so the loading animation can paint on slow GPUs.
+    await Future<void>.delayed(Duration.zero);
+
+    if (_engine.gamePhase == GamePhase.dealing) {
+      try {
+        _engine.startNewRound();
+        _prevPhase = _engine.gamePhase;
+        _prevBiddingPhase = _engine.roundState.biddingPhase;
+        notifyListeners();
+      } catch (e, st) {
+        debugPrint('[GameProvider] prepareMatch deal retry failed: $e\n$st');
+      }
+    }
+  }
+
+  /// Resume bot / human turn loop after [GameTableScreen] is on screen.
+  void onTableReady() {
+    if (_engine.gamePhase == GamePhase.dealing) {
+      _autoPlaySuspended = false;
+      ensureDealingAdvances(force: true);
+      return;
+    }
+    if (!_autoPlaySuspended) return;
+    _autoPlaySuspended = false;
+
+    Timer(const Duration(milliseconds: 500), () {
+      if (_engine.gamePhase == GamePhase.bidding) {
+        _showBubble(_engine.roundState.dealerIndex, 'Awal');
+        notifyListeners();
+      }
+    });
     _scheduleNextAction();
+  }
+
+  /// Safety net for low-end devices: if we are still in [GamePhase.dealing]
+  /// with no active bot timer, re-arm advancement. Called from the table
+  /// screen after the first frame / as a short watchdog.
+  ///
+  /// When [force] is true (watchdog), advance immediately even if a timer
+  /// appears active — covers cases where the callback was dropped under jank.
+  void ensureDealingAdvances({bool force = false}) {
+    if (_engine.gamePhase != GamePhase.dealing) return;
+    if (!force && _botTimer != null && _botTimer!.isActive) return;
+    debugPrint(
+      '[GameProvider] dealing watchdog — '
+      '${force ? "forcing" : "re-arming"} startNewRound',
+    );
+    if (force) {
+      _cancelTimers();
+      _advanceFromDealing();
+    } else {
+      _scheduleNextAction();
+    }
   }
 
   /// Restart game after game over (keeps same target score).
@@ -682,6 +788,7 @@ class GameProvider extends ChangeNotifier {
     _lastRoundResult = null;
     _roundJustEnded = false;
     _roundCancelled = false;
+    _isMatchOverOverlayReady = false;
     _humanTurnStartedAt = null;
     _botTurnStartedAt = null;
     for (final t in _bubbleTimers.values) {
@@ -702,8 +809,9 @@ class GameProvider extends ChangeNotifier {
     if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
+      final label = _bidActionLabel(action, secondHakamSuit);
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
-      _showBubble(0, _bidActionLabel(action, secondHakamSuit));
+      _showBubble(0, label);
       HapticFeedback.lightImpact();
       _afterEngineAction();
     } catch (e) {
@@ -740,15 +848,18 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Tap a card in the human's hand to select/deselect it.
   void selectCard(CardModel card) {
-    if (!isHumanTurn || phase != GamePhase.playing) return;
-    if (_turnTimer == null) return; // Ignore input during system pauses/animations
+    if (phase != GamePhase.playing) return;
+    // Note: intentionally NO _turnTimer guard here — card selection (visual + sound)
+    // should always work so the player can pre-select their card on the bot's turn.
+    // Always play sound on EVERY tap (both select and deselect).
+    // Uses dedicated player that interrupts itself — no stacking on rapid taps.
+    _audioService.playCardSelect();
+    HapticFeedback.selectionClick();
     if (_selectedCard == card) {
       _selectedCard = null;
     } else {
       _selectedCard = card;
-      HapticFeedback.selectionClick();
     }
     notifyListeners();
   }
@@ -759,10 +870,22 @@ class GameProvider extends ChangeNotifier {
     humanPlayCard(_selectedCard!);
   }
 
+  /// Deselect the currently selected card (if any).
+  void clearSelection() {
+    if (_selectedCard != null) {
+      _selectedCard = null;
+      notifyListeners();
+    }
+  }
+
   /// Human plays a card directly (seat 0 only).
   void humanPlayCard(CardModel card) {
     if (!isHumanTurn || phase != GamePhase.playing) return;
     if (_turnTimer == null) return; // Ignore input during system pauses/animations
+    
+    // Clear the selection since an action is being taken
+    _selectedCard = null;
+
     // The moment the human plays a card, they forfeit any un-declared projects.
     // The turn will advance automatically and canDeclareProjects will become false.
     final hand = playerHand;
@@ -786,16 +909,16 @@ class GameProvider extends ChangeNotifier {
         // Announce user's manually declared projects (if any) when they play their first card
         _announceProjects(0);
       } else if (_engine.isAkka(card)) {
-        // Kammelna "أكة" — auto-detect strongest remaining card of suit
+        // Standard "أكة" — auto-detect strongest remaining card of suit
         _showBubble(0, 'Akka');
       }
       _afterEngineAction();
     } on PlayViolationException catch (e) {
-      // Qaid (Violation) — show Kammelna-style banner
+      // Qaid (Violation) — show Standard-style banner
       _qaidViolationMessage = e.message;
       _qaidViolationSeat = 0;
       
-      // Apply professional Kammelna penalty (instant round loss + Kabout score)
+      // Apply professional Standard penalty (instant round loss + Kabout score)
       _engine.applyQaidPenalty(0);
       
       HapticFeedback.heavyImpact();
@@ -812,23 +935,6 @@ class GameProvider extends ChangeNotifier {
     final ok = canDeclareProjects;
     if (!ok || _turnTimer == null) return;
     try {
-      final projects = playerProjects;
-      if (projectIndex >= 0 && projectIndex < projects.length) {
-        final p = projects[projectIndex];
-        String token = '';
-        switch (p.type) {
-          case ProjectType.fourHundred: token = '400'; break;
-          case ProjectType.hundred:
-          case ProjectType.fourJacks:
-          case ProjectType.sixCardRun:
-          case ProjectType.sevenCardRun:
-          case ProjectType.eightCardRun: token = '100'; break;
-          case ProjectType.fifty: token = '50'; break;
-          case ProjectType.sera: token = 'Sera'; break;
-          case ProjectType.baloot: token = 'Baloot'; break;
-        }
-        if (token.isNotEmpty) _audioService.playBubble(token);
-      }
       _engine.declareProject(0, projectIndex);
       notifyListeners();
     } catch (e) {
@@ -918,6 +1024,13 @@ class GameProvider extends ChangeNotifier {
   // ── Round Cancelled (all-pass both rounds) overlay ──
   bool _roundCancelled = false;
   String _cancelledNewDealerName = '';
+  bool _isMatchOverOverlayReady = false;
+
+  /// Whether a round has just ended and we are transitioning (scoreboard is visible or waiting for it).
+  bool get isRoundTransitioning => _roundJustEnded;
+  
+  bool get showGameOverOverlay => phase == GamePhase.gameOver && _isMatchOverOverlayReady;
+
   bool get isRoundCancelled => _roundCancelled;
   String get cancelledNewDealerName => _cancelledNewDealerName;
 
@@ -953,6 +1066,8 @@ class GameProvider extends ChangeNotifier {
     // immediately clear all lingering bidding dialogue (Pass/Bas/Sann).
     if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.doubleWindow) {
       _clearAllBubbles();
+      // Play sound for the distribution of the remaining 4 cards
+      _audioService.playEffect('card distribution sound.mp3');
     }
 
     // Detect "round just completed" by watching playing → scoring.
@@ -997,7 +1112,10 @@ class GameProvider extends ChangeNotifier {
         _botTimer = Timer(const Duration(milliseconds: 6000), () {
           _roundJustEnded = false;
           _lastRoundResult = null;
-          if (!_engine.isGameOver && _engine.gamePhase == GamePhase.scoring) {
+          
+          if (_engine.isGameOver) {
+            _isMatchOverOverlayReady = true;
+          } else if (_engine.gamePhase == GamePhase.scoring) {
             _engine.startNewRound();
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
@@ -1028,7 +1146,7 @@ class GameProvider extends ChangeNotifier {
       final hasProjectsToReveal = winningTeamBestProjectsForReveal.isNotEmpty;
       
       if (isTransitionToTrick2 && hasProjectsToReveal) {
-        // Kammelna-style: clear reveal state, then proceed to Trick 2.
+        // Standard-style: clear reveal state, then proceed to Trick 2.
         // Each player's project will be revealed individually in _scheduleNextAction.
         _revealedProjectSeats.clear();
         _projectRevealSeat = null;
@@ -1069,8 +1187,43 @@ class GameProvider extends ChangeNotifier {
     });
   }
 
+  /// Move engine from dealing → bidding, then continue the turn loop.
+  /// Isolated so the dealing timer and the low-end watchdog share one path.
+  void _advanceFromDealing() {
+    if (_engine.gamePhase != GamePhase.dealing) return;
+    try {
+      _engine.startNewRound();
+      _prevPhase = _engine.gamePhase;
+      _prevBiddingPhase = _engine.roundState.biddingPhase;
+      Timer(const Duration(milliseconds: 1500), () {
+        if (_engine.gamePhase == GamePhase.bidding) {
+          _showBubble(_engine.roundState.dealerIndex, 'Awal');
+          notifyListeners();
+        }
+      });
+      notifyListeners();
+      _scheduleNextAction();
+    } catch (e, st) {
+      debugPrint('[GameProvider] startNewRound failed during dealing: $e\n$st');
+      // Retry once shortly — common under memory/jank pressure on budget phones.
+      _botTimer = Timer(const Duration(milliseconds: 800), () {
+        if (_engine.gamePhase != GamePhase.dealing) return;
+        try {
+          _engine.startNewRound();
+          _prevPhase = _engine.gamePhase;
+          _prevBiddingPhase = _engine.roundState.biddingPhase;
+          notifyListeners();
+          _scheduleNextAction();
+        } catch (e2, st2) {
+          debugPrint('[GameProvider] startNewRound retry failed: $e2\n$st2');
+        }
+      });
+    }
+  }
+
   void _scheduleNextAction() {
     if (_engine.isGameOver) return;
+    if (_autoPlaySuspended) return;
 
     _cancelTimers();
 
@@ -1078,18 +1231,10 @@ class GameProvider extends ChangeNotifier {
 
     if (p == GamePhase.dealing) {
       // Very first deal at game start — advance quickly after short animation.
-      _botTimer = Timer(const Duration(milliseconds: 900), () {
-        _engine.startNewRound();
-        _prevPhase = _engine.gamePhase;
-        _prevBiddingPhase = _engine.roundState.biddingPhase;
-        Timer(const Duration(milliseconds: 1500), () {
-          if (_engine.gamePhase == GamePhase.bidding) {
-            _showBubble(_engine.roundState.dealerIndex, 'Awal');
-            notifyListeners();
-          }
-        });
-        notifyListeners();
-        _scheduleNextAction();
+      // Longer delay on first paint helps low-end devices finish the route
+      // transition before we mutate engine state + rebuild the table.
+      _botTimer = Timer(const Duration(milliseconds: 1200), () {
+        _advanceFromDealing();
       });
       return;
     }
@@ -1102,7 +1247,7 @@ class GameProvider extends ChangeNotifier {
 
     final currentSeat = roundState.currentPlayerIndex;
 
-    // ── Kammelna-style: per-turn project reveal during Trick 2 ──
+    // ── Standard-style: per-turn project reveal during Trick 2 ──
     // Before a player plays their Trick 2 card, reveal their project first.
     if (p == GamePhase.playing && trickNumber == 2) {
       final seatProjects = winningTeamBestProjectsForReveal
@@ -1110,13 +1255,12 @@ class GameProvider extends ChangeNotifier {
           .toList();
 
       if (seatProjects.isNotEmpty && !_revealedProjectSeats.contains(currentSeat)) {
-        // This player has unrevealed projects — show fan + bubble first
+        // This player has unrevealed projects — show fan visually, but NO audio (already declared in Trick 1)
         _revealedProjectSeats.add(currentSeat);
         _projectRevealSeat = currentSeat;
-        _announceProjects(currentSeat);
         
-        // Hold the reveal for 2.5s, then clear and dispatch their actual turn
-        _botTimer = Timer(const Duration(milliseconds: 2500), () {
+        // Hold the reveal for 5.0s, then clear and dispatch their actual turn
+        _botTimer = Timer(const Duration(milliseconds: 5000), () {
           _projectRevealSeat = null;
           notifyListeners();
           _dispatchTurn(currentSeat);
@@ -1176,6 +1320,7 @@ class GameProvider extends ChangeNotifier {
     if (current != seat) return;
 
     final phaseBefore = _engine.gamePhase;
+    final bpBefore = roundState.biddingPhase;
     final dealerBefore = roundState.dealerIndex;
 
     try {
@@ -1189,7 +1334,7 @@ class GameProvider extends ChangeNotifier {
 
       // Show speech bubble for bot actions
       if (phaseBefore == GamePhase.bidding) {
-        _inferBotBidBubble(seat);
+        _inferBotBidBubble(seat, bpBefore);
       } else if (phaseBefore == GamePhase.doubleWindow) {
         _inferBotDoubleBubble(seat);
       } else if (phaseBefore == GamePhase.playing) {
@@ -1199,7 +1344,7 @@ class GameProvider extends ChangeNotifier {
         } else if (declaredAfter > declaredBefore) {
           _announceProjects(seat);
         } else {
-          // Kammelna "أكة" — auto-detect strongest remaining card of suit
+          // Standard "أكة" — auto-detect strongest remaining card of suit
           // Find the card this bot just played (last card in current trick or last trick)
           final lastCard = _engine.lastPlayedCardBySeat(seat);
           if (lastCard != null && _engine.isAkka(lastCard)) {
@@ -1226,31 +1371,31 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Infer what the bot bid and show a speech bubble.
-  void _inferBotBidBubble(int seat) {
+  void _inferBotBidBubble(int seat, BiddingPhase bpBefore) {
     final rs = _engine.roundState;
-    final bp = rs.biddingPhase;
 
-    if (bp == BiddingPhase.completed) {
-      // Bidding just ended — the bot made the winning bid
-      final mode = rs.activeMode;
-      if (rs.isAshkal) {
-        _showBubble(seat, 'Ashkal');
-      } else if (mode == GameMode.sun) {
-        _showBubble(seat, 'Sun');
-      } else {
-        _showBubble(seat, 'Hakam');
-      }
-    } else if (bp == BiddingPhase.hakamConfirmation) {
-      // Third pass just entered confirmation; this seat was the passer
-      _showBubble(seat, 'Pass');
-    } else if (bp == BiddingPhase.round1) {
-      // Round 1: check if this bot just bid Hakam (it's now the active hakam bidder)
-      if (_engine.activeRound1HakamSeat == seat) {
-        _showBubble(seat, 'Hakam');
+    if (bpBefore == BiddingPhase.qablakIntervention) {
+      // The bot decided to either steal Sun or Pass
+      if (rs.activeMode == GameMode.sun && _engine.roundState.buyerIndex == seat) {
+        _showBubble(seat, 'Qablak'); // Qablak steal
       } else {
         _showBubble(seat, 'Pass');
       }
-    } else if (bp == BiddingPhase.round2) {
+    } else if (bpBefore == BiddingPhase.hakamConfirmation) {
+      // Third pass just entered confirmation; this seat was the passer
+      _showBubble(seat, 'Pass');
+    } else if (bpBefore == BiddingPhase.round1) {
+      // Round 1: check if this bot just bid Hakam or Sun
+      if (_engine.activeRound1HakamSeat == seat) {
+        _showBubble(seat, 'Hakam');
+      } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
+        _showBubble(seat, 'Sun');
+      } else if (rs.isAshkal && rs.buyerIndex == seat) {
+        _showBubble(seat, 'Ashkal');
+      } else {
+        _showBubble(seat, 'Pass');
+      }
+    } else if (bpBefore == BiddingPhase.round2) {
       // Round 2: check if this bot just placed a pending bid
       if (_engine.activeRound2PendingBuyerSeat == seat) {
         final pendingMode = _engine.activeRound2PendingMode;
@@ -1259,6 +1404,10 @@ class GameProvider extends ChangeNotifier {
         } else {
           _showBubble(seat, 'Hakam');
         }
+      } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
+         _showBubble(seat, 'Sun');
+      } else if (rs.isAshkal && rs.buyerIndex == seat) {
+         _showBubble(seat, 'Ashkal');
       } else {
         _showBubble(seat, 'PassR2');
       }
@@ -1280,7 +1429,6 @@ class GameProvider extends ChangeNotifier {
   void _startTurnTimer() {
     _timerSeconds = _turnDuration;
     _humanTurnStartedAt = DateTime.now(); // start ms-based smooth tracking
-    _audioService.playYourTurn();
     notifyListeners();
 
     _turnTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -1299,6 +1447,10 @@ class GameProvider extends ChangeNotifier {
 
     // Bot takes over for the human player this turn
     debugPrint('[GameProvider] Human timeout — bot taking over seat 0');
+    
+    // Clear selection on timeout so it doesn't get stuck
+    _selectedCard = null;
+    
     try {
       _engine.botPlay(0);
       _afterEngineAction();
@@ -1357,7 +1509,7 @@ class GameProvider extends ChangeNotifier {
         .toList();
     if (projects.isEmpty) return;
     
-    // Kammelna standard: announce only the project type name (no card details).
+    // Standard standard: announce only the project type name (no card details).
     // Use the same short display labels as the picker buttons.
     final names = projects.map((p) {
       switch (p.type) {
@@ -1526,17 +1678,11 @@ class GameProvider extends ChangeNotifier {
   String _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
-      case BidAction.sun:
-        final isConfirmation = _engine.roundState.biddingPhase == BiddingPhase.hakamConfirmation;
-        final inR1Hakam = _engine.hasActiveHakamBid;
-        final inR2Hakam = _engine.hasRound2PendingBid && _engine.activeRound2PendingMode == GameMode.hakam;
-        
-        if (!isConfirmation && (inR1Hakam || inR2Hakam)) {
-          return 'Qabalk';
-        }
-        return 'Sun';
+      case BidAction.sun:          return 'Sun';
       case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
       case BidAction.ashkal:       return 'Ashkal';
+      case BidAction.qablak:       return 'Qablak';
+      case BidAction.sawa:         return 'Sawa';
       case BidAction.pass:
         if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
           return 'PassR2';

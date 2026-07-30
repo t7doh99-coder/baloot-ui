@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/l10n/game_l10n.dart';
@@ -103,7 +104,7 @@ class _DealingSpinnerState extends State<_DealingSpinner>
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 12,
-              fontFamily: 'Tajawal',
+              fontFamily: GoogleFonts.readexPro().fontFamily,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -229,7 +230,7 @@ class _PhasePill extends StatelessWidget {
         style: TextStyle(
           color: color,
           fontSize: 11,
-          fontFamily: 'Tajawal',
+          fontFamily: GoogleFonts.readexPro().fontFamily,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -309,10 +310,10 @@ class _RoundCancelledOverlayState extends State<_RoundCancelledOverlay>
             child: Text(
               'الجلسة ملغية  •  موزع جديد: ${widget.newDealerName}',
               textDirection: TextDirection.rtl,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFFD4AF37),
                 fontSize: 12,
-                fontFamily: 'Tajawal',
+                fontFamily: GoogleFonts.readexPro().fontFamily,
                 fontWeight: FontWeight.w700,
               ),
             ),

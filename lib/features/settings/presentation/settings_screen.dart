@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 import 'package:baloot_game/features/game/presentation/game_provider.dart';
+import 'package:baloot_game/core/l10n/locale_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
 //  SETTINGS SCREEN — Premium Sandstone UI (Option H)
@@ -40,8 +41,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _selectedVoiceIndex = 0;
   bool _differentVoicePerPlayer = false;
 
-  final List<String> _voicesMale = ['Faisal', 'Ahmed', 'Majid', 'Turki'];
-  final List<String> _voicesFemale = ['Suad', 'Sarah', 'Abeer', 'Anoud'];
+  List<String> get _voicesMale => context.read<LocaleProvider>().isArabic ? ['ماجد'] : ['Majid'];
+  List<String> get _voicesFemale => context.read<LocaleProvider>().isArabic ? ['سارة'] : ['Sarah'];
 
   // ── Game Controls ──
   bool _cardShading = true;
@@ -82,25 +83,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         // ── Section 1: Audio Controls ──
                         _buildSectionPanel(
-                          label: 'Audio Controls',
+                          label: widget.isArabic ? 'إعدادات الصوت' : 'Audio Controls',
                           icon: Icons.volume_up_rounded,
                           child: Column(
                             children: [
-                              _buildToggleRow(icon: Icons.campaign_rounded, label: 'All Voices', value: _allVoices, onChanged: (v) => setState(() => _allVoices = v)),
-                              _buildToggleRow(icon: Icons.forum_rounded, label: 'Chat Voice', value: _chatVoice, onChanged: (v) => setState(() => _chatVoice = v)),
-                              _buildToggleRow(icon: Icons.music_note_rounded, label: 'Sound Effects', value: _soundEffects, onChanged: (v) => setState(() => _soundEffects = v)),
+                              _buildToggleRow(icon: Icons.campaign_rounded, label: widget.isArabic ? 'كل الأصوات' : 'All Voices', value: _allVoices, onChanged: (v) => setState(() => _allVoices = v)),
+                              _buildToggleRow(icon: Icons.forum_rounded, label: widget.isArabic ? 'صوت الدردشة' : 'Chat Voice', value: _chatVoice, onChanged: (v) => setState(() => _chatVoice = v)),
+                              _buildToggleRow(icon: Icons.music_note_rounded, label: widget.isArabic ? 'مؤثرات صوتية' : 'Sound Effects', value: _soundEffects, onChanged: (v) => setState(() => _soundEffects = v)),
                               _buildDivider(),
                               
                               // Player Voices
                               const SizedBox(height: 12),
                               Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text('Voice Selector', style: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.w700, color: _kSandLight)),
+                                child: Text(widget.isArabic ? 'اختيار الصوت' : 'Voice Selector', style: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.w700, color: _kSandLight)),
                               ),
                               const SizedBox(height: 12),
                               _buildVoiceGrid(),
                               const SizedBox(height: 12),
-                              _buildToggleRow(icon: Icons.people_alt_rounded, label: 'Different voice for each player', value: _differentVoicePerPlayer, onChanged: (v) => setState(() => _differentVoicePerPlayer = v), isLast: true),
+                              _buildToggleRow(icon: Icons.people_alt_rounded, label: widget.isArabic ? 'صوت مختلف لكل لاعب' : 'Different voice for each player', value: _differentVoicePerPlayer, onChanged: (v) => setState(() => _differentVoicePerPlayer = v), isLast: true),
                             ],
                           ),
                         ),
@@ -108,16 +109,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         // ── Section 2: Game Controls ──
                         _buildSectionPanel(
-                          label: 'Game Controls',
+                          label: widget.isArabic ? 'إعدادات اللعبة' : 'Game Controls',
                           icon: Icons.sports_esports_rounded,
                           child: Column(
                             children: [
-                              _buildToggleRow(icon: Icons.style_rounded, label: 'Card Shading', subtitle: 'Shading cards unavailable in limited play', value: _cardShading, onChanged: (v) => setState(() => _cardShading = v)),
-                              _buildToggleRow(icon: Icons.swap_horiz_rounded, label: 'Swap Confirmation', subtitle: 'Show confirmation menu when playing Swap', value: _swapConfirmation, onChanged: (v) => setState(() => _swapConfirmation = v)),
-                              _buildToggleRow(icon: Icons.shopping_cart_checkout_rounded, label: 'Select Pre-Buy', subtitle: 'Allow pre-buying', value: _preBuy, onChanged: (v) => setState(() => _preBuy = v)),
-                              _buildToggleRow(icon: Icons.height_rounded, label: 'Change Card Height', subtitle: 'Changes height of cards with different rank', value: _cardHeight, onChanged: (v) => setState(() => _cardHeight = v)),
-                              _buildToggleRow(icon: Icons.vibration_rounded, label: 'Vibration Feature', subtitle: 'Enable device vibration', value: _vibration, onChanged: (v) => setState(() => _vibration = v)),
-                              _buildToggleRow(icon: Icons.update_rounded, label: 'Show Your Turn', subtitle: 'Card height changes when it\'s your turn', value: _showTurn, onChanged: (v) => setState(() => _showTurn = v), isLast: true),
+                              _buildToggleRow(icon: Icons.style_rounded, label: widget.isArabic ? 'تظليل الورق' : 'Card Shading', subtitle: widget.isArabic ? 'تظليل الأوراق غير متاح في اللعب المحدود' : 'Shading cards unavailable in limited play', value: _cardShading, onChanged: (v) => setState(() => _cardShading = v)),
+                              _buildToggleRow(icon: Icons.swap_horiz_rounded, label: widget.isArabic ? 'تأكيد التبديل' : 'Swap Confirmation', subtitle: widget.isArabic ? 'إظهار قائمة التأكيد عند التبديل' : 'Show confirmation menu when playing Swap', value: _swapConfirmation, onChanged: (v) => setState(() => _swapConfirmation = v)),
+                              _buildToggleRow(icon: Icons.shopping_cart_checkout_rounded, label: widget.isArabic ? 'تفعيل الشراء المسبق' : 'Select Pre-Buy', subtitle: widget.isArabic ? 'السماح بالشراء المسبق' : 'Allow pre-buying', value: _preBuy, onChanged: (v) => setState(() => _preBuy = v)),
+                              _buildToggleRow(icon: Icons.height_rounded, label: widget.isArabic ? 'تغيير ارتفاع الورق' : 'Change Card Height', subtitle: widget.isArabic ? 'يغير ارتفاع الأوراق ذات الرتب المختلفة' : 'Changes height of cards with different rank', value: _cardHeight, onChanged: (v) => setState(() => _cardHeight = v)),
+                              _buildToggleRow(icon: Icons.vibration_rounded, label: widget.isArabic ? 'ميزة الاهتزاز' : 'Vibration Feature', subtitle: widget.isArabic ? 'تفعيل اهتزاز الجهاز' : 'Enable device vibration', value: _vibration, onChanged: (v) => setState(() => _vibration = v)),
+                              _buildToggleRow(icon: Icons.update_rounded, label: widget.isArabic ? 'إظهار دورك' : 'Show Your Turn', subtitle: widget.isArabic ? 'يتغير ارتفاع الورق عندما يحين دورك' : 'Card height changes when it\'s your turn', value: _showTurn, onChanged: (v) => setState(() => _showTurn = v), isLast: true),
                             ],
                           ),
                         ),
@@ -125,7 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         // ── Section 3: Accounts ──
                         _buildSectionPanel(
-                          label: 'Accounts',
+                          label: widget.isArabic ? 'الحسابات' : 'Accounts',
                           icon: Icons.account_circle_rounded,
                           child: Column(
                             children: [
@@ -137,39 +138,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildSocialRow(platform: 'Facebook', icon: Icons.facebook_rounded, isLinked: _facebookLinked, onChanged: (v) => setState(() => _facebookLinked = v)),
                               _buildDivider(),
                               const SizedBox(height: 12),
-                              _buildActionButton(label: 'Help', icon: Icons.help_outline_rounded),
+                              _buildActionButton(label: widget.isArabic ? 'المساعدة' : 'Help', icon: Icons.help_outline_rounded),
                               const SizedBox(height: 8),
-                              _buildActionButton(label: 'Privacy Policy', icon: Icons.privacy_tip_outlined),
+                              _buildActionButton(label: widget.isArabic ? 'سياسة الخصوصية' : 'Privacy Policy', icon: Icons.privacy_tip_outlined),
                               const SizedBox(height: 8),
-                              _buildActionButton(label: 'Delete Account', icon: Icons.delete_outline_rounded, isDestructive: true),
+                              _buildActionButton(label: widget.isArabic ? 'حذف الحساب' : 'Delete Account', icon: Icons.delete_outline_rounded, isDestructive: true),
                               const SizedBox(height: 8),
-                              _buildActionButton(label: 'Logout', icon: Icons.logout_rounded, isDestructive: true),
+                              _buildActionButton(label: widget.isArabic ? 'تسجيل الخروج' : 'Logout', icon: Icons.logout_rounded, isDestructive: true),
                             ],
                           ),
                         ),
 
-                        // ── Footer ──
+                        // ── Footer Removed ──
                         const SizedBox(height: 40),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: _kBgElevated,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _kSandBorder),
-                              ),
-                              child: const Text('🃏', style: TextStyle(fontSize: 16)),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Kamelna v2.4.1',
-                              style: GoogleFonts.readexPro(color: _kTextMuted, fontSize: 13, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -194,18 +175,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Back button — game-mode handle style
+          // ── Back Button ──
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: CustomPaint(
-              painter: _BackHandlePainter(),
-              child: SizedBox(
-                width: 64,
-                height: 40,
-                child: Center(
-                  child: CustomPaint(
-                    size: const Size(11, 20),
-                    painter: _BackChevronPainter(),
+            child: SizedBox(
+              width: 64,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Color(0xFF141008), offset: Offset(0, 2)), // 3D depth
+                      BoxShadow(color: Color(0x60000000), blurRadius: 8, offset: Offset(0, 4)), // Drop shadow
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFC49028), Color(0xFF886018)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          border: Border.all(color: const Color(0xFFDFAE45), width: 1.2),
+                        ),
+                      ),
+                      Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [Color(0x77FFFFFF), Color(0x00FFFFFF), Color(0x00FFFFFF)],
+                            stops: [0.0, 0.45, 1.0],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: CustomPaint(
+                          size: const Size(11, 20),
+                          painter: _BackChevronPainter(),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -369,12 +385,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(4, (i) => _buildVoiceChip(_voicesMale[i], i, '👨🏽')),
+          children: List.generate(_voicesMale.length, (i) => _buildVoiceChip(_voicesMale[i], i, '👨🏽')),
         ),
         const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(4, (i) => _buildVoiceChip(_voicesFemale[i], i + 4, '👩🏽')),
+          children: List.generate(_voicesFemale.length, (i) => _buildVoiceChip(_voicesFemale[i], i + _voicesMale.length, '👩🏽')),
         ),
       ],
     );
@@ -572,44 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 // ── Gold trapezoid back-button painters ───────────────────────────────────────
 
-class _BackHandlePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const double inset = 8.0, slope = 10.0, r = 8.0;
-    final outerPath = Path()
-      ..moveTo(inset + r, 0)
-      ..lineTo(size.width - inset - r, 0)
-      ..quadraticBezierTo(size.width - inset, 0, size.width - inset + slope * 0.4, size.height * 0.4)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..lineTo(inset - slope * 0.4, size.height * 0.4)
-      ..quadraticBezierTo(inset, 0, inset + r, 0)
-      ..close();
-    canvas.drawPath(outerPath, Paint()
-      ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [Color(0xFF392C14), Color(0xFF1E1808)]).createShader(Offset.zero & size));
-    canvas.drawPath(Path()
-      ..moveTo(0, size.height)
-      ..lineTo(inset - slope * 0.4, size.height * 0.4)
-      ..quadraticBezierTo(inset, 0, inset + r, 0)
-      ..lineTo(size.width - inset - r, 0)
-      ..quadraticBezierTo(size.width - inset, 0, size.width - inset + slope * 0.4, size.height * 0.4)
-      ..lineTo(size.width, size.height),
-      Paint()..color = const Color(0xFFC49028)..style = PaintingStyle.stroke..strokeWidth = 1.5);
-    const double px = 10, py = 6;
-    final innerRect = Rect.fromLTRB(px, py, size.width - px, size.height - py);
-    final inner = RRect.fromRectAndRadius(innerRect, const Radius.circular(6));
-    canvas.drawRRect(inner.shift(const Offset(0, 2)), Paint()..color = const Color(0xFF141008));
-    canvas.drawRRect(inner, Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [Color(0xFFC49028), Color(0xFF886018)]).createShader(innerRect));
-    final glossRect = Rect.fromLTRB(px, py, size.width - px, py + (size.height - py * 2) * 0.45);
-    canvas.drawRRect(RRect.fromRectAndRadius(glossRect, const Radius.circular(6)),
-        Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Color(0x99FFFFFF), Color(0x00FFFFFF)]).createShader(glossRect));
-    canvas.drawRRect(inner, Paint()..color = const Color(0xFFDFAE45)..style = PaintingStyle.stroke..strokeWidth = 1.2);
-  }
-  @override bool shouldRepaint(covariant CustomPainter old) => false;
-}
+
 
 class _BackChevronPainter extends CustomPainter {
   @override
@@ -625,3 +604,5 @@ class _BackChevronPainter extends CustomPainter {
   }
   @override bool shouldRepaint(covariant CustomPainter old) => false;
 }
+
+

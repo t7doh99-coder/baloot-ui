@@ -4,6 +4,8 @@ import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../../core/widgets/custom_player_avatar.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
@@ -109,7 +111,6 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     _syncRingTicker(humanTurn: game.isHumanTurn);
 
     final name       = game.playerName(0);
-    final avatarPath = AppAssets.playerAvatarPath(0);
     final badge      = _badgeParts(game, loc);
     final secs       = game.turnTimerSeconds;
     final isAr       = context.read<LocaleProvider>().isArabic;
@@ -177,7 +178,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                                 color: _kGTextPrim,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                fontFamily: isAr ? 'Tajawal' : null,
+                                fontFamily: isAr ? GoogleFonts.readexPro().fontFamily : null,
                                 letterSpacing: isAr ? 0 : 0.1,
                                 height: 1.2,
                               ),
@@ -194,7 +195,8 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                     right: 0,
                     child: Center(
                       child: _CenteredAvatarRing(
-                        path: avatarPath,
+                        seatIndex: 0,
+                        customAvatarPath: game.playerStats.customAvatarPath,
                         isActive: ringActive,
                         progress: ringProgress,
                         secondsText: ringSecondsText,
@@ -212,8 +214,15 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
               children: [
                 Expanded(
                   child: _SawaButton(
-                    isActive: game.canSawa && !game.isSawaRevealPlaying,
-                    onTap: () => game.humanClaimSawa(),
+                    isActive: (game.canSawa && !game.isSawaRevealPlaying) || game.canHumanBidSawa,
+                    onTap: () {
+                      if (game.canHumanBidSawa) {
+                        game.humanBid(BidAction.sawa);
+                      } else {
+                        game.humanClaimSawa();
+                      }
+                    },
+
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -389,13 +398,15 @@ class _BadgeText extends StatelessWidget {
 /// Replaces the separate _MiniAvatar + _CountdownRing pair.
 class _CenteredAvatarRing extends StatelessWidget {
   const _CenteredAvatarRing({
-    required this.path,
+    required this.seatIndex,
+    this.customAvatarPath,
     required this.isActive,
     required this.progress,
     required this.secondsText,
   });
 
-  final String path;
+  final int seatIndex;
+  final String? customAvatarPath;
   final bool isActive;
   final double progress;
   final String secondsText;
@@ -403,7 +414,7 @@ class _CenteredAvatarRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const totalSize  = 66.0;
-    const avatarSize = 54.0;
+    const avatarSize = 62.0;
 
     return SizedBox(
       width: totalSize,
@@ -450,18 +461,9 @@ class _CenteredAvatarRing extends StatelessWidget {
             child: ClipOval(
               child: Opacity(
                 opacity: isActive ? 1.0 : 0.72,
-                child: Image.asset(
-                  path,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) => ColoredBox(
-                    color: const Color(0xFF3A3A3A),
-                    child: Icon(
-                      Icons.person_rounded,
-                      size: 30,
-                      color: Colors.white.withValues(alpha: 0.85),
-                    ),
-                  ),
+                child: CustomPlayerAvatar(
+                  seatIndex: seatIndex,
+                  customAvatarPath: customAvatarPath,
                 ),
               ),
             ),
@@ -529,7 +531,10 @@ class _SawaButton extends StatelessWidget {
     const gold = Color(0xFFD4AF37);
 
     Widget btn = InkWell(
-      onTap: isActive ? onTap : null,
+      onTap: isActive ? () {
+        context.read<GameProvider>().audioService.playGoldButton();
+        onTap();
+      } : null,
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
         height: 42,
@@ -579,7 +584,7 @@ class _SawaButton extends StatelessWidget {
                 color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
-                fontFamily: ar ? 'Tajawal' : null,
+                fontFamily: ar ? GoogleFonts.readexPro().fontFamily : null,
                 height: 1.1,
               ),
             ),
@@ -601,7 +606,7 @@ class _SawaButton extends StatelessWidget {
   }
 }
 
-/// Kammelna-style Qaid (قيدها) button — red accent for danger/risk.
+/// Standard-style Qaid (قيدها) button — red accent for danger/risk.
 /// Placed right of the Sawa button in the human player bar.
 /// Per BALOOT_RULES.md §14.5: manual violation flagging.
 class _QaidButton extends StatelessWidget {
@@ -620,7 +625,10 @@ class _QaidButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: isActive ? onTap : null,
+        onTap: isActive ? () {
+          context.read<GameProvider>().audioService.playGoldButton();
+          onTap();
+        } : null,
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 42,
@@ -670,7 +678,7 @@ class _QaidButton extends StatelessWidget {
                   color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
-                  fontFamily: 'Tajawal',
+                  fontFamily: GoogleFonts.readexPro().fontFamily,
                   height: 1.1,
                 ),
               ),
@@ -700,7 +708,10 @@ class _ProjectButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: isActive ? onTap : null,
+        onTap: isActive ? () {
+          context.read<GameProvider>().audioService.playGoldButton();
+          onTap();
+        } : null,
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 42,
@@ -750,7 +761,7 @@ class _ProjectButton extends StatelessWidget {
                   color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
-                  fontFamily: 'Tajawal',
+                  fontFamily: GoogleFonts.readexPro().fontFamily,
                   height: 1.1,
                 ),
               ),

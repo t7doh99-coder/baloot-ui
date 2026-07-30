@@ -440,7 +440,7 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       final variation = ((i * 7 + totalCount * 3) % 5) + 1;
       final sign = ((i + totalCount) % 2 == 0) ? 1.0 : -1.0;
 
-      // Stronger directional push + more scatter for a natural Kammelna look
+      // Stronger directional push + more scatter for a natural Standard look
       final dxDelta = (pushDirX * (5.0 + variation * 1.2)) +
           (sign * (2.5 + variation * 0.9));
       final dyDelta = (pushDirY * (4.0 + variation * 0.9)) +

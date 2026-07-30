@@ -12,10 +12,10 @@ class AppAssets {
 
   /// Portrait per seat index 0–3 (same mapping as [PlayerAvatarRing]).
   static const List<String> playerSeatAvatars = [
-    'assets/images/avatars/Screenshot 2026-04-16 194030.png',
-    'assets/images/avatars/Screenshot 2026-04-16 194232.png',
-    'assets/images/avatars/Screenshot 2026-04-16 194821.png',
-    'assets/images/avatars/bc9fd4bd-de9b-4555-976c-8360576c6708.jpg',
+    'assets/images/avatars/player.png',
+    'assets/images/avatars/bot_1.png',
+    'assets/images/avatars/bot_2.png',
+    'assets/images/avatars/bot_3.png',
   ];
 
   static String playerAvatarPath(int seatIndex) =>

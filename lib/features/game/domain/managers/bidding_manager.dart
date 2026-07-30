@@ -4,7 +4,16 @@ import '../../../../data/models/round_state_model.dart';
 
 /// The action a player can take during bidding.
 /// [confirmHakam] is used only during the [BiddingPhase.hakamConfirmation] step.
-enum BidAction { hakam, sun, secondHakam, ashkal, pass, confirmHakam }
+enum BidAction {
+  pass, // بس / ولا
+  sun, // صن
+  hakam, // حكم
+  secondHakam, // حكم ثاني (different suit)
+  ashkal, // أشكال
+  qablak, // قبلك
+  sawa, // سوى (defender locks Hakam)
+  confirmHakam, // تأكيد الحكم
+}
 
 /// Manages the Mzad (bidding) phase per BALOOT_RULES.md Section 4.
 ///
@@ -38,6 +47,11 @@ class BiddingManager {
   int? _round2PendingBuyer;
   GameMode? _round2PendingMode;
   Suit? _round2PendingTrump;
+
+  // Qablak Priority Queue
+  final List<int> _qablakQueue = [];
+  int? _originalSunBidder;
+  bool _originalSunIsAshkal = false;
 
   // Final result
   BidResult? _result;
@@ -81,6 +95,83 @@ class BiddingManager {
   /// Screen: 0=bottom,1=right,2=top,3=left → left of dealer = +3 (≡ -1).
   int get _saneIndex => (dealerIndex + 3) % 4;
 
+  bool _isDealer(int seat) => seat == dealerIndex;
+  bool _isSane(int seat) => seat == _saneIndex;
+
+  List<BidAction> getAllowedActions(int playerIndex) {
+    final actions = <BidAction>[];
+
+    // Qablak queue processing
+    if (_phase == BiddingPhase.qablakIntervention) {
+      if (playerIndex == _currentBidder) {
+        actions.add(BidAction.qablak);
+        actions.add(BidAction.sun);
+        actions.add(BidAction.pass);
+      }
+      return actions;
+    }
+
+    if (playerIndex != _currentBidder) return [];
+
+    if (_phase == BiddingPhase.round1) {
+      if (_round1HakamBidder == null) {
+        actions.add(BidAction.sun);
+        actions.add(BidAction.hakam);
+        if (_isDealer(playerIndex) || _isSane(playerIndex)) {
+          actions.add(BidAction.ashkal);
+        }
+        actions.add(BidAction.pass);
+      } else {
+        // Someone already bid Hakam.
+        actions.add(BidAction.sun);
+        
+        // Opponents of the Hakam bidder can call Sawa
+        if (_opposingTeams(playerIndex, _round1HakamBidder!)) {
+          actions.add(BidAction.sawa);
+        }
+        
+        if (_isDealer(playerIndex) || _isSane(playerIndex)) {
+          actions.add(BidAction.ashkal);
+        }
+        actions.add(BidAction.pass);
+      }
+    } else if (_phase == BiddingPhase.round2) {
+      if (_round2PendingBuyer == null) {
+        actions.add(BidAction.sun);
+        actions.add(BidAction.secondHakam);
+        
+        if (_isDealer(playerIndex) || _isSane(playerIndex)) {
+          actions.add(BidAction.ashkal);
+        }
+        
+        actions.add(BidAction.pass);
+      } else {
+        actions.add(BidAction.sun);
+        
+        // Opponents of the Second Hakam bidder can call Sawa
+        if (_opposingTeams(playerIndex, _round2PendingBuyer!)) {
+          actions.add(BidAction.sawa);
+        }
+        
+        if (_isDealer(playerIndex) || _isSane(playerIndex)) {
+          actions.add(BidAction.ashkal);
+        }
+        actions.add(BidAction.pass);
+      }
+    } else if (_phase == BiddingPhase.hakamConfirmation) {
+      if (playerIndex == _hakamConfirmBuyer) {
+        actions.add(BidAction.confirmHakam);
+        actions.add(BidAction.sun);
+      }
+    }
+
+    return actions;
+  }
+
+  void _advanceBidder() {
+    _currentBidder = (_currentBidder + 1) % 4;
+  }
+
   /// Process a bid action from the current player.
   ///
   /// [seatIndex] must match [currentBidder].
@@ -104,9 +195,64 @@ class BiddingManager {
         _handleRound2(seatIndex, action, secondHakamSuit);
       case BiddingPhase.hakamConfirmation:
         _handleHakamConfirmation(seatIndex, action);
+      case BiddingPhase.qablakIntervention:
+        _handleQablakIntervention(seatIndex, action);
       case BiddingPhase.completed:
       case BiddingPhase.cancelled:
         throw const InvalidMoveException('Bidding is not active.');
+    }
+  }
+
+  void _triggerQablakOrComplete(int seatIndex, bool isAshkal) {
+    _qablakQueue.clear();
+    int firstBidder = (dealerIndex + 1) % 4;
+    int current = firstBidder;
+    
+    // Anyone who sat before the current bidder in turn order can steal
+    while (current != seatIndex) {
+      _qablakQueue.add(current);
+      current = (current + 1) % 4;
+    }
+
+    if (_qablakQueue.isEmpty) {
+      // First player called Sun, or queue is empty
+      _result = BidResult(mode: GameMode.sun, buyerIndex: seatIndex, isAshkal: isAshkal);
+      _phase = BiddingPhase.completed;
+      _isFinished = true;
+    } else {
+      _originalSunBidder = seatIndex;
+      _originalSunIsAshkal = isAshkal;
+      _phase = BiddingPhase.qablakIntervention;
+      _currentBidder = _qablakQueue.removeAt(0);
+    }
+  }
+
+  void _handleQablakIntervention(int seatIndex, BidAction action) {
+    if (action == BidAction.qablak || action == BidAction.sun) {
+      // Player steals the Sun! (Stolen Ashkal converts to standard Sun for the stealer)
+      _result = BidResult(mode: GameMode.sun, buyerIndex: seatIndex, isAshkal: false);
+      _phase = BiddingPhase.completed;
+      _isFinished = true;
+      _qablakQueue.clear();
+    } else if (action == BidAction.pass) {
+      // Player declines to steal
+      if (_qablakQueue.isNotEmpty) {
+        _currentBidder = _qablakQueue.removeAt(0);
+      } else {
+        // No one else can steal, original bidder wins
+        _result = BidResult(
+          mode: GameMode.sun, 
+          buyerIndex: _originalSunBidder!, 
+          isAshkal: _originalSunIsAshkal
+        );
+        _phase = BiddingPhase.completed;
+        _isFinished = true;
+      }
+    } else {
+      throw InvalidBidException(
+        playerIndex: seatIndex,
+        message: 'Only Qablak/Sun or Pass allowed during Qablak Intervention.',
+      );
     }
   }
 
@@ -123,13 +269,23 @@ class BiddingManager {
         _round1HakamBidder = seatIndex;
         _passCount = 0;
         _advanceBidder();
-        // Bidding continues — others may still pass or (later in round) Sun overrides
 
       case BidAction.sun:
-        // Sun overrides any Hakam bid in Round 1
+        _triggerQablakOrComplete(seatIndex, false);
+
+      case BidAction.sawa:
+        if (_round1HakamBidder == null || !_opposingTeams(seatIndex, _round1HakamBidder!)) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Sawa can only be called by opponents against an active Hakam bid.',
+          );
+        }
+        // Sawa locks the Hakam bid immediately for the original buyer
         _result = BidResult(
-          mode: GameMode.sun,
-          buyerIndex: seatIndex,
+          mode: GameMode.hakam,
+          buyerIndex: _round1HakamBidder!,
+          trumpSuit: buyerCard.suit,
+          isAshkal: false,
         );
         _phase = BiddingPhase.completed;
         _isFinished = true;
@@ -165,22 +321,14 @@ class BiddingManager {
         }
 
       case BidAction.ashkal:
-        // Jawaker/Kamelna: Ashkal is allowed in Round 1 only.
-        // Only Dealer and Sane (dealer's left) can call Ashkal.
-        if (seatIndex != dealerIndex && seatIndex != _saneIndex) {
-          throw InvalidBidException(
-            playerIndex: seatIndex,
-            message:
-                'Ashkal is only available to Dealer (seat $dealerIndex) or Sane (seat $_saneIndex).',
-          );
+        // Kamelna: Ashkal is allowed in Round 1 only.
+        // Only Dealer and Sane (dealer's left) can call Ashkal, and NOT on an Ace.
+        // Penalty: If attempted illegally, forced to buy as normal Sun.
+        if (seatIndex != dealerIndex && seatIndex != _saneIndex || buyerCard.rank == Rank.ace) {
+          _triggerQablakOrComplete(seatIndex, false);
+        } else {
+          _triggerQablakOrComplete(seatIndex, true);
         }
-        _result = BidResult(
-          mode: GameMode.sun,
-          buyerIndex: seatIndex,
-          isAshkal: true,
-        );
-        _phase = BiddingPhase.completed;
-        _isFinished = true;
 
 
       default:
@@ -248,25 +396,9 @@ class BiddingManager {
               message: 'Round 2: Sun is already bid — cannot bid Sun again.',
             );
           }
-          // Overriding a pending Second Hakam!
-          _round2PendingBuyer = seatIndex;
-          _round2PendingMode = GameMode.sun;
-          _round2PendingTrump = null;
-          _passCount = 0;
-          _advanceBidder();
-          while (_currentBidder == _round2PendingBuyer) {
-            _advanceBidder();
-          }
-          break;
         }
-        _round2PendingBuyer = seatIndex;
-        _round2PendingMode = GameMode.sun;
-        _round2PendingTrump = null;
-        _passCount = 0;
-        _advanceBidder();
-        while (_currentBidder == _round2PendingBuyer) {
-          _advanceBidder();
-        }
+        // Sun immediately overrides any pending Second Hakam and triggers Qablak.
+        _triggerQablakOrComplete(seatIndex, false);
         break;
 
       case BidAction.secondHakam:
@@ -301,23 +433,28 @@ class BiddingManager {
         break;
 
       case BidAction.ashkal:
-        // Kammelna explicitly allows Ashkal in Round 2 for Dealer and Sane
-        if (seatIndex != dealerIndex && seatIndex != _saneIndex) {
+        // Kamelna: Ashkal is strictly forbidden in Round 2.
+        // Penalty: Forced to buy as standard Sun.
+        _triggerQablakOrComplete(seatIndex, false);
+        break;
+
+      case BidAction.sawa:
+        if (_round2PendingBuyer == null || !_opposingTeams(seatIndex, _round2PendingBuyer!)) {
           throw InvalidBidException(
             playerIndex: seatIndex,
-            message:
-                'Ashkal is only available to Dealer (seat $dealerIndex) or Sane (seat $_saneIndex).',
+            message: 'Sawa can only be called by opponents against an active Second Hakam bid.',
           );
         }
+        // Sawa locks the Second Hakam bid immediately for the original buyer
         _result = BidResult(
-          mode: GameMode.sun,
-          buyerIndex: seatIndex,
-          isAshkal: true,
+          mode: GameMode.hakam,
+          buyerIndex: _round2PendingBuyer!,
+          trumpSuit: _round2PendingTrump!,
+          isAshkal: false,
         );
         _phase = BiddingPhase.completed;
         _isFinished = true;
         break;
-
 
       case BidAction.pass:
         if (_round2PendingBuyer != null) {
@@ -368,10 +505,5 @@ class BiddingManager {
           message: '$action is not valid in Round 2.',
         );
     }
-  }
-
-  /// Move to next player counter-clockwise.
-  void _advanceBidder() {
-    _currentBidder = (_currentBidder + 1) % 4;
   }
 }

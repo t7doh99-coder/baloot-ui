@@ -89,7 +89,7 @@ class ProjectDetector {
     final balootProjects = projects.where((p) => p.type == ProjectType.baloot).toList();
     final regularProjects = projects.where((p) => p.type != ProjectType.baloot).toList();
 
-    // Max 2 regular projects per player — with NO card overlap (Kammelna rule).
+    // Max 2 regular projects per player — with NO card overlap (Standard rule).
     // A single card cannot be used in two different projects simultaneously.
     final limited = <DetectedProject>[];
     for (final project in regularProjects) {
@@ -165,7 +165,7 @@ class ProjectDetector {
             highestStrength: highest,
           ));
         } else if (run.length >= 4) {
-          // 50 (4-consecutive) — ALL 4-card sequences are 50 per Kammelna
+          // 50 (4-consecutive) — ALL 4-card sequences are 50 per Standard
           final best4 = run.length > 4 ? run.sublist(run.length - 4) : run;
           final highest = best4.last.getStrength(mode: GameMode.sun);
           projects.add(DetectedProject(
@@ -213,9 +213,9 @@ class ProjectDetector {
 
 
   /// Detect 4-of-a-kind projects:
-  /// - 4 Aces in Sun → 400 (Kammelna: Sun only)
+  /// - 4 Aces in Sun → 400 (Standard: Sun only)
   /// - 4 Aces in Hakam → 100
-  /// - 4×(10/J/Q/K) same rank → 100 (Hakam ONLY — not valid in Sun per Kammelna)
+  /// - 4×(10/J/Q/K) same rank → 100 (Hakam ONLY — not valid in Sun per Standard)
   List<DetectedProject> _detectFourOfAKind(List<CardModel> hand, GameMode mode) {
     final projects = <DetectedProject>[];
 
@@ -223,7 +223,7 @@ class ProjectDetector {
     final aces = hand.where((c) => c.rank == Rank.ace).toList();
     if (aces.length == 4) {
       if (mode == GameMode.sun) {
-        // 4 Aces in Sun = 400 (Kammelna: Arba'miya)
+        // 4 Aces in Sun = 400 (Standard: Arba'miya)
         projects.add(DetectedProject(
           type: ProjectType.fourHundred,
           cards: aces,
@@ -239,7 +239,7 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/J/Q/K) same rank → 100 (Hakam ONLY per Kammelna)
+    // 4×(10/J/Q/K) same rank → 100 (Hakam ONLY per Standard)
     // In Sun, 4-of-a-kind (non-Ace) is NOT a valid project.
     if (mode == GameMode.hakam) {
       final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
@@ -249,7 +249,7 @@ class ProjectDetector {
           final highest = sameRankCards
               .map((c) => c.getStrength(mode: GameMode.sun))
               .reduce((a, b) => a > b ? a : b);
-          // All 4-of-a-kind = 100 per Kammelna (Jacks NOT special)
+          // All 4-of-a-kind = 100 per Standard (Jacks NOT special)
           projects.add(DetectedProject(
             type: ProjectType.hundred,
             cards: sameRankCards,
@@ -285,7 +285,7 @@ class ProjectDetector {
   /// Compare two teams' projects and determine which team's projects count.
   /// Returns 'A', 'B', or null ONLY if there are no competing projects.
   ///
-  /// Per BALOOT_RULES.md §6.3 / client rulebook (Kammelna-style):
+  /// Per BALOOT_RULES.md §6.3 / client rulebook (Standard-style):
   /// Both teams compare highest project. Superior project wins.
   /// If tied rank → highest card in sequence wins.
   /// In Hakam, trump sequence beats non-trump.

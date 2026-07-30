@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:meta/meta.dart';
 import '../../../core/errors/game_exceptions.dart';
 import '../../../core/interfaces/i_baloot_controller.dart';
 import '../../../data/models/card_model.dart';
@@ -41,6 +42,9 @@ class BalootGameController implements IBalootController {
   int _teamAScore = 0;
   int _teamBScore = 0;
   int _dealerIndex = 0;
+  
+  @visibleForTesting
+  void setDealerIndexForTest(int index) => _dealerIndex = index;
   int _targetScore = 152; // Default: Jawaker standard (152)
   GamePhase _gamePhase = GamePhase.notStarted;
 
@@ -50,6 +54,14 @@ class BalootGameController implements IBalootController {
   TurnManager? _turnManager;
   late RoundStateModel _roundState;
   late List<List<CardModel>> _hands;
+
+  bool _useInjectedDeckManager = false;
+
+  @visibleForTesting
+  void setDeckManagerForTest(DeckManager dm) {
+    _deckManager = dm;
+    _useInjectedDeckManager = true;
+  }
 
   // Detected projects per player (from initial 8-card hand)
   final Map<int, List<DetectedProject>> _detectedProjects = {};
@@ -74,6 +86,9 @@ class BalootGameController implements IBalootController {
     _botEngine = BotEngine(difficulty: botDifficulty, random: _rng);
     _botEngine.assignIdentities();
   }
+
+  @visibleForTesting
+  void setBotEngineForTest(BotEngine be) => _botEngine = be;
 
   /// Expose bot identity for UI (names, rank badges).
   BotIdentity botIdentityOf(int seat) => _botEngine.identityOf(seat);
@@ -115,12 +130,12 @@ class BalootGameController implements IBalootController {
     return List<TrickResult>.unmodifiable(tm.trickHistory);
   }
 
-  /// Kammelna "أكة" (Akka) detection.
+  /// Standard "أكة" (Akka) detection.
   ///
   /// Returns `true` when [card] is the **strongest remaining card** of its suit
   /// at the moment it is played AND the player is **leading** the trick (first card).
   ///
-  /// Rules (per pagat.com / Kammelna):
+  /// Rules (per pagat.com / Standard):
   /// - Only triggers on the **lead** card (first card of a trick).
   /// - In Hakam: only applies to NON-trump suits (trump has its own hierarchy).
   /// - In Sun: applies to all suits (standard A>10>K>Q>J>9>8>7).
@@ -237,7 +252,7 @@ class BalootGameController implements IBalootController {
     ];
     _teamAScore = 0;
     _teamBScore = 0;
-    _targetScore = 152; // Kammelna strict classic score
+    _targetScore = 152; // Standard strict classic score
     _dealerIndex = _rng.nextInt(4);
     logger.log('Initial dealer: Seat $_dealerIndex');
     logger.log('Target score: $_targetScore');
@@ -272,7 +287,9 @@ class BalootGameController implements IBalootController {
     _lastRoundScoreResult = null;
     _lastPlaySawaClaimSeat = null;
     _botEngine.resetMemories();
-    _deckManager = DeckManager(random: _rng);
+    if (!_useInjectedDeckManager) {
+      _deckManager = DeckManager(random: _rng);
+    }
     _deckManager.createDeck();
     _deckManager.shuffle();
     _deckManager.kut();
@@ -398,7 +415,7 @@ class BalootGameController implements IBalootController {
       }
 
       // Ashkal (§4.6): bidder does not take the buyer card — teammate does. Stored
-      // [RoundState.buyerIndex] must be that teammate for scoring / UI (Kammelna).
+      // [RoundState.buyerIndex] must be that teammate for scoring / UI (Standard).
       final effectiveBuyerIndex = bidResult.isAshkal
           ? (bidResult.buyerIndex + 2) % 4
           : bidResult.buyerIndex;
@@ -505,19 +522,14 @@ class BalootGameController implements IBalootController {
     }
 
     if (level == DoubleStatus.gahwa) {
-      // Gahwa = instant game win for the buyer team (who calls Gahwa)
+      // Gahwa = highest level, instantly closes double window and starts the round
       _roundState = _roundState.copyWith(
         doubleStatus: level,
         isOpenPlay: isOpenPlay,
         isDoubleWindowOpen: false,
       );
-      final winnerTeam = callerIsTeamA ? 'A' : 'B';
-      if (winnerTeam == 'A') {
-        _teamAScore = _targetScore;
-      } else {
-        _teamBScore = _targetScore;
-      }
-      _gamePhase = GamePhase.gameOver;
+      _gamePhase = GamePhase.playing;
+      _startPlayPhase();
       return;
     }
 
@@ -554,7 +566,7 @@ class BalootGameController implements IBalootController {
   }
 
   void _startPlayPhase() {
-    // Kammelna/Saudi rules: the player to the RIGHT of the dealer leads trick 1.
+    // Standard/Saudi rules: the player to the RIGHT of the dealer leads trick 1.
     final firstPlayer = (_dealerIndex + 1) % 4;
     _turnManager = TurnManager(
       mode: _roundState.activeMode!,
@@ -653,7 +665,7 @@ class BalootGameController implements IBalootController {
         teamBAbnat: _turnManager!.teamBAbnat,
       );
 
-      // Check if Trick 1 just completed to filter losing projects (Kammelna rule)
+      // Check if Trick 1 just completed to filter losing projects (Standard rule)
       if (_turnManager!.trickNumber == 2 && _activeDeclaredProjects.isNotEmpty) {
         _filterLosingProjects();
       }
@@ -666,7 +678,7 @@ class BalootGameController implements IBalootController {
 
   @override
   void declareProject(int seatIndex, int projectIndex) {
-    // Kammelna: projects can be declared anytime during Trick 1 before playing your card.
+    // Standard: projects can be declared anytime during Trick 1 before playing your card.
     final hasPlayedCard = _turnManager!.currentTrick.any((p) => p.playerIndex == seatIndex);
     final validDeclarationTurn = _gamePhase == GamePhase.playing &&
         _turnManager != null &&
@@ -729,7 +741,7 @@ class BalootGameController implements IBalootController {
   }
 
   /// Whether the human player (seat 0) can currently claim Qaid.
-  /// Per Kammelna: Qaid is available during play phase when it's NOT the human's turn
+  /// Per Standard: Qaid is available during play phase when it's NOT the human's turn
   /// (an opponent has just played a card that might be a violation).
   bool canClaimQaid(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
@@ -1051,7 +1063,7 @@ class BalootGameController implements IBalootController {
     _teamAScore += scoreResult.teamAPoints;
     _teamBScore += scoreResult.teamBPoints;
     logger.log('Round Score Added -> Team A: +${scoreResult.teamAPoints}, Team B: +${scoreResult.teamBPoints}');
-    logger.log('--- KAMMELNA SCORE BREAKDOWN ---');
+    logger.log('--- Standard SCORE BREAKDOWN ---');
     logger.log('  Buyer: Seat ${_roundState.buyerIndex} (Team $buyerTeam)');
     logger.log('  Mode: ${scoreResult.mode.name.toUpperCase()}, Double: ${scoreResult.doubleStatus.name}');
     logger.log('  Outcome Reason: ${scoreResult.reason ?? "Normal"}');
@@ -1313,7 +1325,7 @@ class BalootGameController implements IBalootController {
         if (cmp != 0) return cmp;
         return b.highestCardStrength.compareTo(a.highestCardStrength);
       });
-      // Kammelna rules: return ALL projects for the winning team!
+      // Standard rules: return ALL projects for the winning team!
       result.addAll(regular);
     }
     
@@ -1354,7 +1366,7 @@ class BalootGameController implements IBalootController {
         ?.any((p) => p.type == ProjectType.baloot) ?? false;
     if (!hasBalootProject) return;
 
-    // Kammelna §2.3: Baloot CANNOT be declared if BOTH K+Q of trump are
+    // Standard §2.3: Baloot CANNOT be declared if BOTH K+Q of trump are
     // inside a declared Mia (100+) project. If only one card is in a
     // Sira or 50, Baloot CAN still be declared.
     final miaTypes = {

@@ -5,6 +5,7 @@ class PlayerStats {
   int totalGamesPlayed;
   int totalWins;
   String playerName;
+  String? customAvatarPath;
 
   PlayerStats({
     this.blueStars = 0,
@@ -13,6 +14,7 @@ class PlayerStats {
     this.totalGamesPlayed = 0,
     this.totalWins = 0,
     this.playerName = 'Player',
+    this.customAvatarPath,
   });
 
   factory PlayerStats.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class PlayerStats {
       totalGamesPlayed: json['totalGamesPlayed'] as int? ?? 0,
       totalWins: json['totalWins'] as int? ?? 0,
       playerName: json['playerName'] as String? ?? 'Player',
+      customAvatarPath: json['customAvatarPath'] as String?,
     );
   }
 
@@ -34,6 +37,7 @@ class PlayerStats {
       'totalGamesPlayed': totalGamesPlayed,
       'totalWins': totalWins,
       'playerName': playerName,
+      'customAvatarPath': customAvatarPath,
     };
   }
 
@@ -44,6 +48,7 @@ class PlayerStats {
     int? totalGamesPlayed,
     int? totalWins,
     String? playerName,
+    String? customAvatarPath,
   }) {
     return PlayerStats(
       blueStars: blueStars ?? this.blueStars,
@@ -52,6 +57,7 @@ class PlayerStats {
       totalGamesPlayed: totalGamesPlayed ?? this.totalGamesPlayed,
       totalWins: totalWins ?? this.totalWins,
       playerName: playerName ?? this.playerName,
+      customAvatarPath: customAvatarPath ?? this.customAvatarPath,
     );
   }
 }

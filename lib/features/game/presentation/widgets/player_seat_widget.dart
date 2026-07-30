@@ -3,7 +3,10 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/custom_player_avatar.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
@@ -324,7 +327,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
   final double? designerNarrowWidth;
 
   /// Matches designer [`_PlayerInfoChip`] `avatarSize: 36`.
-  static const double _kAvatarDiameter = 36.0;
+  static const double _kAvatarDiameter = 44.0;
 
   static String _suitSymbol(Suit s) {
     switch (s) {
@@ -490,29 +493,24 @@ class _SeatPlayerInfoBox extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _kGTextPrim,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Tajawal',
+                    fontSize: 12.0,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: GoogleFonts.readexPro().fontFamily,
                   ),
                 ),
               ),
-              if (isBuyer) ...[
-                const SizedBox(width: 2),
-                const Icon(Icons.star, color: Color(0xFFFFD700), size: 9),
-              ],
             ],
           ),
         ],
       ),
     );
 
-    // Floating Glass Pill / Overlapping Badge (Option 1 - 2026 Trend)
     final pillBadge = hasFooter
         ? Container(
-            width: 62,
-            height: 18,
+            width: 68,
+            height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: footerBg,
@@ -534,11 +532,9 @@ class _SeatPlayerInfoBox extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: footerTextColor,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Tajawal',
-                letterSpacing: 0.6,
-                height: 1,
+                fontSize: 11.0,
+                fontWeight: FontWeight.w700,
+                fontFamily: GoogleFonts.readexPro().fontFamily,
               ),
             ),
           )
@@ -546,8 +542,8 @@ class _SeatPlayerInfoBox extends StatelessWidget {
 
     final secondaryPillBadge = secondaryFooterLabel != null
         ? Container(
-            width: 62,
-            height: 18,
+            width: 68,
+            height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: _kGBgCard.withValues(alpha: 0.95),
@@ -567,13 +563,11 @@ class _SeatPlayerInfoBox extends StatelessWidget {
             child: Text(
               secondaryFooterLabel.toUpperCase(),
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFFFFD700),
-                fontSize: 8.5,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Tajawal',
-                letterSpacing: 0.6,
-                height: 1,
+                fontSize: 12.0,
+                fontWeight: FontWeight.w700,
+                fontFamily: GoogleFonts.readexPro().fontFamily,
               ),
             ),
           )
@@ -607,12 +601,12 @@ class _SeatPlayerInfoBox extends StatelessWidget {
               cardContent,
               if (secondaryPillBadge != null)
                 Positioned(
-                  bottom: -30,
+                  bottom: -40,
                   child: secondaryPillBadge,
                 ),
               if (pillBadge != null)
                 Positioned(
-                  bottom: -8,
+                  bottom: -14,
                   child: pillBadge,
                 ),
             ],
@@ -745,8 +739,7 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
     final progress =
         widget.isActive ? game.activeSeatTimerProgress : 1.0;
 
-    final ringT     = (widget.avatarDiameter * 0.13).clamp(4.0, 7.0);
-    final totalSz   = widget.avatarDiameter + ringT * 2 + 6;
+    final totalSz   = widget.avatarDiameter + 3.2; // 3.2 is the strokeWidth of the ring
     final avatarImagePath = AppAssets.playerAvatarPath(widget.seatIndex);
 
     return AnimatedBuilder(
@@ -774,66 +767,22 @@ class _PlayerAvatarRingState extends State<PlayerAvatarRing>
                         backgroundColor: const Color(0xFFD4A017).withValues(alpha: 0.15),
                         color: const Color(0xFFD4A017),
                       )
-                    : DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFFD4A017).withValues(alpha: 0.35),
-                            width: 1.8,
-                          ),
-                        ),
-                      ),
+                    : const SizedBox.shrink(),
               ),
 
               // ── Dark sphere ─────────────────────────────────────
               Positioned(
-                top: ringT + 3,
-                left: ringT + 3,
+                top: 1.6, // Half the stroke width so it perfectly touches the inner edge of the ring
+                left: 1.6,
                 child: _DarkSphere(
                   diameter: widget.avatarDiameter,
                   teamColor: widget.teamColor,
                   isActive: widget.isActive,
-                  avatarImagePath: avatarImagePath,
+                  seatIndex: widget.seatIndex,
+                  customAvatarPath: game.playerStats.customAvatarPath,
                 ),
               ),
 
-              // ── Dealer Marker (Kammelna/Jawaker style) ───────────
-              if (widget.isDealer)
-                Positioned(
-                  top: ringT,
-                  left: ringT,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD4A017),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'D',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Tajawal',
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
 
               if (widget.showOverlayNameTag)
                 Positioned(
@@ -866,13 +815,15 @@ class _DarkSphere extends StatelessWidget {
   final double diameter;
   final Color teamColor;
   final bool isActive;
-  final String avatarImagePath;
+  final int seatIndex;
+  final String? customAvatarPath;
 
   const _DarkSphere({
     required this.diameter,
     required this.teamColor,
     required this.isActive,
-    required this.avatarImagePath,
+    required this.seatIndex,
+    this.customAvatarPath,
   });
 
   @override
@@ -907,9 +858,9 @@ class _DarkSphere extends StatelessWidget {
             child: ClipOval(
               child: Opacity(
                 opacity: isActive ? 1.0 : 0.6,
-                child: Image.asset(
-                  avatarImagePath,
-                  fit: BoxFit.cover,
+                child: CustomPlayerAvatar(
+                  seatIndex: seatIndex,
+                  customAvatarPath: customAvatarPath,
                 ),
               ),
             ),
@@ -1169,17 +1120,14 @@ class _NameTag extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: compact ? 8.0 : 10.0,
+                fontSize: compact ? 10.0 : 12.0,
                 fontWeight: FontWeight.w700,
-                fontFamily: 'Tajawal',
+                fontFamily: GoogleFonts.readexPro().fontFamily,
                 height: 1.1,
               ),
             ),
           ),
-          if (isBuyer) ...[
-            const SizedBox(width: 2),
-            Icon(Icons.star, color: const Color(0xFFFFD700), size: compact ? 8 : 10),
-          ],
+
         ],
       ),
     );
@@ -1231,7 +1179,7 @@ class _TopCardFan extends StatelessWidget {
               child: Transform.rotate(
                 angle: angleRad,
                 alignment: Alignment.bottomCenter,
-                filterQuality: FilterQuality.medium,
+                filterQuality: FilterQuality.high,
                 child: isGodMode && i < godCards.length
                     ? PlayingCard(
                         card: godCards[i],
@@ -1286,7 +1234,7 @@ class _SideCardFan extends StatelessWidget {
               child: Transform.rotate(
                 angle: angleRad,
                 alignment: Alignment.bottomCenter,
-                filterQuality: FilterQuality.medium,
+                filterQuality: FilterQuality.high,
                 child: isGodMode && i < godCards.length
                     ? PlayingCard(
                         card: godCards[i],
@@ -1319,6 +1267,7 @@ class _FaceDownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = PlayingCard.backAssetPath(cardBackForSeat(seat));
     final r = BorderRadius.circular(3.0);
+
     return Container(
       width: width,
       height: height,
@@ -1339,7 +1288,8 @@ class _FaceDownCard extends StatelessWidget {
           width: width,
           height: height,
           fit: BoxFit.cover,
-          filterQuality: FilterQuality.medium,
+          filterQuality: FilterQuality.high,
+          isAntiAlias: true,
           errorBuilder: (_, __, ___) => ColoredBox(
             color: cardBackForSeat(seat) == CardBack.red
                 ? const Color(0xFFB71C1C)
@@ -1435,11 +1385,11 @@ class SpeechBubbleOverlay extends StatelessWidget {
           ),
           child: Text(
             line,
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xFFE4C267),
               fontSize: 13,
               fontWeight: FontWeight.w900,
-              fontFamily: 'Tajawal',
+              fontFamily: GoogleFonts.readexPro().fontFamily,
               height: 1.1,
             ),
           ),

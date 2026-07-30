@@ -123,17 +123,28 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
 
     if (_pendingCollectSchedule && !_collectScheduled) {
       _pendingCollectSchedule = false;
+      // Mark it as scheduled IMMEDIATELY so subsequent builds in the same frame
+      // do not schedule it again.
+      _collectScheduled = true;
+      
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _collectScheduled) return;
-        _collectScheduled = true;
+        if (!mounted) return;
+        
         if (!_flashedForOverlay) {
           _flashedForOverlay = true;
           _flashCtrl.forward(from: 0).then((_) => _flashCtrl.reverse());
           HapticFeedback.mediumImpact();
         }
-        unawaited(Future<void>.delayed(const Duration(milliseconds: 1000), () {
+        
+        // Reduced delay from 1000ms to 350ms so it doesn't play "very late"
+        unawaited(Future<void>.delayed(const Duration(milliseconds: 350), () {
           if (!mounted) return;
-          setState(() => _collectAnimTick++);
+          // Verify _overlayPlays is still valid before playing sound/animating
+          // to prevent glitches if the next trick has already started.
+          if (_overlayPlays != null && _overlayPlays!.length == 4) {
+            context.read<GameProvider>().audioService.playEffect('card taking sound.mp3');
+            setState(() => _collectAnimTick++);
+          }
         }));
       });
     }
@@ -221,15 +232,29 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
                     color: Colors.black.withValues(alpha: 0.30),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    game.trumpSuit != null
-                        ? '${game.gameModeLabel} ${_suitSymbol(game.trumpSuit!)}'
-                        : game.gameModeLabel,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        game.trumpSuit != null
+                            ? '${game.gameModeLabel} ${_suitSymbol(game.trumpSuit!)}'
+                            : game.gameModeLabel,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (game.buyerIndex != null)
+                        Text(
+                          game.playerName(game.buyerIndex!),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

@@ -2,7 +2,7 @@ import '../../../../data/models/card_model.dart';
 
 class SawaProbabilityEngine {
   /// Checks whether the player holds only **master** cards — guaranteed winners
-  /// when leading each remaining trick (Kammelna **Sawa يد**).
+  /// when leading each remaining trick (Standard **Sawa يد**).
   ///
   /// When [allHands] is passed (four 8‑card lists), Hakam trump risk uses full info:
   /// a trump can only cut if **not** uniquely held by partner among “others”.

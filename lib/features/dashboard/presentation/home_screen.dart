@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/custom_player_avatar.dart';
+import '../../../core/constants/app_assets.dart';
 import '../../../core/widgets/vip_background_shell.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../core/providers/user_provider.dart';
@@ -17,13 +19,15 @@ import '../../settings/presentation/settings_screen.dart';
 import '../../game/presentation/widgets/playing_card.dart';
 import '../../../data/models/card_model.dart';
 import '../../../data/models/bot_difficulty.dart';
-import 'test_screen_6.dart';
+import 'game_mode_result_screen.dart';
+import 'navigation_shell.dart';
 import 'alerts_screen.dart';
 import 'player_profile_screen.dart';
 import 'widgets/animated_flame_icon.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 import '../../../data/models/rank_tier.dart';
 import '../../../core/services/rank_calculator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // (section)
 // (section)
 //  For "Test 3" menu item. No changes to the original home screen.
@@ -60,11 +64,11 @@ class _T3GameMode {
   });
 }
 
-const List<_T3GameMode> _kT3Modes = [
+List<_T3GameMode> _getT3Modes(bool isArabic) => [
   _T3GameMode(
     id: 'trophy_road',
-    name: 'Play Baloot',
-    desc: 'Online • 152 Points • Baloot Game',
+    name: isArabic ? 'بلوت' : 'Baloot',
+    desc: isArabic ? 'أونلاين' : 'Online',
     leftColorStart: Color(0xFF392C14),  // bgElevated
     leftColorEnd: Color(0xFF2C2210),    // bgCard
     rightColorStart: Color(0xFF473618), // bgPanel
@@ -74,8 +78,8 @@ const List<_T3GameMode> _kT3Modes = [
   ),
   _T3GameMode(
     id: 'merge_tactics',
-    name: 'Play Baloot Offline',
-    desc: 'Offline • Practice vs AI • 152 Points',
+    name: isArabic ? 'بلوت أوفلاين' : 'Baloot Offline',
+    desc: isArabic ? 'أوفلاين' : 'Offline',
     leftColorStart: Color(0xFF473618),  // bgPanel
     leftColorEnd: Color(0xFF2C2210),    // bgCard
     rightColorStart: Color(0xFFC49028), // sandGold
@@ -85,9 +89,9 @@ const List<_T3GameMode> _kT3Modes = [
   ),
   _T3GameMode(
     id: 'ranked',
-    sectionHeader: 'Competitive Modes',
-    name: 'Create Session',
-    desc: 'Private Room • Play with Friends',
+    sectionHeader: isArabic ? 'الأطوار التنافسية' : 'Competitive Modes',
+    name: isArabic ? 'إنشاء جلسة' : 'Create Session',
+    desc: isArabic ? 'غرفة خاصة • العب مع الأصدقاء' : 'Private Room • Play with Friends',
     leftColorStart: Color(0xFF392C14),  // bgElevated
     leftColorEnd: Color(0xFF2C2210),    // bgCard
     rightColorStart: Color(0xFF473618), // bgPanel
@@ -98,9 +102,9 @@ const List<_T3GameMode> _kT3Modes = [
   ),
   _T3GameMode(
     id: 'classic_1v1',
-    sectionHeader: 'Classic Modes',
-    name: 'Join Sessions',
-    desc: 'Join Room • Enter Code to Play',
+    sectionHeader: isArabic ? 'الأطوار الكلاسيكية' : 'Classic Modes',
+    name: isArabic ? 'الانضمام لجلسة' : 'Join Sessions',
+    desc: isArabic ? 'انضم لغرفة • أدخل الرمز للعب' : 'Join Room • Enter Code to Play',
     leftColorStart: Color(0xFF2C2210),  // bgCard
     leftColorEnd: Color(0xFF1E1808),    // bgCanvas
     rightColorStart: Color(0xFF392C14), // bgElevated
@@ -117,27 +121,44 @@ class _Ripple {
   _Ripple({required this.id, required this.ctrl});
 }
 
-class TestScreen4 extends StatefulWidget {
+class HomeScreen extends StatefulWidget {
   final bool isArabic;
-  const TestScreen4({super.key, this.isArabic = false});
+  const HomeScreen({super.key, this.isArabic = false});
 
   @override
-  State<TestScreen4> createState() => _TestScreen4State();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _TestScreen4State extends State<TestScreen4> {
+class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 2; // Home is center tab
 
   // (section)
   String _selectedModeId = 'play';
+  BotDifficulty _savedOfflineDifficulty = BotDifficulty.medium;
+  bool _isNavigating = false;
   bool _showModePanel = false;
-  _T3GameMode get _selectedMode =>
-      _kT3Modes.firstWhere((m) => m.id == _selectedModeId,
-          orElse: () => _kT3Modes.first);
+
+  _T3GameMode get _selectedMode {
+    final isArabic = context.read<LocaleProvider>().isArabic;
+    return _getT3Modes(isArabic).firstWhere((m) => m.id == _selectedModeId,
+        orElse: () => _getT3Modes(isArabic).first);
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedModeId = prefs.getString('last_mode_id') ?? 'play';
+      final diffIndex = prefs.getInt('last_difficulty_index') ?? 1;
+      if (diffIndex >= 0 && diffIndex < BotDifficulty.values.length) {
+        _savedOfflineDifficulty = BotDifficulty.values[diffIndex];
+      }
+    });
   }
 
   @override
@@ -148,11 +169,8 @@ class _TestScreen4State extends State<TestScreen4> {
   // (section)
   void _onPlayNow() async {
     if (_selectedModeId == 'merge_tactics') {
-      // Offline mode selected: Show difficulty bottom sheet
-      final difficulty = await DifficultySelectorSheet.show(context);
-      if (difficulty == null) return; // User dismissed
-      
-      _startGameFlow(difficulty);
+      // Offline mode selected: Use saved difficulty immediately
+      _startGameFlow(_savedOfflineDifficulty);
     } else if (_selectedModeId == 'ranked') {
       // Create Session mode selected: Show create session bottom sheet
       final created = await showModalBottomSheet<bool>(
@@ -171,11 +189,17 @@ class _TestScreen4State extends State<TestScreen4> {
   }
 
   void _startGameFlow(BotDifficulty difficulty) {
+    if (_isNavigating) return;
+    _isNavigating = true;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => GameLoadingScreen(difficulty: difficulty),
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        _isNavigating = false;
+      }
+    });
   }
 
   void _onVipAccess() {
@@ -187,7 +211,9 @@ class _TestScreen4State extends State<TestScreen4> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '\ - Coming Soon!',
+          context.read<LocaleProvider>().isArabic
+              ? '$feature — قريباً!'
+              : '$feature — Coming Soon!',
           style: GoogleFonts.readexPro(
             color: Colors.white,
             fontWeight: FontWeight.w600,
@@ -207,7 +233,9 @@ class _TestScreen4State extends State<TestScreen4> {
     final isArabic = locale.isArabic;
 
     // Tab names for Coming Soon
-    const tabNames = ['Shop', 'Community', 'Home', 'Chat', 'Leagues'];
+    final tabNames = isArabic
+        ? ['المتجر', 'المجتمع', 'الرئيسية', 'الدردشة', 'الدوريات']
+        : ['Shop', 'Community', 'Home', 'Chat', 'Leagues'];
 
     return Scaffold(
       backgroundColor: const Color(0xFF080F12),
@@ -223,7 +251,9 @@ class _TestScreen4State extends State<TestScreen4> {
             child: Column(
               children: [
                 _T1TopBar(isArabic: isArabic),
-                const _T1PlayerCard(),
+                if (_currentIndex == 2) ...[
+                  const _T1PlayerCard(),
+                ],
                 Expanded(
                   child: _currentIndex == 2
                       ? SingleChildScrollView(
@@ -235,6 +265,7 @@ class _TestScreen4State extends State<TestScreen4> {
                                 padding: const EdgeInsets.only(top: 40, left: 12, right: 12),
                                 child: _T3BattleRow(
                                   selectedMode: _selectedMode,
+                                  savedOfflineDifficulty: _savedOfflineDifficulty,
                                   onPlayPress: _onPlayNow,
                                   onModePress: () =>
                                       setState(() => _showModePanel = true),
@@ -266,7 +297,26 @@ class _TestScreen4State extends State<TestScreen4> {
             Positioned.fill(
               child: _T3GameModePanel(
                 selectedModeId: _selectedModeId,
-                onSelect: (id) => setState(() => _selectedModeId = id),
+                savedOfflineDifficulty: _savedOfflineDifficulty,
+                onSelect: (id) async {
+                  setState(() => _selectedModeId = id);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('last_mode_id', id);
+
+                  if (id == 'merge_tactics') {
+                    setState(() {
+                      _showModePanel = false;
+                    });
+                    final difficulty = await DifficultySelectorSheet.show(context);
+                    if (difficulty != null) {
+                      setState(() {
+                        _savedOfflineDifficulty = difficulty;
+                      });
+                      await prefs.setInt('last_difficulty_index', difficulty.index);
+                      _startGameFlow(difficulty);
+                    }
+                  }
+                },
                 onConfirm: (id) {
                   setState(() {
                     _selectedModeId = id;
@@ -445,7 +495,7 @@ class _T1TopBar extends StatelessWidget {
               children: [
                 Text(em, style: const TextStyle(fontSize: 18)),
                 const SizedBox(height: 2),
-                Text(lbl, style: GoogleFonts.cairo(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF886018))),
+                Text(lbl, style: GoogleFonts.readexPro(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF886018))),
               ],
             ),
           ),
@@ -499,9 +549,9 @@ class _T1TopBar extends StatelessWidget {
                         width: 230,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: const Color(0xFF2C2210),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.black87, width: 3), // Thicker black border
+                          border: Border.all(color: const Color(0x42C49028), width: 1.5),
                           boxShadow: [
                             BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 6)),
                           ],
@@ -509,24 +559,30 @@ class _T1TopBar extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _crMenuItem(context: dialogContext, icon: Icons.history_rounded, label: 'Match History', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.history_rounded, label: isArabic ? 'سجل المباريات' : 'Match History', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.emoji_events_rounded, label: 'Achievements', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.emoji_events_rounded, label: isArabic ? 'الإنجازات' : 'Achievements', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.palette_rounded, label: 'Customisation', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.palette_rounded, label: isArabic ? 'التخصيص' : 'Customisation', onTap: () {}),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: 'Settings', onTap: () {
+                            _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: isArabic ? 'الإعدادات' : 'Settings', onTap: () {
                               Navigator.pop(dialogContext);
                               Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen(isArabic: isArabic)));
                             }),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: 'Language', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: isArabic ? 'Language : ARABIC' : 'Language : EN', onTap: () {
+                              Navigator.pop(dialogContext);
+                              context.read<LocaleProvider>().toggleLocale();
+                            }),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: 'Help & Support', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: isArabic ? 'المساعدة والدعم' : 'Help & Support', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: 'Privacy', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: isArabic ? 'الخصوصية' : 'Privacy', onTap: () {
+                              Navigator.pop(dialogContext);
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const NavigationShell()));
+                            }),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: 'Log Out', onTap: () => Navigator.pop(dialogContext)),
+                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () => Navigator.pop(dialogContext)),
                           ],
                         ),
                       ),
@@ -540,10 +596,10 @@ class _T1TopBar extends StatelessWidget {
                             width: 14,
                             height: 14,
                             decoration: const BoxDecoration(
-                              color: Colors.white,
+                              color: Color(0xFF2C2210),
                               border: Border(
-                                top: BorderSide(color: Colors.black87, width: 3),
-                                right: BorderSide(color: Colors.black87, width: 3),
+                                top: BorderSide(color: Color(0x42C49028), width: 1.5),
+                                right: BorderSide(color: Color(0x42C49028), width: 1.5),
                               ),
                             ),
                           ),
@@ -567,7 +623,7 @@ class _T1TopBar extends StatelessWidget {
         height: 44,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
-          color: const Color(0xFFC49028), // Dark blue bottom edge
+          color: const Color(0xFFC49028), // Dark blue bottom edge -> actually Gold bottom edge
           border: Border.all(color: Colors.black87, width: 2),
           boxShadow: const [
             BoxShadow(color: Colors.black26, offset: Offset(0, 2), blurRadius: 2),
@@ -603,9 +659,9 @@ class _T1TopBar extends StatelessWidget {
                         alignment: Alignment.center,
                         child: Text(
                           label.toUpperCase(),
-                          style: GoogleFonts.cairo(
+                          style: GoogleFonts.readexPro(
                             fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white,
-                            letterSpacing: 0.5,
+                            letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.5,
                             shadows: const [
                               Shadow(color: Colors.black, offset: Offset(-1.5, -1.5)),
                               Shadow(color: Colors.black, offset: Offset(1.5, -1.5)),
@@ -630,9 +686,9 @@ class _T1TopBar extends StatelessWidget {
 
   Widget _divider() {
     return Container(
-      height: 2,
+      height: 1,
       margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      color: Colors.grey.shade300,
+      color: const Color(0x42C49028),
     );
   }
 }
@@ -902,7 +958,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
           children: [
             GestureDetector(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const PlayerProfileScreen()));
+                Navigator.push(context, MaterialPageRoute(builder: (_) => PlayerProfileScreen(isArabic: context.read<LocaleProvider>().isArabic)));
               },
               child: _buildAvatarFrame(),
             ),
@@ -911,8 +967,8 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(stats.playerName, style: GoogleFonts.cairo(
-                  fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white,
+                Text(stats.playerName, style: GoogleFonts.readexPro(
+                  fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white,
                   height: 1.1,
                   shadows: const [Shadow(color: Color(0x40FFD700), blurRadius: 14)],
                 )),
@@ -1026,7 +1082,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
                       children: [
                         iconWidget ?? Text(em, style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 4),
-                        Text(val, style: GoogleFonts.cairo(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                        Text(val, style: GoogleFonts.readexPro(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
                       ],
                     ),
                   ),
@@ -1125,6 +1181,17 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
                    alignment: Alignment.center,
                    child: Stack(
                      children: [
+                       // Avatar Image
+                       Positioned.fill(
+                         child: ClipOval(
+                           child: Consumer<GameProvider>(
+                             builder: (context, game, _) => CustomPlayerAvatar(
+                               seatIndex: 0,
+                               customAvatarPath: game.playerStats.customAvatarPath,
+                             ),
+                           ),
+                         ),
+                       ),
                        // Specular
                        Positioned(top: 8, left: 12,
                          child: Container(
@@ -1135,7 +1202,6 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
                            ),
                          ),
                        ),
-                       const Center(child: Text('👤', style: TextStyle(fontSize: 44))),
                      ],
                    ),
                 ),
@@ -1157,7 +1223,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
         alignment: Alignment.center,
         child: Text(
           '✶ $rank',
-          style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w900, color: color,
+          style: GoogleFonts.readexPro(fontSize: 11, fontWeight: FontWeight.w900, color: color,
             shadows: [Shadow(color: color.withValues(alpha: 0.7), blurRadius: 8)]),
         ),
       ),
@@ -1186,7 +1252,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
               children: [
                 const Text('🔥', style: TextStyle(fontSize: 11)),
                 const SizedBox(width: 4),
-                Text('$count Wins', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFC49028))),
+                Text('$count Wins', style: GoogleFonts.readexPro(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFFC49028))),
               ],
             ),
           ),
@@ -1226,13 +1292,11 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset('assets/icons/medal.png', width: 22, height: 22),
-                const SizedBox(width: 4),
-                Text('${rank.subLevel}', style: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w900, color: const Color(0xFFC9A84C))),
-              ],
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Image.asset('assets/icons/medal.png', width: 22, height: 22),
+              ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -1243,15 +1307,23 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
               ),
               child: Text(
                 rank.englishName,
-                style: GoogleFonts.cairo(
+                style: GoogleFonts.readexPro(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFFC49028),
-                  letterSpacing: 1.2,
+                  letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.2,
                 ),
               ),
             ),
-            Text(isMax ? 'Max Rank' : '${stats.medals} of $nextThreshold to Next Level', style: GoogleFonts.cairo(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF886018))),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  isMax ? 'Max Rank' : '${stats.medals} of $nextThreshold',
+                  style: GoogleFonts.readexPro(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF886018)),
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 5),
@@ -1712,11 +1784,13 @@ class _T3BattleRow extends StatefulWidget {
   final _T3GameMode selectedMode;
   final VoidCallback onPlayPress;
   final VoidCallback onModePress;
+  final BotDifficulty savedOfflineDifficulty;
 
   const _T3BattleRow({
     required this.selectedMode,
     required this.onPlayPress,
     required this.onModePress,
+    required this.savedOfflineDifficulty,
   });
 
   @override
@@ -1774,10 +1848,55 @@ class _BeltPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class _BoldChevronUp extends StatelessWidget {
+  final double size;
+  const _BoldChevronUp({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size * 0.6),
+      painter: _BoldChevronPainter(),
+    );
+  }
+}
+
+class _BoldChevronPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final padding = 3.0;
+    final path = Path()
+      ..moveTo(padding, size.height - padding)
+      ..lineTo(size.width / 2, padding)
+      ..lineTo(size.width - padding, size.height - padding);
+
+    final strokePaint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    
+    final fillPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawPath(path, strokePaint);
+    canvas.drawPath(path, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _T3BattleRowState extends State<_T3BattleRow>
     with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
+    final isAr = context.watch<LocaleProvider>().isArabic;
     return SizedBox(
       height: 130, // The height of the central belt bulge
       width: double.infinity,
@@ -1794,30 +1913,34 @@ class _T3BattleRowState extends State<_T3BattleRow>
 
           // (section)
           Positioned(
-            left: 20,
-            child: GestureDetector(
-              onTap: widget.onModePress,
-              child: AnimatedScale(
-                scale: 1.0,
-                duration: const Duration(milliseconds: 120),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0x12C49028),
-                      width: 1.5,
+            left: isAr ? null : 0,
+            right: isAr ? 0 : null,
+            width: (MediaQuery.sizeOf(context).width - 32 - 130) / 2,
+            child: Center(
+              child: GestureDetector(
+                onTap: widget.onModePress,
+                child: AnimatedScale(
+                  scale: 1.0,
+                  duration: const Duration(milliseconds: 120),
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0x12C49028),
+                        width: 1.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0xB22C2210), offset: Offset(0, 4))
+                      ],
                     ),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0xB22C2210), offset: Offset(0, 4))
-                    ],
-                  ),
-                  child: Image.asset(
-                    widget.selectedMode.iconAsset ?? 'assets/icons/vs.png',
-                    width: 36,
-                    height: 36,
+                    child: Image.asset(
+                      widget.selectedMode.iconAsset ?? 'assets/icons/vs.png',
+                      width: 36,
+                      height: 36,
+                    ),
                   ),
                 ),
               ),
@@ -1826,35 +1949,64 @@ class _T3BattleRowState extends State<_T3BattleRow>
 
           // (section)
           Positioned(
-            right: 12,
-            child: GestureDetector(
-              onTap: widget.onModePress,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.selectedMode.name,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.paytoneOne(
-                      color: const Color(0xFFC49028),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      shadows: const [
-                        Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
-                      ],
+            right: isAr ? null : 0,
+            left: isAr ? 0 : null,
+            width: (MediaQuery.sizeOf(context).width - 32 - 130) / 2,
+            child: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onModePress,
+                child: Container(
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                    Text(
+                      widget.selectedMode.name,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.readexPro(
+                        color: const Color(0xFFC49028),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        shadows: const [
+                          Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFFC49028),
-                    size: 18,
-                  ),
-                ],
+                    if (widget.selectedMode.id == 'merge_tactics') ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        isAr
+                          ? 'الطور : ${switch (widget.savedOfflineDifficulty) {
+                              BotDifficulty.easy => 'مبتدئ',
+                              BotDifficulty.medium => 'عادي',
+                              BotDifficulty.hard => 'خبير',
+                            }}'
+                          : 'MODE : ${switch (widget.savedOfflineDifficulty) {
+                              BotDifficulty.easy => 'BEGINNER',
+                              BotDifficulty.medium => 'REGULAR',
+                              BotDifficulty.hard => 'EXPERT',
+                            }}',
+                        style: GoogleFonts.readexPro(
+                          color: const Color(0xFFC49028),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          shadows: const [
+                            Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 2),
+                    const _BoldChevronUp(size: 22),
+                  ],
+                ),
               ),
             ),
           ),
+        ),
 
           // (section)
           _T3GreenPlayButton(
@@ -1936,6 +2088,9 @@ class _T3GreenPlayButtonState extends State<_T3GreenPlayButton>
 
   void _handlePlay() {
     if (_searching) return;
+    
+    // Play the golden play button sound
+    context.read<GameProvider>().audioService.playEffect('ply button sound.mp3');
 
     // Ripple
     final id = _rippleId++;
@@ -2281,11 +2436,11 @@ class _T3GreenPlayButtonState extends State<_T3GreenPlayButton>
     return Text(
       isArabic ? '\u0627\u0644\u0639\u0628' : 'Play',
       key: const ValueKey('play'),
-      style: GoogleFonts.cairo(
+      style: GoogleFonts.readexPro(
         fontSize: 22,
         fontWeight: FontWeight.w900,
         color: Colors.white,
-        letterSpacing: 1.5,
+        letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.5,
         shadows: const [
           Shadow(
             color: Color(0x8C000000),
@@ -2304,7 +2459,7 @@ class _T3GreenPlayButtonState extends State<_T3GreenPlayButton>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(isArabic ? '\u062c\u0627\u0631\u064a \u0627\u0644\u0628\u062d\u062b' : 'Searching',
-            style: GoogleFonts.cairo(
+            style: GoogleFonts.readexPro(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: Colors.white)),
@@ -2489,12 +2644,14 @@ class _T3GameModePanel extends StatelessWidget {
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onConfirm;
   final VoidCallback onClose;
+  final BotDifficulty savedOfflineDifficulty;
 
   const _T3GameModePanel({
     required this.selectedModeId,
     required this.onSelect,
     required this.onConfirm,
     required this.onClose,
+    required this.savedOfflineDifficulty,
   });
 
   @override
@@ -2535,12 +2692,12 @@ class _T3GameModePanel extends StatelessWidget {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        'Game Modes',
-                        style: GoogleFonts.cairo(
+                        context.read<LocaleProvider>().isArabic ? 'أطوار اللعب' : 'Game Modes',
+                        style: GoogleFonts.readexPro(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: const Color(0xFFDFAE45),
-                          letterSpacing: 1.2,
+                          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.2,
                           shadows: [
                             const Shadow(color: Color(0xFF392C14), offset: Offset(-1, -1)),
                             const Shadow(color: Color(0xFF392C14), offset: Offset(1, 1)),
@@ -2577,15 +2734,16 @@ class _T3GameModePanel extends StatelessWidget {
                       color: Color(0xFF1E1808),  // bgCanvas
                     ),
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                      itemCount: _kT3Modes.length,
+                      padding: EdgeInsets.fromLTRB(16, 10, 16, 16 + MediaQuery.paddingOf(context).bottom),
+                      itemCount: _getT3Modes(context.read<LocaleProvider>().isArabic).length,
                       itemBuilder: (context, i) {
-                        final mode = _kT3Modes[i];
+                        final mode = _getT3Modes(context.read<LocaleProvider>().isArabic)[i];
                         
                         Widget card = _T3TicketCard(
                           mode: mode,
                           isSelected: mode.id == selectedModeId,
                           onSelect: () => onSelect(mode.id),
+                          savedOfflineDifficulty: savedOfflineDifficulty,
                         );
 
                         if (mode.sectionHeader != null) {
@@ -2600,7 +2758,7 @@ class _T3GameModePanel extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(horizontal: 12),
                                     child: Text(
                                       mode.sectionHeader!,
-                                      style: GoogleFonts.cairo(
+                                      style: GoogleFonts.readexPro(
                                         color: const Color(0xFF886018),  // sandGoldDark
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -2693,7 +2851,7 @@ class _T3SheetOptionState extends State<_T3SheetOption> {
                       color: const Color(0xFFF4E4B7),
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 0.3,
+                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.3,
                     ),
                   ),
                   if (widget.subtitle != null) ...[
@@ -2866,11 +3024,13 @@ class _T3TicketCard extends StatelessWidget {
   final _T3GameMode mode;
   final bool isSelected;
   final VoidCallback onSelect;
+  final BotDifficulty savedOfflineDifficulty;
 
   const _T3TicketCard({
     required this.mode,
     required this.isSelected,
     required this.onSelect,
+    required this.savedOfflineDifficulty,
   });
 
   @override
@@ -2911,9 +3071,10 @@ class _T3TicketCard extends StatelessWidget {
                     children: [
                       Text(
                         mode.name,
-                        style: GoogleFonts.paytoneOne(
+                        style: GoogleFonts.readexPro(
                           color: Colors.white,
                           fontSize: 18,
+                          fontWeight: FontWeight.w700,
                           shadows: const [
                             Shadow(color: Colors.black87, offset: Offset(1, 1), blurRadius: 2),
                             Shadow(color: Colors.black87, offset: Offset(-1, 1), blurRadius: 2),
@@ -2929,7 +3090,9 @@ class _T3TicketCard extends StatelessWidget {
                               const SizedBox(width: 4),
                             ],
                             Text(
-                              mode.desc!,
+                              mode.id == 'merge_tactics' 
+                                  ? '${mode.desc!} • ${savedOfflineDifficulty.name.toUpperCase()}'
+                                  : mode.desc!,
                               style: GoogleFonts.readexPro(
                                 color: const Color(0xFFFFD700),
                                 fontSize: 12,
@@ -3065,12 +3228,16 @@ class _BottomNav extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                item.lbl,
-                                style: GoogleFonts.cairo(
-                                  fontSize: 9.5,
-                                  fontWeight: on ? FontWeight.w800 : FontWeight.w500,
-                                  color: on ? _kCYN : const Color(0xFF806840),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  item.lbl,
+                                  maxLines: 1,
+                                  style: GoogleFonts.readexPro(
+                                    fontSize: 9.5,
+                                    fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+                                    color: on ? _kCYN : const Color(0xFF806840),
+                                  ),
                                 ),
                               ),
                             ],
@@ -3108,14 +3275,14 @@ class _ComingSoonPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: GoogleFonts.cairo(
+            style: GoogleFonts.readexPro(
               fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0x80FFD700),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             isArabic ? 'Coming Soon...' : 'Coming Soon',
-            style: GoogleFonts.cairo(fontSize: 14, color: const Color(0x40FFD700)),
+            style: GoogleFonts.readexPro(fontSize: 14, color: const Color(0x40FFD700)),
           ),
         ],
       ),
@@ -3229,11 +3396,11 @@ class _TournamentBannerState extends State<_TournamentBanner>
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
                   '· · · Live now · · ·',
-                  style: GoogleFonts.cairo(
+                  style: GoogleFonts.readexPro(
                     fontSize: 10,
                     fontWeight: FontWeight.w400,
                     color: const Color(0x59C49028),  // sandGold muted
-                    letterSpacing: 3,
+                    letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3,
                   ),
                 ),
               ),
@@ -3301,9 +3468,9 @@ class _TournamentBannerState extends State<_TournamentBanner>
                               children: [
                                 Text(
                                   widget.isArabic
-                                    ? 'كأس كملنا'
-                                    : 'Kammelna Cup',
-                                  style: GoogleFonts.cairo(
+                                    ? 'كأس رويال'
+                                    : 'Royal Cup',
+                                  style: GoogleFonts.readexPro(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                     color: const Color(0xFFC49028),  // sandGold
@@ -3315,7 +3482,7 @@ class _TournamentBannerState extends State<_TournamentBanner>
                                   widget.isArabic
                                       ? 'مباشر الآن · ادخل الكأس'
                                       : 'Live now · Enter the cup',
-                                  style: GoogleFonts.cairo(
+                                  style: GoogleFonts.readexPro(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                    color: const Color(0x73B87818),  // honey muted — subtitle
@@ -3431,11 +3598,11 @@ class _CreateSessionBottomSheetState extends State<_CreateSessionBottomSheet> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: GoogleFonts.cairo(
+        style: GoogleFonts.readexPro(
           color: const Color(0xFFB5A992), // textSec
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
+          letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 0.5,
         ),
       ),
     );
@@ -3511,11 +3678,11 @@ class _CreateSessionBottomSheetState extends State<_CreateSessionBottomSheet> {
             alignment: Alignment.center,
             child: Text(
               'Create Session',
-              style: GoogleFonts.cairo(
+              style: GoogleFonts.readexPro(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFFDFAE45),
-                letterSpacing: 1.2,
+                letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.2,
                 shadows: [
                   const Shadow(color: Color(0xFF392C14), offset: Offset(-1, -1)),
                   const Shadow(color: Color(0xFF392C14), offset: Offset(1, 1)),
@@ -3609,7 +3776,7 @@ class _CreateSessionBottomSheetState extends State<_CreateSessionBottomSheet> {
                   children: [
                     Text(
                       'Create Session',
-                      style: GoogleFonts.cairo(
+                      style: GoogleFonts.readexPro(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: const Color(0xFF1E1808),
@@ -3647,3 +3814,6 @@ class _CreateSessionBottomSheetState extends State<_CreateSessionBottomSheet> {
     );
   }
 }
+
+
+

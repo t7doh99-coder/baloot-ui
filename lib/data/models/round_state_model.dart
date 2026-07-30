@@ -4,7 +4,7 @@ import 'card_play_model.dart';
 /// The phase of bidding within a round.
 /// [hakamConfirmation] is the step where the Hakam bidder
 /// (after all others passed in Round 1) may confirm Hakam or switch to Sun.
-enum BiddingPhase { round1, round2, hakamConfirmation, completed, cancelled }
+enum BiddingPhase { round1, round2, hakamConfirmation, qablakIntervention, completed, cancelled }
 
 /// Double escalation levels (Hakam mode primarily).
 enum DoubleStatus { none, doubled, tripled, four, gahwa }
@@ -40,7 +40,7 @@ class DeclaredProject {
     required this.cards,
   });
 
-  /// Abnat value of this project (same in both modes per Jawaker/Kammelna).
+  /// Abnat value of this project (same in both modes per Jawaker/Standard).
   /// The Abnat→Scoreboard conversion formula (Sun: ×2/10, Hakam: /10)
   /// automatically produces the correct mode-specific scoreboard points.
   int getAbnat(GameMode mode) {
@@ -58,7 +58,7 @@ class DeclaredProject {
       case ProjectType.eightCardRun:
         return 250; // 8 consecutive same suit (all cards of one suit)
       case ProjectType.fourJacks:
-        return 100; // 4 Jacks — same as all 4-of-a-kind per Kammelna
+        return 100; // 4 Jacks — same as all 4-of-a-kind per Standard
       case ProjectType.fourHundred:
         return 200; // Sun only: 4 Aces → 200 Abnat = 40 scoreboard pts
       case ProjectType.baloot:
@@ -67,7 +67,7 @@ class DeclaredProject {
   }
 
   /// Scoreboard points (used directly in doubled rounds, bypassing Abnat conversion).
-  /// Per BALOOT_RULES.md & Jawaker/Kammelna:
+  /// Per BALOOT_RULES.md & Jawaker/Standard:
   ///   Sera:  Sun=4, Hakam=2  |  Fifty: Sun=10, Hakam=5
   ///   100:   Sun=20, Hakam=10 |  400:   Sun=40 (Sun only)
   ///   Baloot: always 2 (immune to doubling)

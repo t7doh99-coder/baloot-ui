@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 
-// ══════════════════════════════════════════════════════════════════
-//  ALERTS SCREEN — Premium Sandstone UI (Option H)
-//  Features: staggered animations · accent bars · segmented tabs
-//            · unread badges · gold divider headers · glow rings
-// ══════════════════════════════════════════════════════════════════
+import 'package:provider/provider.dart';
+import 'package:baloot_game/core/l10n/locale_provider.dart';
 
-// ── Sandstone colour tokens ──────────────────────────────────────
+// ------------------------------------------------------------------
+//  ALERTS SCREEN � Premium Sandstone UI (Option H)
+//  Features: staggered animations � accent bars � segmented tabs
+//            � unread badges � gold divider headers � glow rings
+// ------------------------------------------------------------------
+
+// -- Sandstone colour tokens --------------------------------------
 const _kBgCanvas   = Color(0xFF1E1808);
 const _kBgCard     = Color(0xFF2C2210);
 const _kBgElevated = Color(0xFF392C14);
@@ -34,11 +37,11 @@ class _AlertsScreenState extends State<AlertsScreen>
   int _selectedTabIndex = 0;
 
   // Tab labels with unread counts
-  final List<({String label, int unread})> _tabs = [
-    (label: 'All',         unread: 3),
-    (label: 'Social',      unread: 1),
-    (label: 'Rewards',     unread: 1),
-    (label: 'Tournaments', unread: 1),
+  List<({String label, int unread})> get _tabs => [
+    (label: context.read<LocaleProvider>().isArabic ? 'الكل' : 'All',         unread: 0),
+    (label: context.read<LocaleProvider>().isArabic ? 'اجتماعي' : 'Social',      unread: 0),
+    (label: context.read<LocaleProvider>().isArabic ? 'المكافآت' : 'Rewards',     unread: 0),
+    (label: context.read<LocaleProvider>().isArabic ? 'البطولات' : 'Tournaments', unread: 0),
   ];
 
   // All alert data
@@ -47,62 +50,7 @@ class _AlertsScreenState extends State<AlertsScreen>
   @override
   void initState() {
     super.initState();
-    _alerts = [
-      _AlertData(
-        type: _AlertType.social,
-        emoji: '👥',
-        title: 'Ahmad sent you a friend request',
-        subtitle: 'Expert • 847 wins',
-        time: '1h ago',
-        unread: true,
-        group: 'TODAY',
-      ),
-      _AlertData(
-        type: _AlertType.tournament,
-        emoji: '🏆',
-        title: 'Kamlana Cup round starts in 2 hours',
-        subtitle: 'You have 2 tickets ready',
-        time: '3h ago',
-        unread: true,
-        group: 'TODAY',
-      ),
-      _AlertData(
-        type: _AlertType.reward,
-        emoji: '🎁',
-        title: 'Your daily reward is ready!',
-        subtitle: 'Tap to claim 50 stars + 2 Cup tickets',
-        time: '1d ago',
-        unread: false,
-        group: 'YESTERDAY',
-      ),
-      _AlertData(
-        type: _AlertType.progression,
-        emoji: '📈',
-        title: 'Rank Up: Expert!',
-        subtitle: 'You have successfully reached Expert rank.',
-        time: '1d ago',
-        unread: false,
-        group: 'YESTERDAY',
-      ),
-      _AlertData(
-        type: _AlertType.system,
-        emoji: '📢',
-        title: 'World Cup Event is Live!',
-        subtitle: 'Join the 40,000 SAR prize tournament now.',
-        time: '3d ago',
-        unread: false,
-        group: 'THIS WEEK',
-      ),
-      _AlertData(
-        type: _AlertType.account,
-        emoji: '⚙️',
-        title: 'VIP Subscription renewing',
-        subtitle: 'Your VIP status will auto-renew in 3 days.',
-        time: '5d ago',
-        unread: false,
-        group: 'THIS WEEK',
-      ),
-    ];
+    _alerts = [];
   }
 
   List<_AlertData> get _filteredAlerts {
@@ -124,11 +72,11 @@ class _AlertsScreenState extends State<AlertsScreen>
       backgroundColor: const Color(0xFF1E1808),
       body: Stack(
         children: [
-          // ── Diamond background — matches home screen game feel ──
+          // -- Diamond background � matches home screen game feel --
           Positioned.fill(
             child: CustomPaint(painter: DiamondOnlyPainter()),
           ),
-          // ── Content ──
+          // -- Content --
           SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,100 +95,110 @@ class _AlertsScreenState extends State<AlertsScreen>
     );
   }
 
-  // ── Header ─────────────────────────────────────────────────────
+  // -- Header -----------------------------------------------------
   Widget _buildHeader() {
     final unreadTotal = _alerts.where((a) => a.unread).length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Row(
         children: [
-          // Back button — game-mode handle style
+          // Back button � golden circular style
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: CustomPaint(
-              painter: _BackHandlePainter(),
-              child: SizedBox(
-                width: 64,
-                height: 40,
-                child: Center(
-                  child: CustomPaint(
-                    size: const Size(11, 20),
-                    painter: _BackChevronPainter(),
+            child: SizedBox(
+              width: 64,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Color(0xFF141008), offset: Offset(0, 2)), // 3D depth
+                      BoxShadow(color: Color(0x60000000), blurRadius: 8, offset: Offset(0, 4)), // Drop shadow
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFC49028), Color(0xFF886018)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          border: Border.all(color: const Color(0xFFDFAE45), width: 1.2),
+                        ),
+                      ),
+                      Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [Color(0x77FFFFFF), Color(0x00FFFFFF), Color(0x00FFFFFF)],
+                            stops: [0.0, 0.45, 1.0],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: CustomPaint(
+                          size: const Size(11, 20),
+                          painter: _BackChevronPainter(),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 14),
-          // Title + badge
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                widget.isArabic ? 'التنبيهات' : 'Alerts',
-                style: GoogleFonts.cairo(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  foreground: Paint()
-                    ..shader = const LinearGradient(
-                      colors: [_kSandDark, _kSandLight, _kSandGold],
-                    ).createShader(const Rect.fromLTWH(0, 0, 130, 36)),
-                ),
-              ),
-              if (unreadTotal > 0) ...[
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [_kSandGold, _kSandDark]),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [BoxShadow(color: Color(0x44C49028), blurRadius: 8)],
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  context.read<LocaleProvider>().isArabic ? 'التنبيهات' : 'Alerts',
+                  style: GoogleFonts.cairo(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    foreground: Paint()
+                      ..shader = const LinearGradient(
+                        colors: [_kSandDark, _kSandLight, _kSandGold],
+                      ).createShader(const Rect.fromLTWH(0, 0, 130, 36)),
                   ),
-                  child: Text(
-                    '$unreadTotal',
-                    style: GoogleFonts.cairo(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: _kBgCanvas,
+                ),
+                if (unreadTotal > 0) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [_kSandGold, _kSandDark]),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Color(0x44C49028), blurRadius: 8)],
+                    ),
+                    child: Text(
+                      '$unreadTotal',
+                      style: GoogleFonts.cairo(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _kBgCanvas,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-          const Spacer(),
-          // Mark all as read
-          GestureDetector(
-            onTap: () => setState(() {
-              for (final a in _alerts) { a.unread = false; }
-            }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                color: _kBgElevated,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _kSandBorder),
-                boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 8, offset: Offset(0, 2))],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.done_all_rounded, color: _kSandGold, size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.isArabic ? 'قراءة الكل' : 'Mark read',
-                    style: GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w700, color: _kTextSec),
-                  ),
                 ],
-              ),
+              ],
             ),
           ),
+          const SizedBox(width: 64),
         ],
       ),
     );
   }
 
-  // ── Gold shimmer divider ────────────────────────────────────────
+  // -- Gold shimmer divider ----------------------------------------
   Widget _buildGoldDivider() {
     return Container(
       height: 1,
@@ -254,7 +212,7 @@ class _AlertsScreenState extends State<AlertsScreen>
     );
   }
 
-  // ── Segmented tab bar ───────────────────────────────────────────
+  // -- Segmented tab bar -------------------------------------------
   Widget _buildTabBar() {
     return Container(
       height: 40,
@@ -314,9 +272,21 @@ class _AlertsScreenState extends State<AlertsScreen>
     );
   }
 
-  // ── Alert list with staggered animation ────────────────────────
+  // -- Alert list with staggered animation ------------------------
   Widget _buildAlertList() {
     final filtered = _filteredAlerts;
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          context.read<LocaleProvider>().isArabic ? 'لا توجد تنبيهات' : 'No alerts available',
+          style: GoogleFonts.cairo(
+            color: _kTextMuted,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
     // Group the alerts
     final groups = <String, List<_AlertData>>{};
     for (final a in filtered) {
@@ -345,7 +315,7 @@ class _AlertsScreenState extends State<AlertsScreen>
     );
   }
 
-  // ── Date group header ───────────────────────────────────────────
+  // -- Date group header -------------------------------------------
   Widget _buildDateHeader(String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 10),
@@ -387,9 +357,9 @@ class _AlertsScreenState extends State<AlertsScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 //  ALERT DATA MODEL
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 enum _AlertType { social, tournament, reward, progression, account, system }
 
 class _AlertData {
@@ -417,9 +387,9 @@ class _AlertData {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  ALERT CARD — Animated, with left accent bar + glow ring
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
+//  ALERT CARD � Animated, with left accent bar + glow ring
+// ------------------------------------------------------------------
 class _AlertCard extends StatefulWidget {
   final _AlertData data;
   final int index;
@@ -494,7 +464,7 @@ class _AlertCardState extends State<_AlertCard>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Left accent bar ──
+                  // -- Left accent bar --
                   Container(
                     width: 4,
                     decoration: BoxDecoration(
@@ -505,7 +475,7 @@ class _AlertCardState extends State<_AlertCard>
                       ),
                     ),
                   ),
-                  // ── Content ──
+                  // -- Content --
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
@@ -625,7 +595,7 @@ class _AlertCardState extends State<_AlertCard>
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: _kSandBorder),
             ),
-            child: Text('Decline', style: GoogleFonts.cairo(color: _kTextMuted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+            child: Text(context.read<LocaleProvider>().isArabic ? 'رفض' : 'Decline', style: GoogleFonts.cairo(color: _kTextMuted, fontSize: 10.5, fontWeight: FontWeight.w700)),
           ),
         ),
         const SizedBox(width: 6),
@@ -638,7 +608,7 @@ class _AlertCardState extends State<_AlertCard>
               borderRadius: BorderRadius.circular(20),
               boxShadow: const [BoxShadow(color: Color(0x44C49028), blurRadius: 8)],
             ),
-            child: Text('Accept', style: GoogleFonts.cairo(color: _kBgCanvas, fontSize: 10.5, fontWeight: FontWeight.w800)),
+            child: Text(context.read<LocaleProvider>().isArabic ? 'قبول' : 'Accept', style: GoogleFonts.cairo(color: _kBgCanvas, fontSize: 10.5, fontWeight: FontWeight.w800)),
           ),
         ),
       ],
@@ -646,7 +616,7 @@ class _AlertCardState extends State<_AlertCard>
   }
 }
 
-// ── Gold trapezoid back-button painters (matches game mode handle style) ──────
+// -- Gold trapezoid back-button painters (matches game mode handle style) ------
 
 class _BackHandlePainter extends CustomPainter {
   @override
@@ -770,3 +740,7 @@ class _BackChevronPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
+
+
+
+

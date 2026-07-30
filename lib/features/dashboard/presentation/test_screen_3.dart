@@ -1,15 +1,18 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
-import 'test_screen_5.dart';
-import 'test_screen_6.dart';
+import 'game_mode_screen.dart';
+import 'game_mode_result_screen.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 
-// ══════════════════════════════════════════════════════════════════
-//  TEST SCREEN 3 — Blue Clash-Royale-style Home Screen
+import 'package:provider/provider.dart';
+import 'package:baloot_game/core/l10n/locale_provider.dart';
+
+// ------------------------------------------------------------------
+//  TEST SCREEN 3 � Blue Clash-Royale-style Home Screen
 //  Fully translated from React/TSX Test 2
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 
 class GameModeModel {
   final String id;
@@ -31,37 +34,37 @@ const List<GameModeModel> kGameModes = [
   GameModeModel(
       id: 'normal',
       name: 'Normal Session',
-      icon: '🃏',
-      desc: '4 players • Classic Baloot',
+      icon: '??',
+      desc: '4 players � Classic Baloot',
       color: Color(0xFF4A90D9)),
   GameModeModel(
       id: 'friendly',
       name: 'Friendly Game',
-      icon: '🤝',
+      icon: '??',
       desc: 'Play with friends',
       color: Color(0xFF5BB96E)),
   GameModeModel(
       id: 'voice',
       name: 'Voice Session',
-      icon: '🎙️',
+      icon: '???',
       desc: 'With voice chat enabled',
       color: Color(0xFF9B59B6)),
   GameModeModel(
       id: 'create',
       name: 'Create Session',
-      icon: '➕',
+      icon: '?',
       desc: 'Custom game settings',
       color: Color(0xFFE8920E)),
   GameModeModel(
       id: 'sessions',
       name: 'Browse Sessions',
-      icon: '📋',
+      icon: '??',
       desc: 'Join existing games',
       color: Color(0xFFE74C3C)),
   GameModeModel(
       id: 'tournament',
       name: 'Tournament',
-      icon: '🏆',
+      icon: '??',
       desc: 'Compete for prizes',
       color: Color(0xFFF5A623)),
 ];
@@ -97,14 +100,14 @@ class _TestScreen3State extends State<TestScreen3>
       backgroundColor: const Color(0xFF0D2660),
       body: Stack(
         children: [
-          // ── Premium Quilted Background (Diamonds Only) ──
+          // -- Premium Quilted Background (Diamonds Only) --
           Positioned.fill(
             child: CustomPaint(
               painter: DiamondOnlyPainter(),
             ),
           ),
 
-          // ── Top Glow ──
+          // -- Top Glow --
           Positioned(
             top: 0,
             left: 0,
@@ -128,7 +131,7 @@ class _TestScreen3State extends State<TestScreen3>
             ),
           ),
 
-          // ── Main Content ──
+          // -- Main Content --
           SafeArea(
             bottom: false,
             child: Column(
@@ -145,13 +148,13 @@ class _TestScreen3State extends State<TestScreen3>
                 Expanded(
                   child: Stack(
                     children: [
-                      // ── Main content ──
+                      // -- Main content --
                       Column(
                         children: [
                           // Space above the battle row (like Test 3)
                           const Spacer(flex: 5),
 
-                          // ── Battle Row (Play button) ──
+                          // -- Battle Row (Play button) --
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: _BattleRow(
@@ -177,7 +180,7 @@ class _TestScreen3State extends State<TestScreen3>
                         ],
                       ),
 
-                      // ── Floating VIP side button ──
+                      // -- Floating VIP side button --
                       Positioned(
                         left: 16,
                         top: 12,
@@ -192,7 +195,7 @@ class _TestScreen3State extends State<TestScreen3>
             ),
           ),
 
-          // ── Game Mode Panel Overlay ──
+          // -- Game Mode Panel Overlay --
           if (_showModePanel)
             _GameModePanel(
               selectedModeId: _selectedModeId,
@@ -206,14 +209,14 @@ class _TestScreen3State extends State<TestScreen3>
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 //  COMPONENTS
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 
-// ══════════════════════════════════════════════════════════════════
-//  TOP BAR — Avatar (2x) with rank + Currency with custom icons
+// ------------------------------------------------------------------
+//  TOP BAR � Avatar (2x) with rank + Currency with custom icons
 //  Settings icon sits below currency row on the right.
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 
 class _TopBar extends StatelessWidget {
   final String username;
@@ -236,11 +239,11 @@ class _TopBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ── Profile chip (flexible width) ──
+          // -- Profile chip (flexible width) --
           Flexible(
             child: _avatarChip(),
           ),
-          // ── Currency bars with custom icons ──
+          // -- Currency bars with custom icons --
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -249,7 +252,7 @@ class _TopBar extends StatelessWidget {
                 children: [
                   _CRCurrencyBar(
                     value: coins,
-                    iconEmoji: '🪙',
+                    iconEmoji: '??',
                     barColor: const Color(0xFF3B2D10),
                     barBorder: const Color(0xFF7A6529),
                     btnColors: const [Color(0xFFD4AF37), Color(0xFFB8960B)],
@@ -257,14 +260,14 @@ class _TopBar extends StatelessWidget {
                   const SizedBox(width: 6),
                   _CRCurrencyBar(
                     value: gems,
-                    iconEmoji: '💎',
+                    iconEmoji: '??',
                     barColor: const Color(0xFF0D3326),
                     barBorder: const Color(0xFF2D7A5E),
                     btnColors: const [Color(0xFF4CAF50), Color(0xFF2E7D32)],
                   ),
                 ],
               ),
-              // ── Quick Menu button below gems ──
+              // -- Quick Menu button below gems --
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: _QuickMenuButton(),
@@ -289,7 +292,7 @@ class _TopBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Avatar circle ──
+          // -- Avatar circle --
           Container(
             width: 52,
             height: 52,
@@ -317,7 +320,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // ── Name + Rank ──
+          // -- Name + Rank --
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,11 +337,11 @@ class _TopBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                // ── Rank row ──
+                // -- Rank row --
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('⭐',
+                    const Text('?',
                         style:
                             TextStyle(fontSize: 13, color: Color(0xFFF5A623))),
                     const SizedBox(width: 4),
@@ -361,9 +364,9 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  VIP SIDE BUTTON — Clash Royale style floating round button.
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
+//  VIP SIDE BUTTON � Clash Royale style floating round button.
+// ------------------------------------------------------------------
 
 class _VipSideButton extends StatefulWidget {
   const _VipSideButton({required this.onTap});
@@ -470,9 +473,9 @@ class _VipSideButtonState extends State<_VipSideButton>
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 //  CLASH ROYALE-STYLE CURRENCY BAR
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 
 class _CRCurrencyBar extends StatelessWidget {
   const _CRCurrencyBar({
@@ -534,7 +537,7 @@ class _CRCurrencyBar extends StatelessWidget {
             ),
           ),
 
-          // ── Amount text ──
+          // -- Amount text --
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
@@ -548,7 +551,7 @@ class _CRCurrencyBar extends StatelessWidget {
             ),
           ),
 
-          // ── Currency emoji icon ──
+          // -- Currency emoji icon --
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: Text(iconEmoji, style: const TextStyle(fontSize: 16)),
@@ -559,9 +562,9 @@ class _CRCurrencyBar extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  QUICK MENU BUTTON — Hamburger opens a dropdown
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
+//  QUICK MENU BUTTON � Hamburger opens a dropdown
+// ------------------------------------------------------------------
 
 class _QuickMenuButton extends StatelessWidget {
   const _QuickMenuButton();
@@ -638,21 +641,21 @@ class _QuickMenuButton extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _crMenuItem(context: dialogContext, icon: Icons.history_rounded, label: 'Match History', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.history_rounded, label: context.read<LocaleProvider>().isArabic ? '??? ?????????' : 'Match History', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.emoji_events_rounded, label: 'Achievements', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.emoji_events_rounded, label: context.read<LocaleProvider>().isArabic ? '?????????' : 'Achievements', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.palette_rounded, label: 'Customisation', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.palette_rounded, label: context.read<LocaleProvider>().isArabic ? '???????' : 'Customisation', onTap: () {}),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: 'Settings', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: context.read<LocaleProvider>().isArabic ? '?????????' : 'Settings', onTap: () {}),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: 'Language', onTap: () {}),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: 'Help & Support', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: context.read<LocaleProvider>().isArabic ? '???????? ??????' : 'Help & Support', onTap: () {}),
                             const SizedBox(height: 4),
-                            _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: 'Privacy', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: context.read<LocaleProvider>().isArabic ? '????????' : 'Privacy', onTap: () {}),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: 'Log Out', onTap: () => Navigator.pop(dialogContext)),
+                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: context.read<LocaleProvider>().isArabic ? '????? ??????' : 'Log Out', onTap: () => Navigator.pop(dialogContext)),
                           ],
                         ),
                       ),
@@ -795,7 +798,7 @@ class _AchievementBadge extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('🎁', style: TextStyle(fontSize: 16, height: 1)),
+          const Text('??', style: TextStyle(fontSize: 16, height: 1)),
           Text(
             'DAILY',
             style: GoogleFonts.readexPro(
@@ -819,11 +822,11 @@ class _PlayerStats extends StatelessWidget {
         children: [
           const SizedBox(width: 48), // Space for absolute badge
           const _StatChip(
-              icon: '⚡', value: '20', label: 'XP', color: Color(0xFFF5C842)),
+              icon: '?', value: '20', label: 'XP', color: Color(0xFFF5C842)),
           const SizedBox(width: 6),
-          const _StatChip(icon: '❤️', value: '344', color: Color(0xFFE74C4C)),
+          const _StatChip(icon: '??', value: '344', color: Color(0xFFE74C4C)),
           const SizedBox(width: 6),
-          const _StatChip(icon: '⭐', value: '25,477', color: Color(0xFFF5A623)),
+          const _StatChip(icon: '?', value: '25,477', color: Color(0xFFF5A623)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -848,7 +851,7 @@ class _PlayerStats extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Text('🎖️', style: TextStyle(fontSize: 12)),
+                const Text('???', style: TextStyle(fontSize: 12)),
                 const SizedBox(width: 4),
                 Text(
                   'EXPERT',
@@ -1002,7 +1005,7 @@ class _ArenaDisplay extends StatelessWidget {
                         children: [
                           Text(
                             selectedMode.id == 'normal'
-                                ? '♠'
+                                ? '?'
                                 : selectedMode.icon,
                             style: TextStyle(
                               fontSize: 48,
@@ -1047,19 +1050,19 @@ class _ArenaDisplay extends StatelessWidget {
 
               // Corner cards (approximated positions)
               const Positioned(
-                  top: 20, left: 24, child: _Card(suit: '♠', rotate: -0.2)),
+                  top: 20, left: 24, child: _Card(suit: '?', rotate: -0.2)),
               const Positioned(
                   top: 20,
                   right: 24,
                   child:
-                      _Card(suit: '♥', rotate: 0.2, color: Color(0xFFE74C4C))),
+                      _Card(suit: '?', rotate: 0.2, color: Color(0xFFE74C4C))),
               const Positioned(
-                  bottom: 20, left: 24, child: _Card(suit: '♣', rotate: 0.14)),
+                  bottom: 20, left: 24, child: _Card(suit: '?', rotate: 0.14)),
               const Positioned(
                   bottom: 20,
                   right: 24,
                   child: _Card(
-                      suit: '♦', rotate: -0.14, color: Color(0xFFE74C4C))),
+                      suit: '?', rotate: -0.14, color: Color(0xFFE74C4C))),
 
               // Badges
               Positioned(
@@ -1110,7 +1113,7 @@ class _ArenaDisplay extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Text('🔥', style: TextStyle(fontSize: 11)),
+                      const Text('??', style: TextStyle(fontSize: 11)),
                       const SizedBox(width: 4),
                       Text(
                         'HOT',
@@ -1286,7 +1289,7 @@ class _BattleRowState extends State<_BattleRow>
                             width: 1.5),
                       ),
                       alignment: Alignment.center,
-                      child: const Text('♠',
+                      child: const Text('?',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 9,
@@ -1473,7 +1476,7 @@ class _TournamentBanner extends StatelessWidget {
                   color: const Color(0xFFF5A623).withValues(alpha: 0.4)),
             ),
             alignment: Alignment.center,
-            child: const Text('🏆', style: TextStyle(fontSize: 24)),
+            child: const Text('??', style: TextStyle(fontSize: 24)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1504,7 +1507,7 @@ class _TournamentBanner extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Live now · 342 players competing',
+                      'Live now � 342 players competing',
                       style: GoogleFonts.readexPro(
                           color: const Color(0xFF8DB4E8), fontSize: 11),
                     ),
@@ -1551,11 +1554,11 @@ class _BottomNav extends StatelessWidget {
   const _BottomNav({required this.activeTab, required this.onTabChange});
 
   final _tabs = const [
-    {'id': 'store', 'icon': '🛍️', 'label': 'Store'},
-    {'id': 'friends', 'icon': '👥', 'label': 'Friends'},
-    {'id': 'home', 'icon': '🏠', 'label': 'Home'},
-    {'id': 'chat', 'icon': '💬', 'label': 'Chat'},
-    {'id': 'trophy', 'icon': '🏆', 'label': 'Trophy'},
+    {'id': 'store', 'icon': '???', 'label': 'Store'},
+    {'id': 'friends', 'icon': '??', 'label': 'Friends'},
+    {'id': 'home', 'icon': '??', 'label': 'Home'},
+    {'id': 'chat', 'icon': '??', 'label': 'Chat'},
+    {'id': 'trophy', 'icon': '??', 'label': 'Trophy'},
   ];
 
   @override
@@ -2026,7 +2029,7 @@ class _GameModePanel extends StatelessWidget {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        '♠   PLAY NOW',
+                        '?   PLAY NOW',
                         style: GoogleFonts.readexPro(
                             color: const Color(0xFF3A1400),
                             fontSize: 17,
@@ -2045,9 +2048,9 @@ class _GameModePanel extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 //  PAINTERS
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 
 class _DiamondTilePainter extends CustomPainter {
   @override
@@ -2080,3 +2083,7 @@ class _DiamondTilePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+
+
+

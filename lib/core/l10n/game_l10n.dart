@@ -22,15 +22,15 @@ class GameL10n {
   }
 
   // ── Action bar ──
-  /// Round 1 pass — apps often use بس (Kammelna-style).
+  /// Round 1 pass — apps often use بس (Standard-style).
   String get pass => _ar ? 'بس' : 'Pass';
-  /// Round 2 only — Jawaker/Kammelna often use ولا instead of باس.
+  /// Round 2 only — Jawaker/Standard often use ولا instead of باس.
   String get passRound2 => _ar ? 'ولا' : 'Pass';
   String get hakam => _ar ? 'حكم' : 'Hakam';
   /// Round 2: choose a new trump (not buyer-card suit). Same action as suit-picker Hakam.
   String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
   String get sun => _ar ? 'صن' : 'Sun';
-  String get qabalk => _ar ? 'قبلك' : 'Qabalk';
+  String get qablak => _ar ? 'قبلك' : 'Qablak';
   String get sawa => _ar ? 'سوى' : 'Sawa';
   /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
   String get sawaBidShort => sawa;
@@ -82,6 +82,22 @@ class GameL10n {
       'Hakam' => 'حكم',
       '—' => '—',
       _ => engineLabel,
+    };
+  }
+
+  String botName(String name) {
+    if (_ar) return name;
+    return switch (name) {
+      'طلال' => 'Talal',
+      'فهد' => 'Fahad',
+      'فيصل' => 'Faisal',
+      'سلمان' => 'Salman',
+      'سعود' => 'Saud',
+      'نواف' => 'Nawaf',
+      'ريان' => 'Rayan',
+      'ماجد' => 'Majed',
+      'خالد' => 'Khaled',
+      _ => name,
     };
   }
 

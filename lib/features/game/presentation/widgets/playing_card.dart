@@ -136,20 +136,27 @@ class PlayingCard extends StatelessWidget {
     final path =
         showFace ? AppAssets.cardImage(card!) : backAssetPath(back);
 
+    // Cache at the exact pixel size for THIS screen's density
+    // Only apply cacheWidth/cacheHeight to face-up cards (1x only).
+    // Card backs have 2.0x/3.0x variants — let Flutter pick the right one
+    // and render at full resolution to avoid blurriness.
     final dpr = MediaQuery.devicePixelRatioOf(context);
+
     Widget imageWidget = Image.asset(
       path,
       width: _w,
       height: _h,
       fit: showFace ? BoxFit.fill : BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-      // Show a placeholder card outline if image fails to load
+      filterQuality: FilterQuality.high,
+      isAntiAlias: true,
+      cacheWidth: showFace ? (_w * dpr).round() : null,
+      cacheHeight: showFace ? (_h * dpr).round() : null,
       errorBuilder: (_, __, ___) => _errorPlaceholder(),
     );
 
-
-
-    return imageWidget;
+    // Wrap in RepaintBoundary so Flutter caches the rasterized card
+    // and avoids re-drawing on every frame (parent animations, fans, etc.)
+    return RepaintBoundary(child: imageWidget);
   }
 
   Widget _errorPlaceholder() {

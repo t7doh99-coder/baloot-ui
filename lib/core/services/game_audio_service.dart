@@ -1,19 +1,28 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 
 // ══════════════════════════════════════════════════════════════════
-//  GAME AUDIO SERVICE — Voice callouts for game actions
+//  GAME AUDIO SERVICE — Voice callouts and sound effects
 //
-//  Plays short voice clips (English or Arabic) when players bid,
-//  declare projects, or trigger other game events. Clips live in:
-//    • assets/audio/en/voice1/  (English pack)
-//    • assets/audio/ar/voice1/  (Arabic pack)
+//  Two separate strategies:
 //
-//  Both packs share identical filenames so switching language
-//  only changes the base path.
+//  Strategy A — VOICE CALLS (playBubble, playYourTurn, etc.)
+//    • Single persistent AudioPlayer with ReleaseMode.stop
+//    • Calls .stop() before every .play() to reset from completed state
+//    • New voice interrupts previous one (intentional behaviour)
+//
+//  Strategy B — SOUND EFFECTS (playEffect)
+//    • Fresh AudioPlayer created on every call
+//    • ReleaseMode.release so player auto-disposes when sound ends
+//    • Guaranteed to play every time — no shared state, no pool conflicts
+//
+//  Card Select — DEDICATED PLAYER
+//    • Single persistent AudioPlayer for card select/deselect sounds
+//    • Stops previous sound before playing new one (no stacking)
+//    • Prevents sounds from continuing after match ends
 // ══════════════════════════════════════════════════════════════════
 
 class GameAudioService {
-  final AudioPlayer _player = AudioPlayer();
   bool _muted = false;
 
   /// Current language code: 'en' or 'ar'
@@ -22,31 +31,36 @@ class GameAudioService {
   bool get isMuted => _muted;
   String get langCode => _langCode;
 
+  /// Dedicated player for card select/deselect — reused to prevent stacking.
+  AudioPlayer? _cardSelectPlayer;
+
+  GameAudioService();
+
   void setMuted(bool muted) {
     _muted = muted;
-    if (muted) _player.stop();
   }
 
   void toggleMute() => setMuted(!_muted);
 
   /// Switch voice pack language. Call this when the user toggles locale.
-  /// Both 'en' and 'ar' voice packs use the same filenames.
   void setLanguage(String langCode) {
     _langCode = langCode;
   }
 
   // ── Bubble key → audio file mapping ──
-  // Keys match the English tokens passed to GameProvider._showBubble()
   static const Map<String, String> _bubbleToFile = {
     'Hakam':  'hokum.mp3',
     'Sun':    'sun.mp3',
     'Pass':   'pass.mp3',
-    'PassR2': 'pass.mp3',      // Same clip for both pass types
+    'PassR2': 'wala.mp3',
     'Double': 'double.mp3',
     'Triple': 'triple.mp3',
     'Four':   'four.mp3',
+    'Gahwa':  'ghawa.mp3',
+    'Sawa':   'ghawa.mp3',
     'Baloot': 'baloot.mp3',
     'Ashkal': 'ashkal.mp3',
+    'Qablak': 'qablak.mp3',
     'Sera':   'sera.mp3',
     '50':     'fifty.mp3',
     '100':    'hundread.mp3',
@@ -54,22 +68,21 @@ class GameAudioService {
     'Akka':   'akka.mp3',
     'Awal':   'awal.mp3',
     'Thani':  'thani.mp3',
-    'Qaid':   'locked.mp3',    // "Locked" voice for leading a trick
+    'Qaid':   'locked.mp3',
   };
 
-  // ── Special event clips (not tied to bubble keys) ──
-  static const String _yourTurnFile         = 'your_turn.mp3';
-  static const String _youWinFile           = 'you_win.mp3';
-  static const String _youLoseFile          = 'better_luck_next_time.mp3';
-  static const String _wellDoneFile         = 'well_done.mp3';
-  static const String _kablootFile          = 'kabloot.mp3';
-  static const String _ghawaFile            = 'ghawa.mp3';
+  // ── Special event clips ──
+  static const String _yourTurnFile = 'your_turn.mp3';
+  static const String _youWinFile   = 'you_win.mp3';
+  static const String _youLoseFile  = 'better_luck_next_time.mp3';
+  static const String _wellDoneFile = 'well_done.mp3';
+  static const String _kablootFile  = 'kabloot.mp3';
+  static const String _ghawaFile    = 'ghawa.mp3';
 
   /// Dynamic base path — switches between en/ar based on current language.
   String get _basePath => 'audio/$_langCode/voice1';
 
   /// Play the voice clip associated with a speech bubble key.
-  /// Silently no-ops if the key has no mapped file or audio is muted.
   void playBubble(String bubbleKey) {
     if (_muted) return;
 
@@ -81,8 +94,6 @@ class GameAudioService {
 
     String? file = _bubbleToFile[key];
 
-    // Robust fuzzy & substring matching for Arabic tokens, suit suffixes,
-    // compound declarations ('Sera & 50'), and custom bidding tokens ('Qabalk')
     if (file == null) {
       final k = bubbleKey.toLowerCase();
       if (k.contains('سرا') || k.contains('sera')) {
@@ -99,7 +110,9 @@ class GameAudioService {
         file = 'akka.mp3';
       } else if (k.contains('ashkal') || k.contains('أشكال')) {
         file = 'ashkal.mp3';
-      } else if (k.contains('sun') || k.contains('صن') || k.contains('qabalk') || k.contains('قبلك')) {
+      } else if (k.contains('qabalk') || k.contains('qablak') || k.contains('قبلك')) {
+        file = 'qablak.mp3';
+      } else if (k.contains('sun') || k.contains('صن')) {
         file = 'sun.mp3';
       } else if (k.contains('hakam') || k.contains('حكم') || k.contains('hokum')) {
         file = 'hokum.mp3';
@@ -109,6 +122,10 @@ class GameAudioService {
         file = 'triple.mp3';
       } else if (k.contains('four') || k.contains('أربعة')) {
         file = 'four.mp3';
+      } else if (k.contains('gahwa') || k.contains('قهوة') || k.contains('ghawa')) {
+        file = 'ghawa.mp3';
+      } else if (k.contains('passr2') || k.contains('wala') || k.contains('ولا')) {
+        file = 'wala.mp3';
       } else if (k.contains('pass') || k.contains('بس')) {
         file = 'pass.mp3';
       } else if (k.contains('awal') || k.contains('أول')) {
@@ -121,41 +138,128 @@ class GameAudioService {
     }
 
     if (file == null) return;
-    _playAsset(file);
+    _playVoice(file);
   }
 
-  /// Play "Your turn" notification.
-  void playYourTurn() => _playAsset(_yourTurnFile);
+  void playYourTurn() => _playVoice(_yourTurnFile);
+  void playYouWin()   => _playVoice(_youWinFile);
+  void playYouLose()  => _playVoice(_youLoseFile);
+  void playWellDone() => _playVoice(_wellDoneFile);
+  void playKabloot()  => _playVoice(_kablootFile);
+  void playGhawa()    => _playVoice(_ghawaFile);
 
-  /// Play "You win!" victory clip.
-  void playYouWin() => _playAsset(_youWinFile);
+  // Pool of persistent players for voices. Allows overlapping voices (like rapid bot bids)
+  // without exhausting the native audio track limit (which happens if we spawn a new player every time).
+  final List<AudioPlayer> _voicePlayers = [];
+  int _nextVoicePlayerIndex = 0;
+  static const int _maxVoicePlayers = 2;
 
-  /// Play "Better luck next time" defeat clip.
-  void playYouLose() => _playAsset(_youLoseFile);
-
-  /// Play "Well done" positive reinforcement.
-  void playWellDone() => _playAsset(_wellDoneFile);
-
-  /// Play "Kabloot" when a kaboot penalty is triggered.
-  void playKabloot() => _playAsset(_kablootFile);
-
-  /// Play "Ghawa" social/celebration voice clip.
-  void playGhawa() => _playAsset(_ghawaFile);
-
-  void _playAsset(String fileName) {
+  // ── Voice playback — round-robin pool to allow overlap safely ──
+  void _playVoice(String fileName) {
     if (_muted) return;
-    // Stop any currently playing clip to avoid overlap
-    _player.stop();
-    _player.play(AssetSource('$_basePath/$fileName'));
+
+    try {
+      if (_voicePlayers.isEmpty) {
+        _voicePlayers.add(AudioPlayer()..setReleaseMode(ReleaseMode.stop));
+      } else if (_voicePlayers.length < _maxVoicePlayers &&
+          _nextVoicePlayerIndex == 0) {
+        _voicePlayers.add(AudioPlayer()..setReleaseMode(ReleaseMode.stop));
+      }
+
+      final player = _voicePlayers[_nextVoicePlayerIndex % _voicePlayers.length];
+      _nextVoicePlayerIndex = (_nextVoicePlayerIndex + 1) % _voicePlayers.length;
+
+      player.play(AssetSource('$_basePath/$fileName')).catchError((e) {
+        debugPrint('[Audio] playVoice error ($fileName): $e');
+      });
+    } catch (e) {
+      debugPrint('[Audio] playVoice setup error ($fileName): $e');
+    }
   }
 
-  /// Stop any currently playing audio clip immediately.
+  // ── Card select sound — single player, interrupts previous ──
+  /// Play the card select/deselect sound.
+  /// Uses a dedicated persistent player: if the previous sound is still
+  /// playing, it is stopped first. This prevents sound stacking on rapid taps.
+  void playCardSelect() {
+    if (_muted) return;
+
+    _cardSelectPlayer ??= AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+
+    // AudioPlayer.play() automatically and safely stops the previous playback
+    // at the native level. Calling stop() manually with async chains causes
+    // state-machine crashes if the user rapidly spams the card selection.
+    _cardSelectPlayer!.play(AssetSource('audio/effects/card select sound.mp3')).catchError((e) {
+      debugPrint('[Audio] playCardSelect error: $e');
+    });
+  }
+
+  // Pool of persistent players for sound effects (cards, UI).
+  // Keep this SMALL — spawning many AudioPlayers at once OOMs / stalls
+  // native audio on low-end Samsung A-series and can leave the game hung
+  // during the opening deal.
+  final List<AudioPlayer> _effectPlayers = [];
+  int _nextEffectPlayerIndex = 0;
+  static const int _maxEffectPlayers = 2;
+
+  // ── Sound effects — round-robin pool to guarantee overlapping without crashing ──
+  /// Play a sound effect from the effects folder safely.
+  void playEffect(String fileName) {
+    if (_muted) return;
+
+    try {
+      if (_effectPlayers.isEmpty) {
+        // Create one player first; grow lazily up to [_maxEffectPlayers].
+        _effectPlayers.add(AudioPlayer()..setReleaseMode(ReleaseMode.stop));
+      } else if (_effectPlayers.length < _maxEffectPlayers &&
+          _nextEffectPlayerIndex == 0) {
+        _effectPlayers.add(AudioPlayer()..setReleaseMode(ReleaseMode.stop));
+      }
+
+      final player = _effectPlayers[_nextEffectPlayerIndex % _effectPlayers.length];
+      _nextEffectPlayerIndex =
+          (_nextEffectPlayerIndex + 1) % _effectPlayers.length;
+
+      player.play(AssetSource('audio/effects/$fileName')).catchError((e) {
+        debugPrint('[Audio] playEffect error ($fileName): $e');
+      });
+    } catch (e) {
+      debugPrint('[Audio] playEffect setup error ($fileName): $e');
+    }
+  }
+
+  /// Play the golden game button touch sound
+  void playGoldButton() => playEffect('golen gaem button touch sound.mp3');
+
+  /// Play the normal game button touch sound
+  void playNormalButton() => playEffect('normal game button touch sound.mp3');
+
+  /// Stop all currently playing audio immediately.
   void stop() {
-    _player.stop();
+    // Stop the dedicated players
+    _cardSelectPlayer?.stop();
+    for (final player in _voicePlayers) {
+      player.stop();
+    }
+    for (final player in _effectPlayers) {
+      player.stop();
+    }
   }
 
-  /// Release the audio player resources.
+  /// Release all audio player resources.
   void dispose() {
-    _player.dispose();
+    stop();
+    _cardSelectPlayer?.dispose();
+    _cardSelectPlayer = null;
+    
+    for (final player in _voicePlayers) {
+      player.dispose();
+    }
+    _voicePlayers.clear();
+    
+    for (final player in _effectPlayers) {
+      player.dispose();
+    }
+    _effectPlayers.clear();
   }
 }

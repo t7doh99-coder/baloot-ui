@@ -15,9 +15,9 @@ import '../../game/presentation/table_background_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'new_home_screen_preview.dart';
 import 'test_screen_3.dart';
-import 'test_screen_4.dart';
-import 'test_screen_5.dart';
-import 'test_screen_6.dart';
+import 'home_screen.dart';
+import 'game_mode_screen.dart';
+import 'game_mode_result_screen.dart';
 // ══════════════════════════════════════════════════════════════════
 //  NAVIGATION SHELL — Modern Game Hub
 //
@@ -109,7 +109,9 @@ class _NavigationShellState extends State<NavigationShell>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '$feature — Coming Soon!',
+          context.read<LocaleProvider>().isArabic
+              ? '$feature — قريباً!'
+              : '$feature — Coming Soon!',
           style: GoogleFonts.readexPro(
             color: Colors.white,
             fontWeight: FontWeight.w600,
@@ -130,7 +132,9 @@ class _NavigationShellState extends State<NavigationShell>
     final isArabic = locale.isArabic;
 
     // Tab names for Coming Soon
-    const tabNames = ['Shop', 'Community', 'Home', 'Chat', 'Leagues'];
+    final tabNames = isArabic
+        ? ['المتجر', 'المجتمع', 'الرئيسية', 'الدردشة', 'الدوريات']
+        : ['Shop', 'Community', 'Home', 'Chat', 'Leagues'];
 
     return Scaffold(
       backgroundColor: AppColors.antigravityBlack,
@@ -1038,11 +1042,10 @@ class _GameModesSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          // ── Options: unified style ──
           _SheetOption(
             icon: Icons.play_arrow_rounded,
             title: isArabic ? 'العب بلوت' : 'Play Baloot',
-            subtitle: isArabic ? 'كلاسيكي — ١٥٢ نقطة' : 'Classic — 152 pts',
+            subtitle: isArabic ? 'كلاسيكي' : 'Classic',
             onTap: () { Navigator.pop(context); onPlayNow(); },
           ),
 
@@ -1425,99 +1428,6 @@ class _QuickMenuButton extends StatelessWidget {
                           onSettings();
                         },
                       ),
-                      _divider(),
-                      // ── Test 1 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ١' : 'Test 1',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => Scaffold(
-                                backgroundColor: Colors.black,
-                                body: NewHomeScreenPreview(isArabic: isArabic),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      _divider(),
-                      // ── Test 2 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.science_outlined, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ٢' : 'Test 2',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => TestScreen3(isArabic: isArabic),
-                            ),
-                          );
-                        },
-                      ),
-                      _divider(),
-                      // ── Test 3 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ٣' : 'Test 3',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => TestScreen4(isArabic: isArabic),
-                            ),
-                          );
-                        },
-                      ),
-                      _divider(),
-                      // ── Test 4 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ٤' : 'Test 4',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => TestScreen5(isArabic: isArabic),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      // ── Test 5 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.science_rounded, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ٥' : 'Test 5',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => TestScreen5(isArabic: isArabic),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      // ── Test 6 ──
-                      _menuItem(
-                        isArabic: isArabic,
-                        icon: const Icon(Icons.workspace_premium_rounded, size: 18, color: AppColors.royalGold),
-                        label: isArabic ? 'اختبار ٦' : 'Test 6',
-                        onTap: () {
-                          Navigator.of(dialogContext).pop();
-                          Navigator.of(dialogContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => TestScreen6(isArabic: isArabic),
-                            ),
-                          );
-                        },
-                      ),
                     ],
                   ),
                 ),
@@ -1635,3 +1545,4 @@ class _ComingSoonPage extends StatelessWidget {
     );
   }
 }
+

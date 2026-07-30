@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../../core/widgets/custom_player_avatar.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 import 'package:provider/provider.dart';
 
@@ -58,6 +62,25 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen>
   void dispose() {
     _avatarCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        final directory = await getApplicationDocumentsDirectory();
+        final path = directory.path;
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+        final savedImage = await File(pickedFile.path).copy('$path/$fileName');
+        
+        if (mounted) {
+          context.read<GameProvider>().updatePlayerAvatar(savedImage.path);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+    }
   }
 
   @override
@@ -361,15 +384,38 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen>
           },
         ),
         // Avatar Inner Circle
-        Container(
-          width: 80, height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const RadialGradient(colors: [_kBgElevated, _kBgCard]),
-            border: Border.all(color: _kBgCard, width: 2),
-            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10)],
-          ),
-          child: const Icon(Icons.person, size: 46, color: Color(0x80C8A868)),
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(colors: [_kBgElevated, _kBgCard]),
+                border: Border.all(color: _kBgCard, width: 2),
+                boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 10)],
+              ),
+              child: ClipOval(
+                child: CustomPlayerAvatar(
+                  seatIndex: 0,
+                  customAvatarPath: context.watch<GameProvider>().playerStats.customAvatarPath,
+                ),
+              ),
+            ),
+            // Edit Badge
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _kSandGold,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _kBgCard, width: 2),
+                ),
+                child: const Icon(Icons.edit, size: 14, color: _kBgCanvas),
+              ),
+            ),
+          ],
         ),
       ],
     );

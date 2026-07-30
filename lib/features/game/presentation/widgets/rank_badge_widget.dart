@@ -39,12 +39,14 @@ class RankBadgeWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.shield, // We can use custom SVGs later, standard icon for now
-            color: rank.badgeColor,
-            size: compact ? 16 : 24,
-          ),
-          SizedBox(width: compact ? 6 : 10),
+          if (rank.mainRank != MainRank.beginner) ...[
+            Icon(
+              Icons.shield,
+              color: rank.badgeColor,
+              size: compact ? 16 : 24,
+            ),
+            SizedBox(width: compact ? 6 : 10),
+          ],
           Text(
             name,
             style: TextStyle(
@@ -53,8 +55,10 @@ class RankBadgeWidget extends StatelessWidget {
               fontSize: compact ? 12 : 16,
             ),
           ),
-          SizedBox(width: compact ? 4 : 8),
-          _buildSuitIcons(),
+          if (rank.mainRank != MainRank.beginner) ...[
+            SizedBox(width: compact ? 4 : 8),
+            _buildSuitIcons(),
+          ],
         ],
       ),
     );

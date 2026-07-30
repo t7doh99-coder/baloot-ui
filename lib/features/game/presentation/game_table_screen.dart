@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -68,6 +69,8 @@ class GameTableScreen extends StatefulWidget {
 
 class _GameTableScreenState extends State<GameTableScreen> {
   int _mapIndex = 0;
+  Timer? _dealingWatchdog;
+  bool _didPlayRoundStartSound = false;
 
   static const List<String> _majlisMapPaths = [
     AppAssets.majlisTableMap2,
@@ -75,10 +78,47 @@ class _GameTableScreenState extends State<GameTableScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final game = context.read<GameProvider>();
+      // Resume turn loop now that the table UI is on screen.
+      game.onTableReady();
+      _armDealingWatchdog(game);
+      _playRoundStartSoundDeferred(game);
+    });
+  }
+
+  void _armDealingWatchdog(GameProvider game) {
+    _dealingWatchdog?.cancel();
+    if (game.phase != GamePhase.dealing) return;
+    // Belt-and-suspenders: loading should have finished dealing already.
+    _dealingWatchdog = Timer(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      final g = context.read<GameProvider>();
+      if (g.phase == GamePhase.dealing) {
+        debugPrint('[GameTable] dealing watchdog fired');
+        g.ensureDealingAdvances(force: true);
+      }
+    });
+  }
+
+  void _playRoundStartSoundDeferred(GameProvider game) {
+    if (_didPlayRoundStartSound) return;
+    if (game.phase == GamePhase.dealing) return;
+    _didPlayRoundStartSound = true;
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      context.read<GameProvider>().audioService.playEffect(
+            'round  start card sound.mp3',
+          );
+    });
+  }
+
+  @override
   void dispose() {
-    try {
-      context.read<GameProvider>().leaveTable();
-    } catch (_) {}
+    _dealingWatchdog?.cancel();
     super.dispose();
   }
 
@@ -250,8 +290,13 @@ class _GameTableScreenState extends State<GameTableScreen> {
   Widget build(BuildContext context) {
     context.watch<LocaleProvider>();
     final game = context.watch<GameProvider>();
-    // Sync voice pack and player names language with current locale
-    game.setLanguage(context.read<LocaleProvider>().isArabic ? 'ar' : 'en');
+    final lang = context.read<LocaleProvider>().isArabic ? 'ar' : 'en';
+    if (game.audioService.langCode != lang) {
+      // Defer — never notify GameProvider during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<GameProvider>().setLanguage(lang);
+      });
+    }
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
@@ -363,7 +408,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
               right: 10,
               child: const LastTrickMiniWidget(),
             ),
-          // Kammelna-style: persistent Double/Triple/Four badge during play
+          // Standard-style: persistent Double/Triple/Four badge during play
           if (game.doubleStatus != DoubleStatus.none &&
               (game.phase == GamePhase.playing || game.phase == GamePhase.scoring))
             Positioned(
@@ -372,19 +417,19 @@ class _GameTableScreenState extends State<GameTableScreen> {
               right: 0,
               child: Center(child: _DoubleBadge(status: game.doubleStatus)),
             ),
-          // Show overlay whenever a round result exists
-          // (engine goes scoring→dealing in one step, so we match on result != null)
-          if (game.lastRoundResult != null && game.phase != GamePhase.gameOver)
-            const RoundScoreOverlay(),
-          if (game.phase == GamePhase.gameOver) const GameOverOverlay(),
+          // Show overlay whenever a round result exists (prioritize round scoreboard)
+          if (game.lastRoundResult != null)
+            const RoundScoreOverlay()
+          else if (game.showGameOverOverlay)
+            const GameOverOverlay(),
 
-          // Qaid (Violation) Banner — Kammelna-style
+          // Qaid (Violation) Banner — Standard-style
           if (game.qaidViolationMessage != null)
             _QaidViolationBanner(
               message: game.qaidViolationMessage!,
               onDismiss: () => context.read<GameProvider>().clearQaidViolation(),
             ),
-          // Qaid Claim Result Banner — Kammelna manual flag result
+          // Qaid Claim Result Banner — Standard manual flag result
           if (game.qaidClaimResult != null)
             _QaidClaimResultBanner(
               isCorrect: game.qaidClaimResult == 'correct',
@@ -427,8 +472,14 @@ class _PlayArea extends StatelessWidget {
 
       final rugLeft = seatColW + seatColPad;
 
-      return Stack(
-        clipBehavior: Clip.none,
+      return GestureDetector(
+        onTap: () {
+          final g = context.read<GameProvider>();
+          if (g.selectedCard != null) g.clearSelection();
+        },
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          clipBehavior: Clip.none,
         children: [
           // Table area
           Positioned(
@@ -508,7 +559,7 @@ class _PlayArea extends StatelessWidget {
               ),
             ),
         ],
-      );
+      ));
     });
   }
 }
@@ -619,7 +670,7 @@ class _StartBtn extends StatelessWidget {
 //  dealing          │ (none)
 //  bidding R1       │ Sun · Hakam · Ashkal? · Pass · Sawa? (Sawa = defenders after Hakam)
 //  bidding R2       │ Sun · Second Hakam (suit) · ولا · then Pass/Sawa when bid pending
-//  hakamConfirmation│ Confirm Hakam · Switch to Sun (R1 Hakam or R2 Second Hakam — Visca/Kammelna)
+//  hakamConfirmation│ Confirm Hakam · Switch to Sun (R1 Hakam or R2 Second Hakam — Visca/Standard)
 //  doubleWindow     │ Pass · Double · Four · Gahwa
 //                   │ (only defending team; Hakam mode; or Sun >100 rule)
 //  playing trick 1  │ Projects (8s pre-lead — you only); Majlis shows your 8s ring
@@ -814,11 +865,18 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final canAshkal = (0 == dealer || 0 == sane);
 
       return [
-        _GameBtn(label: gp.hasActiveHakamBid ? loc.qabalk : loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
         if (!gp.hasActiveHakamBid)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (!gp.hasActiveHakamBid && canAshkal)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
+        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
+      ];
+    }
+
+    if (bp == BiddingPhase.qablakIntervention) {
+      return [
+        _GameBtn(label: loc.qablak, onTap: () => gp.humanBid(BidAction.qablak)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -833,7 +891,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     if (widget.game.hasRound2PendingBid) {
       final isHakam = widget.game.activeRound2PendingMode == GameMode.hakam;
       return [
-        if (isHakam) _GameBtn(label: loc.qabalk, onTap: () => gp.humanBid(BidAction.sun)),
+        if (isHakam) _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
         _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
@@ -1155,6 +1213,7 @@ class _GameBtnState extends State<_GameBtn>
   }
 
   void _handleTap() {
+    context.read<GameProvider>().audioService.playGoldButton();
     HapticFeedback.lightImpact();
     widget.onTap();
   }
@@ -1251,7 +1310,7 @@ class _GameBtnState extends State<_GameBtn>
 
 
 // -------------------------------------------------------------------------
-//  QAID (VIOLATION) BANNER — Kammelna-style red flash
+//  QAID (VIOLATION) BANNER — Standard-style red flash
 //  Shows when the human tries to play an illegal card.
 // -------------------------------------------------------------------------
 
@@ -1311,7 +1370,7 @@ class _QaidViolationBannerState extends State<_QaidViolationBanner>
 }
 
 // -------------------------------------------------------------------------
-//  QAID CLAIM RESULT BANNER — Kammelna manual flag result
+//  QAID CLAIM RESULT BANNER — Standard manual flag result
 //  Shows whether the Qaid claim was correct or false.
 // -------------------------------------------------------------------------
 
@@ -1419,7 +1478,7 @@ class _QaidClaimResultBannerState extends State<_QaidClaimResultBanner>
 }
 
 // ══════════════════════════════════════════════════════════════════
-// DOUBLE STATUS BADGE (Kammelna-style)
+// DOUBLE STATUS BADGE (Standard-style)
 //
 // Persistent floating pill shown on the table during play when a
 // Double/Triple/Four is active. Includes a subtle pulse animation.
@@ -1492,7 +1551,7 @@ class _DoubleBadgeState extends State<_DoubleBadge>
                   color: color,
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
-                  fontFamily: 'Tajawal',
+                  fontFamily: GoogleFonts.readexPro().fontFamily,
                 ),
               ),
               const SizedBox(width: 6),
@@ -1502,7 +1561,7 @@ class _DoubleBadgeState extends State<_DoubleBadge>
                   color: Colors.white.withValues(alpha: 0.95),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  fontFamily: 'Tajawal',
+                  fontFamily: GoogleFonts.readexPro().fontFamily,
                 ),
               ),
             ],

@@ -9,11 +9,11 @@ import 'game_provider.dart';
 import 'game_table_screen.dart';
 
 // ══════════════════════════════════════════════════════════════════
-//  GAME LOADING SCREEN — 3-Second Transition & Initialization
+//  GAME LOADING SCREEN — Wait-until-ready Transition
 //
-//  Shows a premium Sandstone Dark loading interface with pulsing suit
-//  animations when the player presses Play. After exactly 3 seconds,
-//  it initializes the game engine and transitions cleanly to the table.
+//  Stays visible until the match engine has finished the opening deal
+//  (phase past dealing). A short minimum display keeps the branding
+//  from flashing on fast phones; slow phones simply stay longer.
 // ══════════════════════════════════════════════════════════════════
 
 class GameLoadingScreen extends StatefulWidget {
@@ -27,10 +27,14 @@ class GameLoadingScreen extends StatefulWidget {
 
 class _GameLoadingScreenState extends State<GameLoadingScreen>
     with SingleTickerProviderStateMixin {
-  Timer? _timer;
   late final AnimationController _animController;
   int _activeSuitIndex = 0;
   Timer? _suitTimer;
+  bool _navigating = false;
+  String _statusKey = 'preparing'; // preparing | dealing | ready
+
+  static const _minDisplay = Duration(milliseconds: 1800);
+  static const _hardTimeout = Duration(seconds: 10);
 
   static const _suits = ['♠', '♥', '♣', '♦'];
   static const _suitColors = [
@@ -56,29 +60,77 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
       }
     });
 
-    // Exactly 3 seconds loading as requested
-    _timer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      final game = context.read<GameProvider>();
-      
-      // Start the game right when showing the game screen
-      game.startGame(difficulty: widget.difficulty);
-
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => const GameTableScreen(),
-          transitionsBuilder: (_, anim, __, child) {
-            return FadeTransition(opacity: anim, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
-      );
+    // Start prep after first frame so the loading UI paints immediately.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prepareAndNavigate();
     });
+  }
+
+  Future<void> _prepareAndNavigate() async {
+    if (!mounted || _navigating) return;
+    final started = DateTime.now();
+    final game = context.read<GameProvider>();
+    final isAr = context.read<LocaleProvider>().isArabic;
+
+    game.setLanguage(isAr ? 'ar' : 'en');
+
+    try {
+      if (mounted) setState(() => _statusKey = 'preparing');
+      await game.prepareMatchForTable(difficulty: widget.difficulty);
+
+      // Poll briefly if somehow still dealing (should be rare).
+      var attempts = 0;
+      while (mounted &&
+          !game.isMatchReady &&
+          DateTime.now().difference(started) < _hardTimeout &&
+          attempts < 20) {
+        if (mounted) setState(() => _statusKey = 'dealing');
+        game.ensureDealingAdvances(force: true);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        attempts++;
+      }
+    } catch (e, st) {
+      debugPrint('[GameLoading] prepare failed: $e\n$st');
+      try {
+        if (!game.isMatchReady) {
+          game.ensureDealingAdvances(force: true);
+        }
+      } catch (_) {}
+    }
+
+    // Keep branding on screen at least [_minDisplay], even on fast devices.
+    final elapsed = DateTime.now().difference(started);
+    if (elapsed < _minDisplay) {
+      await Future<void>.delayed(_minDisplay - elapsed);
+    }
+
+    if (!mounted || _navigating) return;
+
+    // Never open the table while still stuck in dealing.
+    if (!game.isMatchReady) {
+      debugPrint('[GameLoading] still not ready after timeout — forcing');
+      game.ensureDealingAdvances(force: true);
+    }
+
+    if (mounted) setState(() => _statusKey = 'ready');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    if (!mounted || _navigating) return;
+    _navigating = true;
+
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => const GameTableScreen(),
+        transitionsBuilder: (_, anim, __, child) {
+          return FadeTransition(opacity: anim, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _suitTimer?.cancel();
     _animController.dispose();
     super.dispose();
@@ -86,9 +138,17 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
 
   String _difficultyLabel(BotDifficulty d, bool isAr) {
     return switch (d) {
-      BotDifficulty.easy => isAr ? 'سهل' : 'Easy',
-      BotDifficulty.medium => isAr ? 'متوسط' : 'Medium',
-      BotDifficulty.hard => isAr ? 'صعب' : 'Hard',
+      BotDifficulty.easy => isAr ? 'مبتدئ' : 'Beginner',
+      BotDifficulty.medium => isAr ? 'عادي' : 'Regular',
+      BotDifficulty.hard => isAr ? 'خبير' : 'Expert',
+    };
+  }
+
+  String _statusText(bool isAr) {
+    return switch (_statusKey) {
+      'dealing' => isAr ? 'جاري توزيع الأوراق...' : 'Dealing cards...',
+      'ready' => isAr ? 'الطاولة جاهزة' : 'Table ready',
+      _ => isAr ? 'جاري تحضير الطاولة...' : 'Preparing Match...',
     };
   }
 
@@ -114,23 +174,10 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // Top back button to cancel search if desired
-              Positioned(
-                top: 12,
-                left: isAr ? null : 16,
-                right: isAr ? 16 : null,
-                child: IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 28),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-
-              // Center content
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Glowing gold ring with suits
                     AnimatedBuilder(
                       animation: _animController,
                       builder: (context, child) {
@@ -159,9 +206,13 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
                           child: Center(
                             child: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 250),
-                              transitionBuilder: (child, anim) => ScaleTransition(
+                              transitionBuilder: (child, anim) =>
+                                  ScaleTransition(
                                 scale: anim,
-                                child: FadeTransition(opacity: anim, child: child),
+                                child: FadeTransition(
+                                  opacity: anim,
+                                  child: child,
+                                ),
                               ),
                               child: Text(
                                 _suits[_activeSuitIndex],
@@ -181,22 +232,27 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
 
                     const SizedBox(height: 36),
 
-                    // Loading Title
-                    Text(
-                      isAr ? 'جاري تحضير الطاولة...' : 'Preparing Match...',
-                      style: titleFont(
-                        color: AppColors.goldAccent,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Text(
+                        _statusText(isAr),
+                        key: ValueKey(_statusKey),
+                        style: titleFont(
+                          color: AppColors.goldAccent,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
 
                     const SizedBox(height: 12),
 
-                    // Difficulty indicator
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(20),
@@ -216,13 +272,13 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
 
                     const SizedBox(height: 48),
 
-                    // Shimmering progress bar
                     SizedBox(
                       width: 180,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          backgroundColor: Colors.white.withValues(alpha: 0.08),
+                          backgroundColor:
+                              Colors.white.withValues(alpha: 0.08),
                           valueColor: AlwaysStoppedAnimation<Color>(
                             AppColors.goldAccent.withValues(alpha: 0.8),
                           ),
@@ -234,7 +290,6 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
                 ),
               ),
 
-              // Bottom tip text
               Positioned(
                 bottom: 24,
                 left: 20,

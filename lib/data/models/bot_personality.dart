@@ -55,10 +55,8 @@ class BotIdentity {
 
   /// Roll a random identity for [difficulty] at seat [seatIndex].
   factory BotIdentity.random(BotDifficulty difficulty, int seatIndex, Random rng) {
-    // ── Name pool (Gulf Arabic names) ──
-    const maleNames = ['خالد', 'سعد', 'فيصل', 'عبدالله', 'ماجد', 'تركي', 'يوسف', 'راشد'];
-    const femaleNames = ['نورة', 'سارة', 'ريم', 'منى', 'ليلى', 'هيا', 'دانة', 'رنا'];
-    final allNames = [...maleNames, ...femaleNames];
+    // ── Name pool (Requested Male Names) ──
+    const allNames = ['طلال', 'فهد', 'فيصل', 'سلمان', 'سعود', 'نواف', 'ريان', 'ماجد', 'خالد'];
     final name = allNames[rng.nextInt(allNames.length)];
 
     // ── Rank badge ──

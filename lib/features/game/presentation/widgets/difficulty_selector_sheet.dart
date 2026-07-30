@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../../../data/models/bot_difficulty.dart';
+import '../game_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
 //  DIFFICULTY SELECTOR SHEET — Luxury Sandstone Dark Theme
@@ -72,7 +73,7 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
             ),
             alignment: Alignment.center,
             child: Text(
-              isAr ? 'اختر مستوى الذكاء الاصطناعي' : 'Choose AI Difficulty',
+              isAr ? 'اختر مستوى الصعوبة' : 'Choose Difficulty',
               style: titleFont(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -95,8 +96,7 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
               children: [
                 Expanded(
                   child: _DiffCard(
-                    title: isAr ? 'سهل' : 'Easy',
-                    desc: isAr ? 'لعب هادئ، ارتكاب بعض الأخطاء.' : 'Relaxed pace, AI makes mistakes.',
+                    title: isAr ? 'مبتدئ' : 'Beginner',
                     accent: Colors.greenAccent.shade700,
                     isSelected: _selected == BotDifficulty.easy,
                     isAr: isAr,
@@ -106,8 +106,7 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _DiffCard(
-                    title: isAr ? 'متوسط' : 'Medium',
-                    desc: isAr ? 'تحدي متوازن وتكتيكات واقعية.' : 'Balanced standard challenge.',
+                    title: isAr ? 'عادي' : 'Regular',
                     accent: const Color(0xFFD4A017),
                     isSelected: _selected == BotDifficulty.medium,
                     isAr: isAr,
@@ -117,8 +116,7 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _DiffCard(
-                    title: isAr ? 'صعب' : 'Hard',
-                    desc: isAr ? 'محترف، يتتبع الأوراق السابقة.' : 'Expert AI, tracks your cards.',
+                    title: isAr ? 'خبير' : 'Expert',
                     accent: Colors.redAccent.shade700,
                     isSelected: _selected == BotDifficulty.hard,
                     isAr: isAr,
@@ -135,7 +133,10 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: GestureDetector(
-              onTap: () => Navigator.pop(context, _selected),
+              onTap: () {
+                context.read<GameProvider>().audioService.playGoldButton();
+                Navigator.pop(context, _selected);
+              },
               child: Container(
                 width: double.infinity,
                 height: 52,
@@ -174,7 +175,6 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
 
 class _DiffCard extends StatelessWidget {
   final String title;
-  final String desc;
   final Color accent;
   final bool isSelected;
   final bool isAr;
@@ -182,7 +182,6 @@ class _DiffCard extends StatelessWidget {
 
   const _DiffCard({
     required this.title,
-    required this.desc,
     required this.accent,
     required this.isSelected,
     required this.isAr,
@@ -195,7 +194,10 @@ class _DiffCard extends StatelessWidget {
     final bodyFont = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        context.read<GameProvider>().audioService.playNormalButton();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
@@ -247,18 +249,6 @@ class _DiffCard extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: isSelected ? Colors.white : const Color(0xFFDFAE45),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: bodyFont(
-                fontSize: 11,
-                color: isSelected ? Colors.white : const Color(0xFFB5A688),
-                height: 1.3,
               ),
             ),
           ],

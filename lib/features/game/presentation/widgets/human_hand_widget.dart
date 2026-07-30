@@ -82,19 +82,23 @@ class HumanHandWidget extends StatelessWidget {
                       cards: hand,
                       selectedCard: selectedCard,
                       validCards: validCards,
-                      interactive: isPlayPhase &&
-                          isHumanTurn &&
-                          !sawaReveal,
+                      interactive: isPlayPhase && !sawaReveal,
+                      canPlay: isPlayPhase && isHumanTurn && !sawaReveal,
                       trumpSuit: trumpSuit,
                       // Reduce available width so rotated cards don't overhang screen edges
                       availableWidth: screenW - 40 * scale,
                       onCardTap: (card) {
-                        if (!isPlayPhase || !isHumanTurn) {
-                          return;
+                        if (!isPlayPhase) return;
+                        
+                        // If the card is already selected, tap again to play it (Method 2)
+                        if (game.selectedCard == card) {
+                          if (validCards.contains(card) && isHumanTurn) {
+                            game.humanPlayCard(card);
+                          }
+                        } else {
+                          // Otherwise, just select it
+                          game.selectCard(card);
                         }
-                        // Tapping ONLY selects (pops up) the card.
-                        // To play, the user must drag and drop (or swipe up).
-                        game.selectCard(card);
                       },
                       onSwipePlay: (card) {
                         if (!isPlayPhase || !isHumanTurn) {
@@ -116,7 +120,7 @@ class HumanHandWidget extends StatelessWidget {
 }
 
 /// Port of designer [`_CardFan`] for `large` + horizontal + face-up.
-/// Kammelna-style: first tap pops card up with spring bounce,
+/// Standard-style: first tap pops card up with spring bounce,
 /// second tap on same selected valid card plays it.
 class _DesignerHandFan extends StatefulWidget {
   const _DesignerHandFan({
@@ -125,6 +129,7 @@ class _DesignerHandFan extends StatefulWidget {
     required this.selectedCard,
     required this.validCards,
     required this.interactive,
+    required this.canPlay,
     required this.availableWidth,
     required this.onCardTap,
     required this.onSwipePlay,
@@ -136,6 +141,7 @@ class _DesignerHandFan extends StatefulWidget {
   final CardModel? selectedCard;
   final List<CardModel> validCards;
   final bool interactive;
+  final bool canPlay;
   final double availableWidth;
   final ValueChanged<CardModel> onCardTap;
   final ValueChanged<CardModel> onSwipePlay;
@@ -307,12 +313,12 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                 ),
               );
 
-              final tappable = Listener(
+              final tappable = GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onPointerDown: widget.interactive
-                    ? (event) {
+                onTap: widget.interactive
+                    ? () {
                         final card = cardModel;
-                        // Always select (pop up) with bounce instantly on touch.
+                        // Always select (pop up) with bounce on tap.
                         _triggerBounce(index);
                         widget.onCardTap(card);
                       }
@@ -320,7 +326,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                 child: cardFace,
               );
 
-              final draggableChild = (widget.interactive && isValid)
+              final draggableChild = (widget.canPlay && isValid && isSelected)
                   ? Draggable<CardModel>(
                       data: cardModel,
                       maxSimultaneousDrags: 1,

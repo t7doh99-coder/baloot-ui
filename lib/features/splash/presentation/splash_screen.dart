@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +7,7 @@ import '../../../core/assets/game_asset_warmup.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/locale_provider.dart';
 import '../../../data/models/card_model.dart';
-import '../../dashboard/presentation/navigation_shell.dart';
+import '../../dashboard/presentation/home_screen.dart';
 import '../../game/presentation/widgets/playing_card.dart';
 
 // ─── Data ──────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.of(context).pushReplacement(
         PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 400),
-          pageBuilder: (_, __, ___) => const NavigationShell(),
+          pageBuilder: (_, __, ___) => const HomeScreen(),
           transitionsBuilder: (_, anim, __, child) {
             return FadeTransition(opacity: anim, child: child);
           },
@@ -390,3 +390,4 @@ class _GoldenCirclePainter extends CustomPainter {
     return oldDelegate.progress != progress;
   }
 }
+

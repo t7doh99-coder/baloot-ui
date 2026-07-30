@@ -109,6 +109,14 @@ class BotEngine {
     if (phase == BiddingPhase.hakamConfirmation) {
       return const BotBidDecision(action: BidAction.confirmHakam);
     }
+    if (phase == BiddingPhase.qablakIntervention) {
+      // Very basic Qablak bot logic: 30% chance to steal Sun if holding strong cards (Sun score >= 8).
+      final sunScore = _evaluateSunStrength(hand);
+      if (sunScore >= 8 && _random.nextDouble() < 0.3) {
+        return const BotBidDecision(action: BidAction.sun); // Steal!
+      }
+      return const BotBidDecision(action: BidAction.pass);
+    }
     return _decideRound2(
       hand, buyerCard, seatIndex, dealerIndex,
       round2PendingBid: round2PendingBid,
@@ -221,6 +229,17 @@ class BotEngine {
         }
         return const BotBidDecision(action: BidAction.pass);
     }
+  }
+
+  /// Calculates a simple score for a potential Sun hand based on high cards.
+  int _evaluateSunStrength(List<CardModel> hand) {
+    int score = 0;
+    for (final card in hand) {
+      if (card.rank == Rank.ace) score += 3;
+      else if (card.rank == Rank.ten) score += 2;
+      else if (card.rank == Rank.king) score += 1;
+    }
+    return score;
   }
 
   // ── Round 2 Bidding ──

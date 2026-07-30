@@ -1577,7 +1577,7 @@ class _NewHomeScreenPreviewState extends State<NewHomeScreenPreview>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(widget.isArabic ? 'كأس كملنا' : 'Kammelna Cup', style: GoogleFonts.cairo(
+                                Text(widget.isArabic ? 'كأس رويال' : 'Royal Cup', style: GoogleFonts.cairo(
                                   fontSize: 19, fontWeight: FontWeight.w900, color: const Color(0xFF0A0A0A), height: 1)),
                                 const SizedBox(height: 3),
                                 Text(widget.isArabic ? 'انضم إلى البطولة الكبرى الآن' : 'Join the grand tournament now', style: GoogleFonts.cairo(

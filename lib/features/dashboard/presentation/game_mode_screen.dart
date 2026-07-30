@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../game/presentation/game_provider.dart';
 import '../../../core/l10n/locale_provider.dart';
@@ -10,19 +10,19 @@ import '../../../data/models/rank_tier.dart';
 import '../../../core/services/rank_calculator.dart';
 import '../../game/presentation/widgets/rank_badge_widget.dart';
 
-class TestScreen5 extends StatefulWidget {
+class GameModeScreen extends StatefulWidget {
   final bool isArabic;
 
-  const TestScreen5({
+  const GameModeScreen({
     super.key,
     required this.isArabic,
   });
 
   @override
-  State<TestScreen5> createState() => _TestScreen5State();
+  State<GameModeScreen> createState() => _GameModeScreenState();
 }
 
-class _TestScreen5State extends State<TestScreen5> {
+class _GameModeScreenState extends State<GameModeScreen> {
   // Toggle between Lose Mockup (from screenshots) and Win Mockup
   bool _showWinScreen = false;
 
@@ -127,6 +127,27 @@ class _TestScreen5State extends State<TestScreen5> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Text(
+                    _showWinScreen ? (widget.isArabic ? 'فوز' : 'WIN') : (widget.isArabic ? 'خسارة' : 'LOSS'),
+                    style: TextStyle(
+                      fontFamily: 'Georgia',
+                      fontSize: 56,
+                      fontWeight: FontWeight.w900,
+                      color: _showWinScreen ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D),
+                      height: 1.0,
+                      shadows: [
+                        Shadow(
+                          color: (_showWinScreen ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D)).withValues(alpha: 0.75),
+                          blurRadius: 25,
+                        ),
+                        Shadow(
+                          color: (_showWinScreen ? const Color(0xFF00E87A) : const Color(0xFFFF3D3D)).withValues(alpha: 0.35),
+                          blurRadius: 50,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   _buildPointsBreakdown(context, outcome, loc),
                   const SizedBox(height: 20),
 
@@ -180,11 +201,11 @@ class _TestScreen5State extends State<TestScreen5> {
                               children: [
                                 Text(
                                   loc.finalScore.toUpperCase(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white54,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    letterSpacing: 2,
+                                    letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2,
                                   ),
                                 ),
                                 const SizedBox(height: 18),
@@ -201,11 +222,11 @@ class _TestScreen5State extends State<TestScreen5> {
                                             widget.isArabic
                                                 ? 'الخصوم'
                                                 : 'THEM',
-                                            style: const TextStyle(
-                                              color: Color(0xFFFF3D3D),
+                                            style: TextStyle(
+                                              color: const Color(0xFFFF3D3D),
                                               fontSize: 12,
                                               fontWeight: FontWeight.w800,
-                                              letterSpacing: 3,
+                                              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3,
                                             ),
                                           ),
                                           const SizedBox(height: 8),
@@ -240,7 +261,7 @@ class _TestScreen5State extends State<TestScreen5> {
                                               fontSize: 10,
                                               color: const Color(0xFFFF3D3D)
                                                   .withValues(alpha: 0.5),
-                                              letterSpacing: 1.5,
+                                              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.5,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -267,11 +288,11 @@ class _TestScreen5State extends State<TestScreen5> {
                                         children: [
                                           Text(
                                             widget.isArabic ? 'فريقنا' : 'US',
-                                            style: const TextStyle(
-                                              color: Color(0xFF00E87A),
+                                            style: TextStyle(
+                                              color: const Color(0xFF00E87A),
                                               fontSize: 12,
                                               fontWeight: FontWeight.w800,
-                                              letterSpacing: 3,
+                                              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 3,
                                             ),
                                           ),
                                           const SizedBox(height: 8),
@@ -306,7 +327,7 @@ class _TestScreen5State extends State<TestScreen5> {
                                               fontSize: 10,
                                               color: const Color(0xFF00E87A)
                                                   .withValues(alpha: 0.5),
-                                              letterSpacing: 1.5,
+                                              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.5,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -315,14 +336,7 @@ class _TestScreen5State extends State<TestScreen5> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  loc.lastRoundPts(0, 25),
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                    fontSize: 11,
-                                  ),
-                                ),
+                                // Last round text removed
                               ],
                             ),
                           ),
@@ -334,25 +348,21 @@ class _TestScreen5State extends State<TestScreen5> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
+                        child: _build3DButton(
+                          text: loc.exitGame,
+                          isPrimary: false,
+                          isDanger: true,
+                          onTap: () {
                             Navigator.of(context).pop();
                           },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white70,
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: Text(loc.exitGame),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
+                        child: _build3DButton(
+                          text: loc.playAgain,
+                          isPrimary: true,
+                          onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -363,16 +373,6 @@ class _TestScreen5State extends State<TestScreen5> {
                               ),
                             );
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.goldAccent,
-                            foregroundColor: const Color(0xFF1E1810),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: Text(
-                            loc.playAgain,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
                         ),
                       ),
                     ],
@@ -380,6 +380,74 @@ class _TestScreen5State extends State<TestScreen5> {
                   const SizedBox(height: 16),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _build3DButton({
+    required String text,
+    required VoidCallback onTap,
+    required bool isPrimary,
+    bool isDanger = false,
+  }) {
+    final outerBorderColor = Colors.black;
+    final innerBorderColor = isDanger
+        ? const Color(0xFFFF6666)
+        : (isPrimary ? const Color(0xFFFFE066) : const Color(0xFF888888));
+    final gradientColors = isDanger
+        ? const [Color(0xFFE63030), Color(0xFF9E1010)]
+        : (isPrimary
+            ? const [Color(0xFFE6A330), Color(0xFF9E6510)]
+            : const [Color(0xFF3A3A3A), Color(0xFF1A1A1A)]);
+    final textColor = isDanger || isPrimary ? Colors.white : Colors.white70;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          color: outerBorderColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.8),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(2.5),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: innerBorderColor,
+              width: 1.5,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: gradientColors,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.0,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
           ),
         ),
@@ -397,11 +465,20 @@ class _TestScreen5State extends State<TestScreen5> {
       ),
       child: Column(
         children: [
-          _buildBreakdownRow(loc.pointsBase, '+${outcome.result.basePoints}'),
+          _buildBreakdownRow(
+            widget.isArabic ? 'نتيجة المباراة' : 'Match Result',
+            '', // Value removed per user request
+          ),
           if (outcome.result.rankGapBonus != 0)
-            _buildBreakdownRow(loc.pointsRankGap, '${outcome.result.rankGapBonus > 0 ? '+' : ''}${outcome.result.rankGapBonus}'),
+            _buildBreakdownRow(
+              loc.pointsRankGap,
+              '${outcome.result.rankGapBonus > 0 ? '+' : ''}${outcome.result.rankGapBonus}',
+            ),
           if (outcome.result.streakBonus > 0)
-            _buildBreakdownRow(loc.pointsStreakBonus, '+${outcome.result.streakBonus}'),
+            _buildBreakdownRow(
+              loc.pointsStreakBonus,
+              '+${outcome.result.streakBonus}',
+            ),
           if (outcome.result.wasCapped)
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 8),
@@ -426,7 +503,7 @@ class _TestScreen5State extends State<TestScreen5> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.star, color: AppColors.goldAccent, size: 20),
+                      Image.asset('assets/icons/gold_star.png', width: 24, height: 24),
                     ],
                   ),
                 ],
@@ -446,7 +523,7 @@ class _TestScreen5State extends State<TestScreen5> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.emoji_events, color: Colors.orangeAccent, size: 20),
+                      Image.asset('assets/icons/medal.png', width: 24, height: 24),
                     ],
                   ),
                 ],
@@ -526,3 +603,4 @@ class _TestScreen5State extends State<TestScreen5> {
     );
   }
 }
+

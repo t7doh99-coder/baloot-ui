@@ -50,7 +50,7 @@ class RoundScoreResult {
 ///
 /// Handles:
 /// - Raw Abnat -> scoreboard point conversion
-/// - Sun formula: round(abnat / 10) * 2 (Kammelna / §8.5; no special case for .5)
+/// - Sun formula: round(abnat / 10) * 2 (Standard / §8.5; no special case for .5)
 /// - Hakam formula: Jawaker rounding (.5 rounds DOWN)
 /// - Khams (buyer loses), Kabout (all-trick sweep)
 /// - Double system base values + project multipliers
@@ -60,12 +60,12 @@ class ScoringEngine {
 
   /// Convert raw Abnat to scoreboard points.
   ///
-  /// Sun (Kammelna): abnaat ÷ 5 (i.e. multiply by 2 first, then ÷ 10)
+  /// Sun (Standard): abnaat ÷ 5 (i.e. multiply by 2 first, then ÷ 10)
   ///   65 → 13, 60 → 12, 70 → 14 (total always = 26)
   /// Hakam: round(abnaat ÷ 10) with .5 rounding DOWN
   int abnatToScoreboard(int abnat, GameMode mode) {
     if (mode == GameMode.sun) {
-      // Kammelna Sun: abnaat ÷ 5 (equivalent to (abnaat × 2) ÷ 10)
+      // Standard Sun: abnaat ÷ 5 (equivalent to (abnaat × 2) ÷ 10)
       // This avoids the .5 rounding bug from the old round(x/10)*2 formula.
       // Example: 65 abnaat → 65/5 = 13 ✓ (old formula gave 14 ✗)
       return (abnat / 5).round();
@@ -144,7 +144,7 @@ class ScoringEngine {
         }
       }
 
-      // Kabout rule (Kammelna/Jawaker/pagat.com):
+      // Kabout rule (Standard/Jawaker/pagat.com):
       // A team must win at least ONE trick for their projects to count.
       // The Kabout loser won 0 tricks → their projects are nullified.
       if (base.isKabout) {
@@ -213,7 +213,7 @@ class ScoringEngine {
     
     if (totalBuyerAbnat == totalDefenderAbnat) {
       isTie = true;
-      // Tie rules (Kammelna & Tournaments):
+      // Tie rules (Standard & Tournaments):
       // 1. Normal play (no double): Buyer MUST win more than half. A tie means buyer loses (Khams).
       // 2. Doubled play: The team that CALLED the highest double/triple/four LOSES the tie.
       if (doubleStatus != DoubleStatus.none) {
@@ -286,7 +286,7 @@ class ScoringEngine {
     // Project scoreboard points (Abnat conversion is skipped for Kabout; add explicitly)
     final pm = _projectMultiplier(doubleStatus);
     
-    // Kabout rule (Kammelna/Jawaker/pagat.com):
+    // Kabout rule (Standard/Jawaker/pagat.com):
     // A team must win at least ONE trick for their projects to count.
     // The Kabout loser won 0 tricks → their projects are NULLIFIED (not stolen).
     // Only the WINNER's own projects count (if they also won project priority).
@@ -341,7 +341,7 @@ class ScoringEngine {
       defenderPts = mode == GameMode.sun ? 26 : 16;
     }
 
-    // Project stealing (Kammelna/Jawaker/pagat.com):
+    // Project stealing (Standard/Jawaker/pagat.com):
     // Defenders get Khams base + ALL declared project scoreboard points
     // (both their own projects AND the buyer's stolen projects).
     // Baloot is ALSO stolen — all points go to defender. Buyer gets ZERO.
@@ -358,7 +358,7 @@ class ScoringEngine {
     }
 
     // Baloot: When buyer loses (Khams), Baloot 2 pts go to the DEFENDER,
-    // not the declaring team. (Kammelna/Jawaker/pagat.com confirm this.)
+    // not the declaring team. (Standard/Jawaker/pagat.com confirm this.)
     if (balootPoints > 0) {
       if (defenderTeam == 'A') {
         aBonus += balootPoints;
@@ -416,7 +416,7 @@ class ScoringEngine {
       }
     } else {
       // No double: convert TRICK Abnaat to scoreboard points.
-      // Per Kammelna: Sun always totals 26, Hakam always totals 16.
+      // Per Standard: Sun always totals 26, Hakam always totals 16.
       // We ALWAYS calculate the BUYER'S score first to ensure rounding consistency
       // (Buyer rounds DOWN on .5 in Hakam) and then derive the defender as the remainder.
       final modeTotal = mode == GameMode.sun ? 26 : 16;
@@ -469,13 +469,13 @@ class ScoringEngine {
       case DoubleStatus.four:
         return 64;
       case DoubleStatus.gahwa:
-        return 0;
+        return 152; // Winner gets 152 points (instant game win)
       default:
         return 0;
     }
   }
 
-  /// Project multiplier: scales with Double level per Kammelna/Jawaker rules.
+  /// Project multiplier: scales with Double level per Standard/Jawaker rules.
   /// Double = ×2, Triple = ×3, Four = ×4.
   /// Baloot (2 pts) is NEVER multiplied — it is handled separately.
   int _projectMultiplier(DoubleStatus status) {
@@ -524,11 +524,6 @@ class ScoringEngine {
 
   String? gameWinner(int teamATotal, int teamBTotal, DoubleStatus lastDouble) {
     if (!isGameOver(teamATotal, teamBTotal, lastDouble)) return null;
-
-    if (lastDouble == DoubleStatus.gahwa) {
-      // Caller must determine Gahwa winner based on who called it and if they won
-      return null;
-    }
 
     if (teamATotal > teamBTotal) return 'A';
     if (teamBTotal > teamATotal) return 'B';
