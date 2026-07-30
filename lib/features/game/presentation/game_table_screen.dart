@@ -984,6 +984,10 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
            gp.humanBid(BidAction.secondHakam, secondHakamSuit: s);
            setState(() => _activePicker = _DashboardPicker.none);
          }),
+       _GameBtn(label: loc.switchToSun, onTap: () {
+           gp.humanBid(BidAction.sun);
+           setState(() => _activePicker = _DashboardPicker.none);
+       }),
     ];
   }
 

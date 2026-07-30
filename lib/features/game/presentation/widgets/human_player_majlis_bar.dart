@@ -10,6 +10,7 @@ import '../../../../core/constants/app_assets.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
+import '../../domain/managers/bidding_manager.dart' show BidAction;
 import '../game_provider.dart';
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,

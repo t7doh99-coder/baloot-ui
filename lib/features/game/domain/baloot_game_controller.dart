@@ -113,6 +113,14 @@ class BalootGameController implements IBalootController {
     return List.generate(4, (i) => map[i]!);
   }
 
+
+
+  /// The allowed bid actions for a given seat in the current bidding state.
+  List<BidAction> allowedActions(int seatIndex) {
+    if (_biddingManager == null) return [];
+    return _biddingManager!.getAllowedActions(seatIndex);
+  }
+
   /// Most recently completed trick (for UI throw / collect animations).
   TrickResult? get lastTrickResult {
     final tm = _turnManager;

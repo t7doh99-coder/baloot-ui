@@ -68,6 +68,7 @@ class GameAudioService {
     'Akka':   'akka.mp3',
     'Awal':   'awal.mp3',
     'Thani':  'thani.mp3',
+    'Hakam Sani': 'thani.mp3',
     'Qaid':   'locked.mp3',
   };
 
@@ -88,7 +89,9 @@ class GameAudioService {
 
     // Handle "Hakam ♠" style keys (strip the suit symbol)
     String key = bubbleKey;
-    if (key.startsWith('Hakam ') && key.length > 6) {
+    if (key.startsWith('Hakam Sani ') && key.length > 11) {
+      key = 'Hakam Sani';
+    } else if (key.startsWith('Hakam ') && key.length > 6) {
       key = 'Hakam';
     }
 
@@ -114,6 +117,8 @@ class GameAudioService {
         file = 'qablak.mp3';
       } else if (k.contains('sun') || k.contains('صن')) {
         file = 'sun.mp3';
+      } else if (k.contains('thani') || k.contains('ثاني') || k.contains('sani')) {
+        file = 'thani.mp3';
       } else if (k.contains('hakam') || k.contains('حكم') || k.contains('hokum')) {
         file = 'hokum.mp3';
       } else if (k.contains('double') || k.contains('دبل') || k.contains('دابل')) {
@@ -130,8 +135,6 @@ class GameAudioService {
         file = 'pass.mp3';
       } else if (k.contains('awal') || k.contains('أول')) {
         file = 'awal.mp3';
-      } else if (k.contains('thani') || k.contains('ثاني')) {
-        file = 'thani.mp3';
       } else if (k.contains('qaid') || k.contains('قائد') || k.contains('locked')) {
         file = 'locked.mp3';
       }

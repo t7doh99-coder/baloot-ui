@@ -31,16 +31,16 @@ class GameL10n {
   String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
   String get sun => _ar ? 'صن' : 'Sun';
   String get qablak => _ar ? 'قبلك' : 'Qablak';
-  String get sawa => _ar ? 'سوى' : 'Sawa';
+  String get sawa => _ar ? 'سوا' : 'Sawa';
   /// Bidding only: §4.4 — matches opponent bid / ends mazad (distinct from in-play يد).
   String get sawaBidShort => sawa;
   /// Master-hand claim during tricks (سوى اليد).
   String get sawaHandsTooltip =>
-      _ar ? 'سوى اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';
+      _ar ? 'سوا اليد — تأخذ باقي الأوراق بالأقوى' : 'Sawa — take remaining tricks (hands)';
   String get ashkal => _ar ? 'أشكل' : 'Ashkal';
   String get confirmHakam => _ar ? 'تأكيد الحكم' : 'Confirm Hakam';
-  String get switchToSun => _ar ? 'تحويل لصن' : 'Switch to Sun';
-  String get projects => _ar ? 'مشاريع' : 'Projects';
+  String get switchToSun => _ar ? 'يقلب صن' : 'Switch to Sun';
+  String get projects => _ar ? 'المشاريع' : 'Projects';
   String get cancel => _ar ? 'إلغاء' : 'Cancel';
   String get closed => _ar ? 'مقفل' : 'Closed';
   String get open => _ar ? 'مفتوح' : 'Open';
@@ -60,11 +60,11 @@ class GameL10n {
   String get wallpaper => _ar ? 'الخلفية' : 'Wallpaper';
   String get testMode => _ar ? 'وضع تجريبي' : 'Test Mode';
   String get sound => _ar ? 'صوت' : 'Sound';
-  String get emotes => _ar ? 'إيموشن' : 'Emotes';
+  String get emotes => _ar ? 'ملصقات' : 'Emotes';
 
   // ── Majlis player bar ──
   String get dealer => _ar ? 'الموزع' : 'Dealer';
-  String get buyer => _ar ? 'مشتري' : 'Buyer';
+  String get buyer => _ar ? 'المشتري' : 'Buyer';
 
   // ── Project & Game Log Overlays ──
   String get declareProjects => _ar ? 'إعلان المشاريع' : 'Declare Projects';
@@ -114,7 +114,7 @@ class GameL10n {
   String get bidRound1 => _ar ? 'المزاد — الجولة ١' : 'Bid Round 1';
   String get bidRound2 => _ar ? 'المزاد — الجولة ٢' : 'Bid Round 2';
   String get confirmOrSwitch => _ar ? 'تأكيد الحكم أو صن؟' : 'Confirm or Switch?';
-  String get doubleWindow => _ar ? 'نافذة الدبل' : 'Double Window';
+  String get doubleWindow => _ar ? 'مرحلة الدبل' : 'Double Window';
 
   // ── Game over ──
   String get gahwaTitle => _ar ? 'قهوة' : 'Gahwa';
@@ -192,8 +192,14 @@ class GameL10n {
       // if (en == 'GoodLuck') return '👍 Good game';
       return en;
     }
+    if (en.startsWith('Hakam Sani ') && en.length > 11) {
+      return 'حكم ثاني ${en.substring(11)}';
+    }
     if (en.startsWith('Hakam ') && en.length > 6) {
       return 'حكم ${en.substring(6)}';
+    }
+    if (en.startsWith('Thani ') && en.length > 6) {
+      return 'ثاني ${en.substring(6)}';
     }
     return switch (en) {
       'Pass' => 'بس',
@@ -201,9 +207,9 @@ class GameL10n {
       'Hakam' => 'حكم',
       'Sun' => 'صن',
       'Qabalk' => 'قبلك',
-      'Sawa' => 'سوى',
+      'Sawa' => 'سوا',
       'Awal' => 'أول',
-      'Thani' => 'ثاني',
+      'Hakam Sani' => 'حكم ثاني',
       'Ashkal' => 'أشكل',
       'Double' => 'دبل',
       'Triple' => 'تربل',

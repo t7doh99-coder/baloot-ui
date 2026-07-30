@@ -39,8 +39,6 @@ flutter:
     - assets/images/
     - assets/images/baloot_logo.png
     - assets/images/cards/
-    - assets/images/cards/2.0x/
-    - assets/images/cards/3.0x/
     - assets/images/avatars/
     - assets/icons/
     - assets/lottie/

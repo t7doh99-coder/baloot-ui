@@ -1258,13 +1258,17 @@ class GameProvider extends ChangeNotifier {
         // This player has unrevealed projects — show fan visually, but NO audio (already declared in Trick 1)
         _revealedProjectSeats.add(currentSeat);
         _projectRevealSeat = currentSeat;
-        
-        // Hold the reveal for 5.0s, then clear and dispatch their actual turn
-        _botTimer = Timer(const Duration(milliseconds: 5000), () {
-          _projectRevealSeat = null;
-          notifyListeners();
-          _dispatchTurn(currentSeat);
+        // Show the reveal visually. It will be cleared when the turn ends (via _cancelTimers)
+        // or after 5 seconds if the turn takes longer.
+        Timer(const Duration(milliseconds: 5000), () {
+          if (_projectRevealSeat == currentSeat) {
+            _projectRevealSeat = null;
+            notifyListeners();
+          }
         });
+        
+        // Dispatch the turn immediately so the timer ring runs concurrently.
+        _dispatchTurn(currentSeat);
         return;
       }
     }
@@ -1402,7 +1406,8 @@ class GameProvider extends ChangeNotifier {
         if (pendingMode == GameMode.sun) {
           _showBubble(seat, 'Sun');
         } else {
-          _showBubble(seat, 'Hakam');
+          final suit = _engine.activeRound2PendingTrump;
+          _showBubble(seat, 'Hakam Sani ${_suitSymbol(suit)}');
         }
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
          _showBubble(seat, 'Sun');
@@ -1462,11 +1467,12 @@ class GameProvider extends ChangeNotifier {
   void _cancelTimers() {
     _turnTimer?.cancel();
     _turnTimer = null;
+    _humanTurnStartedAt = null;
     _botTimer?.cancel();
     _botTimer = null;
+    _botTurnStartedAt = null;
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
-    _projectRevealSeat = null;
   }
 
 
@@ -1679,7 +1685,7 @@ class GameProvider extends ChangeNotifier {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
       case BidAction.sun:          return 'Sun';
-      case BidAction.secondHakam:  return 'Hakam ${_suitSymbol(secondHakamSuit)}';
+      case BidAction.secondHakam:  return 'Hakam Sani ${_suitSymbol(secondHakamSuit)}';
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.qablak:       return 'Qablak';
       case BidAction.sawa:         return 'Sawa';

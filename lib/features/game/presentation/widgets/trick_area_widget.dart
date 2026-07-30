@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/l10n/game_l10n.dart';
 import '../../../../data/models/card_play_model.dart';
 import '../../../game/domain/baloot_game_controller.dart' show GamePhase;
 import '../../../game/domain/managers/turn_manager.dart' show TrickResult;
@@ -90,6 +91,7 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
+    final loc = GameL10n.of(context);
     final trick = game.currentTrick;
     final trickNum = game.trickNumber;
     final isPlaying = game.phase == GamePhase.playing;
@@ -208,7 +210,7 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'Trick $trickNum / 8',
+                      loc.isArabic ? 'أكلة $trickNum / 8' : 'Trick $trickNum / 8',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 10,
@@ -237,8 +239,8 @@ class _TrickAreaWidgetState extends State<TrickAreaWidget>
                     children: [
                       Text(
                         game.trumpSuit != null
-                            ? '${game.gameModeLabel} ${_suitSymbol(game.trumpSuit!)}'
-                            : game.gameModeLabel,
+                            ? '${loc.modeLabel(game.gameModeLabel)} ${_suitSymbol(game.trumpSuit!)}'
+                            : loc.modeLabel(game.gameModeLabel),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.65),
                           fontSize: 10,

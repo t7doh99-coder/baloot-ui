@@ -137,26 +137,32 @@ class PlayingCard extends StatelessWidget {
         showFace ? AppAssets.cardImage(card!) : backAssetPath(back);
 
     // Cache at the exact pixel size for THIS screen's density
-    // Only apply cacheWidth/cacheHeight to face-up cards (1x only).
-    // Card backs have 2.0x/3.0x variants — let Flutter pick the right one
-    // and render at full resolution to avoid blurriness.
+    // ONLY apply cacheWidth/cacheHeight to face-up cards because they are simple vector-like graphics.
+    // For card backs (which have complex patterns), forcing cacheWidth uses a low-quality native downscaler.
+    // Instead, we load the full high-res back image and use FilterQuality.medium, which uses mipmapping
+    // on the GPU to perfectly downscale complex patterns without blur or aliasing.
     final dpr = MediaQuery.devicePixelRatioOf(context);
 
     Widget imageWidget = Image.asset(
       path,
       width: _w,
       height: _h,
-      fit: showFace ? BoxFit.fill : BoxFit.cover,
-      filterQuality: FilterQuality.high,
+      fit: BoxFit.fill, // Ensure it fully covers the card bounds
+      filterQuality: showFace ? FilterQuality.high : FilterQuality.medium, 
       isAntiAlias: true,
       cacheWidth: showFace ? (_w * dpr).round() : null,
       cacheHeight: showFace ? (_h * dpr).round() : null,
       errorBuilder: (_, __, ___) => _errorPlaceholder(),
     );
 
-    // Wrap in RepaintBoundary so Flutter caches the rasterized card
-    // and avoids re-drawing on every frame (parent animations, fans, etc.)
-    return RepaintBoundary(child: imageWidget);
+    // The native Image widget is extremely fast to render on the GPU.
+    // We DO NOT wrap this in a RepaintBoundary because RepaintBoundary creates an intermediate texture.
+    // If that intermediate texture is positioned on a floating-point (sub-pixel) boundary
+    // in a Stack or during an animation, the compositor applies a bilinear filter to the ENTIRE texture,
+    // which causes the entire card to look slightly soft or blurry on Android.
+    // By returning the Image directly, the GPU draws the high-res mipmapped image directly
+    // to the screen buffer perfectly sharp, regardless of sub-pixel positioning.
+    return imageWidget;
   }
 
   Widget _errorPlaceholder() {
