@@ -1049,9 +1049,8 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     
-    // Detect Thani (transition to Round 2)
+    // Silently transition to Round 2 (no bubble, matches Kammelna)
     if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.bidding && _prevBiddingPhase == BiddingPhase.round1 && newBiddingPhase == BiddingPhase.round2) {
-      _showBubble(newDealerIndex, 'Thani');
       HapticFeedback.lightImpact();
     }
     
@@ -1527,10 +1526,10 @@ class GameProvider extends ChangeNotifier {
         case ProjectType.eightCardRun:
           return '100';
         case ProjectType.fifty: return '50';
-        case ProjectType.sera: return 'سرا';
+        case ProjectType.sera: return 'Sera';
         case ProjectType.baloot: return ''; // Never shown here
       }
-    }).where((s) => s.isNotEmpty).toList();
+    }).where((s) => s.isNotEmpty).toSet().toList();
     
     _showBubble(seatIndex, names.join(' & '));
 
@@ -1694,7 +1693,13 @@ class GameProvider extends ChangeNotifier {
           return 'PassR2';
         }
         return 'Pass';
-      case BidAction.confirmHakam: return 'Hakam';
+      case BidAction.confirmHakam: 
+        final trump = _engine.roundState.trumpSuit;
+        final buyerCard = _engine.roundState.buyerCard;
+        if (trump != null && buyerCard != null && trump != buyerCard.suit) {
+          return 'Hakam Sani ${_suitSymbol(trump)}';
+        }
+        return 'Hakam';
     }
   }
 
