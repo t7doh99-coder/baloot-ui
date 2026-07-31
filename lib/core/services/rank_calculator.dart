@@ -1,14 +1,29 @@
 import '../../data/models/rank_tier.dart';
 
+/// v2: Rank is now driven by blueStars (with peakBlueStars protection floor),
+/// NOT by medals. Medals are achievement-only cosmetics.
 class RankCalculator {
-  // ── RANK THRESHOLDS (medals required to REACH each main rank) ──
+
+  // ── RANK THRESHOLDS (Blue Stars required to REACH each rank) ──
   static const Map<MainRank, int> rankThresholds = {
     MainRank.beginner:     0,
-    MainRank.amateur:      500,
-    MainRank.good:         1500,
-    MainRank.advanced:     3500,
-    MainRank.expert:       7500,
-    MainRank.professional: 15000,
+    MainRank.amateur:      300,
+    MainRank.good:         800,
+    MainRank.advanced:     1800,
+    MainRank.expert:       3500,
+    MainRank.professional: 6500,
+  };
+
+  // ── RANK PROTECTION FLOOR ──────────────────────────────────────
+  // Once you reach a rank, blueStars can't effectively go below this.
+  // Uses peakBlueStars to determine the floor.
+  static const Map<MainRank, int> rankFloors = {
+    MainRank.beginner:     0,
+    MainRank.amateur:      300,
+    MainRank.good:         800,
+    MainRank.advanced:     1800,
+    MainRank.expert:       3500,
+    MainRank.professional: 6500,
   };
 
   static const List<MainRank> rankOrder = [
@@ -20,85 +35,102 @@ class RankCalculator {
     MainRank.professional,
   ];
 
-  // ── GET CURRENT RANK FROM MEDAL COUNT ──────────────────────────
-  static RankTier getRankFromMedals(int medals) {
-    MainRank currentMain = MainRank.beginner;
+  // ── GET RANK FROM BLUE STARS (primary v2 method) ───────────────
+  static RankTier getRankFromStars(int blueStars, int peakBlueStars) {
+    final int effective = _applyProtectionFloor(blueStars, peakBlueStars);
 
-    // Find highest main rank the player has reached
+    MainRank currentMain = MainRank.beginner;
     for (final rank in rankOrder.reversed) {
-      if (medals >= rankThresholds[rank]!) {
+      if (effective >= rankThresholds[rank]!) {
         currentMain = rank;
         break;
       }
     }
 
-    // Calculate sub-level within this main rank
-    final currentThreshold = rankThresholds[currentMain]!;
-    final int subLevel = _calculateSubLevel(currentMain, medals, currentThreshold);
-
-    return RankTier(mainRank: currentMain, subLevel: subLevel);
+    final int sub = _calculateSubLevel(currentMain, effective);
+    return RankTier(mainRank: currentMain, subLevel: sub);
   }
 
-  static int _calculateSubLevel(MainRank rank, int medals, int currentThreshold) {
-    // Get the next rank threshold (or add 5000 for professional as the max tier)
-    final int rankIndex = rankOrder.indexOf(rank);
-    final int nextThreshold = rankIndex < rankOrder.length - 1
-        ? rankThresholds[rankOrder[rankIndex + 1]]!
-        : currentThreshold + 5000;
-
-    // Points needed per sub-level = gap to next rank ÷ 5
-    final int pointsPerSubLevel = (nextThreshold - currentThreshold) ~/ 5;
-    if (pointsPerSubLevel == 0) return 5;
-
-    final int medalsIntoThisRank = medals - currentThreshold;
-    final int subLevel = (medalsIntoThisRank ~/ pointsPerSubLevel) + 1;
-
-    return subLevel.clamp(1, 5);
+  // ── BACKWARD-COMPAT ALIAS — treats blueStars as the "medals" arg ─
+  // Existing UI calls getRankFromMedals(stats.medals).
+  // Since the model still has 'medals' as a cosmetic count, we keep
+  // this alias but now it works on blueStars internally via the caller
+  // passing stats.blueStars directly (game_provider already does so after
+  // this update). Old callers passing stats.medals will still compile;
+  // functionally they'll use the new thresholds which are lower, so they
+  // might get a slightly different rank — that is intentional (v2 reset).
+  static RankTier getRankFromMedals(int stars) {
+    // Treat as blueStars with no peak protection (safe default)
+    return getRankFromStars(stars, stars);
   }
 
-  // ── MEDALS NEEDED FOR NEXT SUB-LEVEL ──────────────────────────
-  static int medalsToNextSubLevel(int currentMedals) {
-    final tier = getRankFromMedals(currentMedals);
+  // Apply protection floor using peak stars
+  static int _applyProtectionFloor(int blueStars, int peakBlueStars) {
+    MainRank peakRank = MainRank.beginner;
+    for (final rank in rankOrder.reversed) {
+      if (peakBlueStars >= rankThresholds[rank]!) {
+        peakRank = rank;
+        break;
+      }
+    }
+    final int floor = rankFloors[peakRank] ?? 0;
+    return blueStars < floor ? floor : blueStars;
+  }
+
+  static int _calculateSubLevel(MainRank rank, int stars) {
+    final int idx = rankOrder.indexOf(rank);
+    final int cur = rankThresholds[rank]!;
+    final int next = idx < rankOrder.length - 1
+        ? rankThresholds[rankOrder[idx + 1]]!
+        : cur + 3500;
+
+    final int pointsPerSub = (next - cur) ~/ 5;
+    if (pointsPerSub == 0) return 5;
+
+    final int starsIn = stars - cur;
+    return (starsIn ~/ pointsPerSub + 1).clamp(1, 5);
+  }
+
+  // ── STARS TO NEXT SUB-LEVEL ───────────────────────────────────
+  static int starsToNextSubLevel(int blueStars, int peakStars) {
+    final tier = getRankFromStars(blueStars, peakStars);
     if (tier.subLevel == 5 && tier.mainRank == MainRank.professional) return 0;
 
-    final int rankIndex = rankOrder.indexOf(tier.mainRank);
-    final int currentThreshold = rankThresholds[tier.mainRank]!;
-    final int nextRankThreshold = rankIndex < rankOrder.length - 1
-        ? rankThresholds[rankOrder[rankIndex + 1]]!
-        : currentThreshold + 5000;
+    final int idx = rankOrder.indexOf(tier.mainRank);
+    final int cur = rankThresholds[tier.mainRank]!;
+    final int next = idx < rankOrder.length - 1
+        ? rankThresholds[rankOrder[idx + 1]]!
+        : cur + 3500;
 
-    final int pointsPerSubLevel = (nextRankThreshold - currentThreshold) ~/ 5;
-    final int medalsIntoThisRank = currentMedals - currentThreshold;
-    final int medalsIntoSubLevel = medalsIntoThisRank % pointsPerSubLevel;
-
-    return pointsPerSubLevel - medalsIntoSubLevel;
+    final int pps = (next - cur) ~/ 5;
+    final int starsIn = blueStars - cur;
+    return pps - (starsIn % pps);
   }
-  
-  static double progressToNextSubLevel(int currentMedals) {
-    final tier = getRankFromMedals(currentMedals);
+
+  // ── BACKWARD-COMPAT: medalsToNextSubLevel (uses blueStars) ────
+  static int medalsToNextSubLevel(int stars) => starsToNextSubLevel(stars, stars);
+
+  // ── PROGRESS 0.0–1.0 to next sub-level ───────────────────────
+  static double progressToNextSubLevel(int stars) {
+    final tier = getRankFromMedals(stars);
     if (tier.subLevel == 5 && tier.mainRank == MainRank.professional) return 1.0;
-    
-    final int rankIndex = rankOrder.indexOf(tier.mainRank);
-    final int currentThreshold = rankThresholds[tier.mainRank]!;
-    final int nextRankThreshold = rankIndex < rankOrder.length - 1
-        ? rankThresholds[rankOrder[rankIndex + 1]]!
-        : currentThreshold + 5000;
 
-    final int pointsPerSubLevel = (nextRankThreshold - currentThreshold) ~/ 5;
-    final int medalsIntoThisRank = currentMedals - currentThreshold;
-    final int medalsIntoSubLevel = medalsIntoThisRank % pointsPerSubLevel;
-    
-    if (pointsPerSubLevel == 0) return 1.0;
-    
-    return medalsIntoSubLevel / pointsPerSubLevel;
+    final int idx = rankOrder.indexOf(tier.mainRank);
+    final int cur = rankThresholds[tier.mainRank]!;
+    final int next = idx < rankOrder.length - 1
+        ? rankThresholds[rankOrder[idx + 1]]!
+        : cur + 3500;
+
+    final int pps = (next - cur) ~/ 5;
+    if (pps == 0) return 1.0;
+
+    final int starsIn = stars - cur;
+    return (starsIn % pps) / pps;
   }
 
-  // ── RANK COMPARISON (for point modifier calculations) ──────────
-  // Returns the rank index (0=Beginner, 5=Professional)
+  // ── RANK COMPARISON ──────────────────────────────────────────
   static int rankIndex(MainRank rank) => rankOrder.indexOf(rank);
 
-  // Returns difference in rank tiers between two players
-  // Positive = opponent is higher ranked than player
   static int rankGapTiers(RankTier playerRank, RankTier opponentRank) {
     return rankIndex(opponentRank.mainRank) - rankIndex(playerRank.mainRank);
   }

@@ -57,7 +57,7 @@ class GameAudioService {
     'Triple': 'triple.mp3',
     'Four':   'four.mp3',
     'Gahwa':  'ghawa.mp3',
-    'Sawa':   'ghawa.mp3',
+    'Sawa':   'sawa.mp3',
     'Baloot': 'baloot.mp3',
     'Ashkal': 'ashkal.mp3',
     'Qablak': 'qablak.mp3',
@@ -109,13 +109,13 @@ class GameAudioService {
         file = 'fifty.mp3';
       } else if (k.contains('baloot') || k.contains('بلوت')) {
         file = 'baloot.mp3';
-      } else if (k.contains('akka') || k.contains('عكّة') || k.contains('عكة')) {
+      } else if (k.contains('akka') || k.contains('عكّة') || k.contains('عكة') || k.contains('أكة')) {
         file = 'akka.mp3';
       } else if (k.contains('ashkal') || k.contains('أشكال')) {
         file = 'ashkal.mp3';
       } else if (k.contains('qabalk') || k.contains('qablak') || k.contains('قبلك')) {
         file = 'qablak.mp3';
-      } else if (k.contains('sun') || k.contains('صن')) {
+      } else if (k.contains('sun') || k.contains('صن') || k.contains('يقلب')) {
         file = 'sun.mp3';
       } else if (k.contains('thani') || k.contains('ثاني') || k.contains('sani')) {
         file = 'thani.mp3';

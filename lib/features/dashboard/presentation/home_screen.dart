@@ -20,6 +20,7 @@ import '../../game/presentation/widgets/playing_card.dart';
 import '../../../data/models/card_model.dart';
 import '../../../data/models/bot_difficulty.dart';
 import 'game_mode_result_screen.dart';
+import 'widgets/premium_subscription_popup.dart';
 import 'navigation_shell.dart';
 import 'alerts_screen.dart';
 import 'player_profile_screen.dart';
@@ -203,7 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onVipAccess() {
-    _showComingSoon('VIP Store');
+    showDialog(
+      context: context,
+      builder: (_) => const PremiumSubscriptionPopup(),
+    );
   }
 
   void _showComingSoon(String feature) {
@@ -1364,25 +1368,33 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
   }
 
   Widget _buildSubscribeCTA() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF2C2210),
-        border: Border.all(color: const Color(0xFF886018), width: 2.0),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33C49028),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Image.asset(
-        'assets/icons/ticket.png',
-        width: 28,
-        height: 28,
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (_) => const PremiumSubscriptionPopup(),
+        );
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF2C2210),
+          border: Border.all(color: const Color(0xFF886018), width: 2.0),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33C49028),
+              blurRadius: 12,
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Image.asset(
+          'assets/icons/ticket.png',
+          width: 28,
+          height: 28,
+        ),
       ),
     );
   }

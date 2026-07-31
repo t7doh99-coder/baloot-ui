@@ -241,7 +241,8 @@ class GameProvider extends ChangeNotifier {
     await PlayerStatsService.saveStats(_playerStats);
   }
 
-  RankTier get playerRank => RankCalculator.getRankFromMedals(_playerStats.medals);
+  RankTier get playerRank => RankCalculator.getRankFromStars(
+      _playerStats.blueStars, _playerStats.blueStars);
 
   GamePhase get phase => _engine.gamePhase;
   int _targetScore = 152;
@@ -742,12 +743,9 @@ class GameProvider extends ChangeNotifier {
     if (!_autoPlaySuspended) return;
     _autoPlaySuspended = false;
 
-    Timer(const Duration(milliseconds: 500), () {
-      if (_engine.gamePhase == GamePhase.bidding) {
-        _showBubble(_engine.roundState.dealerIndex, 'Awal');
-        notifyListeners();
-      }
-    });
+    if (_engine.gamePhase == GamePhase.bidding) {
+      _showBubble(_engine.roundState.dealerIndex, 'Awal');
+    }
     _scheduleNextAction();
   }
 
@@ -1049,9 +1047,8 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     
-    // Detect Thani (transition to Round 2)
+    // Silently transition to Round 2 (no bubble, matches Kammelna)
     if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.bidding && _prevBiddingPhase == BiddingPhase.round1 && newBiddingPhase == BiddingPhase.round2) {
-      _showBubble(newDealerIndex, 'Thani');
       HapticFeedback.lightImpact();
     }
     
@@ -1119,13 +1116,9 @@ class GameProvider extends ChangeNotifier {
             _engine.startNewRound();
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
-            // Delay "Awal" until dealing animation finishes
-            Timer(const Duration(milliseconds: 1500), () {
-              if (_engine.gamePhase == GamePhase.bidding) {
-                _showBubble(_engine.roundState.dealerIndex, 'Awal');
-                notifyListeners();
-              }
-            });
+            if (_engine.gamePhase == GamePhase.bidding) {
+              _showBubble(_engine.roundState.dealerIndex, 'Awal');
+            }
           }
           notifyListeners();
           _scheduleNextAction();
@@ -1176,12 +1169,9 @@ class GameProvider extends ChangeNotifier {
     _botTimer = Timer(const Duration(milliseconds: 2200), () {
       _roundCancelled = false;
       _cancelledNewDealerName = '';
-      Timer(const Duration(milliseconds: 1500), () {
-        if (_engine.gamePhase == GamePhase.bidding) {
-          _showBubble(newDealerSeat, 'Awal');
-          notifyListeners();
-        }
-      });
+      if (_engine.gamePhase == GamePhase.bidding) {
+        _showBubble(newDealerSeat, 'Awal');
+      }
       notifyListeners();
       _scheduleNextAction();
     });
@@ -1195,12 +1185,9 @@ class GameProvider extends ChangeNotifier {
       _engine.startNewRound();
       _prevPhase = _engine.gamePhase;
       _prevBiddingPhase = _engine.roundState.biddingPhase;
-      Timer(const Duration(milliseconds: 1500), () {
-        if (_engine.gamePhase == GamePhase.bidding) {
-          _showBubble(_engine.roundState.dealerIndex, 'Awal');
-          notifyListeners();
-        }
-      });
+      if (_engine.gamePhase == GamePhase.bidding) {
+        _showBubble(_engine.roundState.dealerIndex, 'Awal');
+      }
       notifyListeners();
       _scheduleNextAction();
     } catch (e, st) {
@@ -1527,10 +1514,10 @@ class GameProvider extends ChangeNotifier {
         case ProjectType.eightCardRun:
           return '100';
         case ProjectType.fifty: return '50';
-        case ProjectType.sera: return 'سرا';
+        case ProjectType.sera: return 'Sera';
         case ProjectType.baloot: return ''; // Never shown here
       }
-    }).where((s) => s.isNotEmpty).toList();
+    }).where((s) => s.isNotEmpty).toSet().toList();
     
     _showBubble(seatIndex, names.join(' & '));
 
@@ -1634,13 +1621,15 @@ class GameProvider extends ChangeNotifier {
     );
 
     if (_engine.isGameOver) {
+      // Detect if the human team achieved kaboot (won all 8 tricks = isKabout flag on game-ending event)
+      final bool humanTeamKaboot = d.isKabout && _engine.gameWinner == 'A';
       if (_engine.gameWinner == 'A') {
         _audioService.playYouWin();
       } else {
         _audioService.playYouLose();
       }
       
-      _handleMatchOver(); // Calculate points!
+      _handleMatchOver(wasKaboot: humanTeamKaboot); // Calculate points!
     } else if (d.isKabout) {
       _audioService.playKabloot();
       for (int seat = 1; seat < 4; seat++) {
@@ -1652,13 +1641,14 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _handleMatchOver() async {
+  Future<void> _handleMatchOver({bool wasKaboot = false}) async {
     final bool humanWon = didHumanWinGame;
-    
-    // Simulate bot ranks: normally we would get this from a backend,
-    // but for offline play, we assume bots are slightly below or same as player.
-    final RankTier oppRank = _playerStats.medals > 500 
-        ? RankCalculator.getRankFromMedals(_playerStats.medals - 200)
+
+    // Simulate bot opponent rank (slightly below player for offline bot games)
+    final RankTier oppRank = _playerStats.blueStars > 300
+        ? RankCalculator.getRankFromStars(
+            (_playerStats.blueStars - 200).clamp(0, 9999),
+            (_playerStats.blueStars - 200).clamp(0, 9999))
         : playerRank;
 
     final result = PointsCalculator.calculateMatchPoints(
@@ -1666,13 +1656,15 @@ class GameProvider extends ChangeNotifier {
       playerStats: _playerStats,
       playerRank: playerRank,
       opponentRank: oppRank,
-      applyBotCap: true, // Always capped because we only play bots right now
+      applyBotCap: true, // always capped — offline bot games only
     );
 
     _lastMatchOutcome = await PlayerStatsService.applyMatchResult(
       stats: _playerStats,
       result: result,
       gameResult: humanWon ? GameResult.win : GameResult.loss,
+      wasKaboot: wasKaboot,
+      opponentRank: oppRank,
     );
     notifyListeners();
   }
@@ -1694,7 +1686,13 @@ class GameProvider extends ChangeNotifier {
           return 'PassR2';
         }
         return 'Pass';
-      case BidAction.confirmHakam: return 'Hakam';
+      case BidAction.confirmHakam: 
+        final trump = _engine.roundState.trumpSuit;
+        final buyerCard = _engine.roundState.buyerCard;
+        if (trump != null && buyerCard != null && trump != buyerCard.suit) {
+          return 'Hakam Sani ${_suitSymbol(trump)}';
+        }
+        return 'Hakam';
     }
   }
 

@@ -205,6 +205,7 @@ class GameL10n {
       'Pass' => 'بس',
       'PassR2' => 'ولا',
       'Hakam' => 'حكم',
+      'Thani' => 'ثاني',
       'Sun' => 'صن',
       'Qabalk' => 'قبلك',
       'Sawa' => 'سوا',
