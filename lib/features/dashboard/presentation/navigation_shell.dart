@@ -18,6 +18,7 @@ import 'test_screen_3.dart';
 import 'home_screen.dart';
 import 'game_mode_screen.dart';
 import 'game_mode_result_screen.dart';
+import 'widgets/premium_subscription_popup.dart';
 // ══════════════════════════════════════════════════════════════════
 //  NAVIGATION SHELL — Modern Game Hub
 //
@@ -101,7 +102,10 @@ class _NavigationShellState extends State<NavigationShell>
   }
 
   void _onVipAccess() {
-    _showComingSoon('VIP Store');
+    showDialog(
+      context: context,
+      builder: (_) => const PremiumSubscriptionPopup(),
+    );
   }
 
   void _showComingSoon(String feature) {

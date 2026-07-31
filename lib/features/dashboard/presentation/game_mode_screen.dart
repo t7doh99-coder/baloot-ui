@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../game/presentation/game_provider.dart';
 import '../../../core/l10n/locale_provider.dart';
@@ -30,38 +30,42 @@ class _GameModeScreenState extends State<GameModeScreen> {
     if (_showWinScreen) {
       return const MatchOutcome(
         result: PointResult(
-          basePoints: 100,
-          rankGapBonus: 20,
+          baseExchange: 100,
           streakBonus: 15,
           blueStarsChange: 135,
-          medalsChange: 15,
+          heartsChange: 0,
           explanation: 'Victory',
         ),
         oldRank: RankTier(mainRank: MainRank.beginner, subLevel: 1),
         newRank: RankTier(mainRank: MainRank.beginner, subLevel: 2),
         rankedUp: true,
+        rankedDown: false,
+        starsChange: 135,
         oldStars: 100,
         newStars: 235,
         oldMedals: 90,
         newMedals: 105,
+        newAchievements: [],
       );
     } else {
       return const MatchOutcome(
         result: PointResult(
-          basePoints: 60,
-          rankGapBonus: 0,
+          baseExchange: 50,
           streakBonus: 0,
-          blueStarsChange: -60,
-          medalsChange: 0,
+          blueStarsChange: -50,
+          heartsChange: -1,
           explanation: 'Loss',
         ),
         oldRank: RankTier(mainRank: MainRank.beginner, subLevel: 1),
         newRank: RankTier(mainRank: MainRank.beginner, subLevel: 1),
         rankedUp: false,
+        rankedDown: false,
+        starsChange: -50,
         oldStars: 160,
-        newStars: 100,
+        newStars: 110,
         oldMedals: 10,
         newMedals: 10,
+        newAchievements: [],
       );
     }
   }
@@ -549,8 +553,8 @@ class _GameModeScreenState extends State<GameModeScreen> {
   }
 
   Widget _buildRankProgress(BuildContext context, MatchOutcome outcome, GameL10n loc) {
-    final progress = RankCalculator.progressToNextSubLevel(outcome.newMedals);
-    final medalsNeeded = RankCalculator.medalsToNextSubLevel(outcome.newMedals);
+    final progress = RankCalculator.progressToNextSubLevel(outcome.newStars);
+    final medalsNeeded = RankCalculator.starsToNextSubLevel(outcome.newStars, outcome.newStars);
 
     return Container(
       padding: const EdgeInsets.all(16),

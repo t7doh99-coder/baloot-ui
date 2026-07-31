@@ -1175,10 +1175,12 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
     // Outcome fallback for real game data
     final liveOutcome = game.lastMatchOutcome;
     final outcome = liveOutcome ?? MatchOutcome(
-      result: const PointResult(basePoints: 0, rankGapBonus: 0, streakBonus: 0, blueStarsChange: 0, medalsChange: 0, explanation: ''),
+      result: const PointResult(baseExchange: 0, streakBonus: 0, blueStarsChange: 0, heartsChange: 0, explanation: ''),
       oldRank: const RankTier(mainRank: MainRank.beginner, subLevel: 1),
       newRank: const RankTier(mainRank: MainRank.beginner, subLevel: 1),
-      rankedUp: false, oldStars: 0, newStars: 0, oldMedals: 0, newMedals: 0,
+      rankedUp: false, rankedDown: false, starsChange: 0,
+      oldStars: 0, newStars: 0, oldMedals: 0, newMedals: 0,
+      newAchievements: const [],
     );
 
     final teamA = total.teamA;
@@ -1616,8 +1618,8 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
   }
 
   Widget _buildRankProgress(BuildContext context, MatchOutcome outcome, GameL10n loc) {
-    final progress = RankCalculator.progressToNextSubLevel(outcome.newMedals);
-    final medalsNeeded = RankCalculator.medalsToNextSubLevel(outcome.newMedals);
+    final progress = RankCalculator.progressToNextSubLevel(outcome.newStars);
+    final medalsNeeded = RankCalculator.starsToNextSubLevel(outcome.newStars, outcome.newStars);
     
     return Container(
       padding: const EdgeInsets.all(16),

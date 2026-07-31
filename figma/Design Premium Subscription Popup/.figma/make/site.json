@@ -1,0 +1,10 @@
+{
+  "description": "Creates unique, visually appealing premium subscription pop-up screens tailored to your game's theme and color scheme to enhance user engagement.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
