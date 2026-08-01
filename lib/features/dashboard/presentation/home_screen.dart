@@ -34,7 +34,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 //  For "Test 3" menu item. No changes to the original home screen.
 // (section)
 
-// (section)
+/// Pushes a screen with a slide-up-from-bottom transition.
+/// Unlike the default iOS slide-from-right, this covers the screen underneath
+/// completely during both open and close, preventing the background flash.
+/// Top-level so it is accessible from ALL widget classes in this file.
+Future<T?> _pushSlideUp<T>(BuildContext context, Widget screen) {
+  return Navigator.of(context).push<T>(
+    PageRouteBuilder<T>(
+      pageBuilder: (_, __, ___) => screen,
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+      transitionsBuilder: (_, animation, __, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(curve),
+          child: child,
+        );
+      },
+    ),
+  );
+}
+
+
 class _T3GameMode {
   final String id;
   final String? sectionHeader;
@@ -167,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+
   // (section)
   void _onPlayNow() async {
     if (_selectedModeId == 'merge_tactics') {
@@ -250,50 +279,57 @@ class _HomeScreenState extends State<HomeScreen> {
             child: CustomPaint(painter: DiamondOnlyPainter()),
           ),
 
-          // Main content column — includes bottom nav so panel can cover it
-          SafeArea(
-            child: Column(
-              children: [
-                _T1TopBar(isArabic: isArabic),
-                if (_currentIndex == 2) ...[
-                  const _T1PlayerCard(),
-                ],
-                Expanded(
-                  child: _currentIndex == 2
-                      ? SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          child: Column(
-                            children: [
-                              // Play button row (same as Test 1's _buildPlayHub)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 40, left: 12, right: 12),
-                                child: _T3BattleRow(
-                                  selectedMode: _selectedMode,
-                                  savedOfflineDifficulty: _savedOfflineDifficulty,
-                                  onPlayPress: _onPlayNow,
-                                  onModePress: () =>
-                                      setState(() => _showModePanel = true),
-                                ),
+          // Main content column — SafeArea only top so bottom nav anchors flush
+          Column(
+            children: [
+              // Top content wrapped in SafeArea (handles notch + status bar only)
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _T1TopBar(isArabic: isArabic),
+                    if (_currentIndex == 2) ...[
+                      const _T1PlayerCard(),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _currentIndex == 2
+                    ? SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          children: [
+                            // Play button row
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40, left: 12, right: 12),
+                              child: _T3BattleRow(
+                                selectedMode: _selectedMode,
+                                savedOfflineDifficulty: _savedOfflineDifficulty,
+                                onPlayPress: _onPlayNow,
+                                onModePress: () =>
+                                    setState(() => _showModePanel = true),
                               ),
-                              // Tournament banner — below play button, same as Test 1
-                              _TournamentBanner(isArabic: isArabic),
-                              const SizedBox(height: 14),
-                            ],
-                          ),
-                        )
-                      : _ComingSoonPage(
-                          title: tabNames[_currentIndex],
-                          isArabic: isArabic,
+                            ),
+                            // Tournament banner
+                            _TournamentBanner(isArabic: isArabic),
+                            const SizedBox(height: 14),
+                          ],
                         ),
-                ),
-                // Bottom nav is inside the column so panel can cover it
-                _BottomNav(
-                  isArabic: isArabic,
-                  currentIndex: _currentIndex,
-                  onTap: (i) => setState(() => _currentIndex = i),
-                ),
-              ],
-            ),
+                      )
+                    : _ComingSoonPage(
+                        title: tabNames[_currentIndex],
+                        isArabic: isArabic,
+                      ),
+              ),
+              // Bottom nav is OUTSIDE SafeArea — manages its own iOS safe area
+              // via internal SafeArea(top: false), anchors flush to screen bottom
+              _BottomNav(
+                isArabic: isArabic,
+                currentIndex: _currentIndex,
+                onTap: (i) => setState(() => _currentIndex = i),
+              ),
+            ],
           ),
 
           // Game mode panel — Positioned.fill covers EVERYTHING including bottom nav
@@ -443,10 +479,7 @@ class _T1TopBar extends StatelessWidget {
               child: Builder(
                 builder: (ctx) => GestureDetector(
                   onTap: () {
-                    Navigator.push(
-                      ctx,
-                      MaterialPageRoute(builder: (_) => AlertsScreen(isArabic: isArabic)),
-                    );
+                    _pushSlideUp(ctx, AlertsScreen(isArabic: isArabic));
                   },
                   child: Container(
                     width: 50, height: 50,
@@ -571,7 +604,7 @@ class _T1TopBar extends StatelessWidget {
                             _divider(),
                             _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: isArabic ? 'الإعدادات' : 'Settings', onTap: () {
                               Navigator.pop(dialogContext);
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen(isArabic: isArabic)));
+                              _pushSlideUp(context, SettingsScreen(isArabic: isArabic));
                             }),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: isArabic ? 'Language : ARABIC' : 'Language : EN', onTap: () {
@@ -583,7 +616,7 @@ class _T1TopBar extends StatelessWidget {
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: isArabic ? 'الخصوصية' : 'Privacy', onTap: () {
                               Navigator.pop(dialogContext);
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const NavigationShell()));
+                              _pushSlideUp(context, const NavigationShell());
                             }),
                             _divider(),
                             _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () => Navigator.pop(dialogContext)),
@@ -962,7 +995,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
           children: [
             GestureDetector(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => PlayerProfileScreen(isArabic: context.read<LocaleProvider>().isArabic)));
+                _pushSlideUp(context, PlayerProfileScreen(isArabic: context.read<LocaleProvider>().isArabic));
               },
               child: _buildAvatarFrame(),
             ),
@@ -1487,7 +1520,7 @@ class _TopBar extends StatelessWidget {
                     debugPrint('[Menu] Alerts tapped');
                   },
                   onSettings: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                    _pushSlideUp(context, const SettingsScreen());
                   },
                 ),
               ),
@@ -1975,39 +2008,48 @@ class _T3BattleRowState extends State<_T3BattleRow>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                    Text(
-                      widget.selectedMode.name,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.readexPro(
-                        color: const Color(0xFFC49028),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        shadows: const [
-                          Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
-                        ],
-                      ),
-                    ),
-                    if (widget.selectedMode.id == 'merge_tactics') ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        isAr
-                          ? 'الطور : ${switch (widget.savedOfflineDifficulty) {
-                              BotDifficulty.easy => 'مبتدئ',
-                              BotDifficulty.medium => 'عادي',
-                              BotDifficulty.hard => 'خبير',
-                            }}'
-                          : 'MODE : ${switch (widget.savedOfflineDifficulty) {
-                              BotDifficulty.easy => 'BEGINNER',
-                              BotDifficulty.medium => 'REGULAR',
-                              BotDifficulty.hard => 'EXPERT',
-                            }}',
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.selectedMode.name,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.readexPro(
                           color: const Color(0xFFC49028),
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
                           shadows: const [
                             Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
                           ],
+                        ),
+                      ),
+                    ),
+                    if (widget.selectedMode.id == 'merge_tactics') ...[
+                      const SizedBox(height: 1),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          isAr
+                            ? 'الطور : ${switch (widget.savedOfflineDifficulty) {
+                                BotDifficulty.easy => 'مبتدئ',
+                                BotDifficulty.medium => 'عادي',
+                                BotDifficulty.hard => 'خبير',
+                              }}'
+                            : 'MODE : ${switch (widget.savedOfflineDifficulty) {
+                                BotDifficulty.easy => 'BEGINNER',
+                                BotDifficulty.medium => 'REGULAR',
+                                BotDifficulty.hard => 'EXPERT',
+                              }}',
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.readexPro(
+                            color: const Color(0xFFC49028),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            shadows: const [
+                              Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
+                            ],
+                          ),
                         ),
                       ),
                     ],
