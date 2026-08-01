@@ -167,6 +167,33 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Pushes a screen with a slide-up-from-bottom transition.
+  /// Unlike the default iOS slide-from-right, this covers the home screen
+  /// completely during both open and close, preventing the background flash.
+  Future<T?> _pushSlideUp<T>(BuildContext context, Widget screen) {
+    return Navigator.of(context).push<T>(
+      PageRouteBuilder<T>(
+        pageBuilder: (_, __, ___) => screen,
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        transitionsBuilder: (_, animation, __, child) {
+          final curve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(curve),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   // (section)
   void _onPlayNow() async {
     if (_selectedModeId == 'merge_tactics') {
@@ -450,10 +477,7 @@ class _T1TopBar extends StatelessWidget {
               child: Builder(
                 builder: (ctx) => GestureDetector(
                   onTap: () {
-                    Navigator.push(
-                      ctx,
-                      MaterialPageRoute(builder: (_) => AlertsScreen(isArabic: isArabic)),
-                    );
+                    _pushSlideUp(ctx, AlertsScreen(isArabic: isArabic));
                   },
                   child: Container(
                     width: 50, height: 50,
@@ -578,7 +602,7 @@ class _T1TopBar extends StatelessWidget {
                             _divider(),
                             _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: isArabic ? 'الإعدادات' : 'Settings', onTap: () {
                               Navigator.pop(dialogContext);
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen(isArabic: isArabic)));
+                              _pushSlideUp(context, SettingsScreen(isArabic: isArabic));
                             }),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: isArabic ? 'Language : ARABIC' : 'Language : EN', onTap: () {
@@ -590,7 +614,7 @@ class _T1TopBar extends StatelessWidget {
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: isArabic ? 'الخصوصية' : 'Privacy', onTap: () {
                               Navigator.pop(dialogContext);
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const NavigationShell()));
+                              _pushSlideUp(context, const NavigationShell());
                             }),
                             _divider(),
                             _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () => Navigator.pop(dialogContext)),
@@ -969,7 +993,7 @@ class _T1PlayerCardState extends State<_T1PlayerCard>
           children: [
             GestureDetector(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => PlayerProfileScreen(isArabic: context.read<LocaleProvider>().isArabic)));
+                _pushSlideUp(context, PlayerProfileScreen(isArabic: context.read<LocaleProvider>().isArabic));
               },
               child: _buildAvatarFrame(),
             ),
@@ -1494,7 +1518,7 @@ class _TopBar extends StatelessWidget {
                     debugPrint('[Menu] Alerts tapped');
                   },
                   onSettings: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                    _pushSlideUp(context, const SettingsScreen());
                   },
                 ),
               ),
