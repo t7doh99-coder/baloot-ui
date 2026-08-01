@@ -329,6 +329,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
               ),
             ),
             SafeArea(
+              bottom: false,
               child: Column(
                 children: [
                   Padding(
@@ -764,27 +765,30 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   Widget build(BuildContext context) {
     final game = widget.game;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Zone A: Action popup or project picker — separate box above player bar
-        Transform.translate(
-          offset: const Offset(0, 20.0), // Shift down to connect flush with yTop of the main bar
-          child: _buildContextualZone(context),
-        ),
-        // Zones B+C: Player bar below
-        if (_showHand(game.phase))
-          HumanPlayerMajlisBar(
-            isProjectExpanded: _activePicker == _DashboardPicker.projects,
-            onProjectTap: () {
-              setState(() {
-                _activePicker = _activePicker == _DashboardPicker.projects
-                    ? _DashboardPicker.none
-                    : _DashboardPicker.projects;
-              });
-            },
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Zone A: Action popup or project picker — separate box above player bar
+          Transform.translate(
+            offset: const Offset(0, 20.0), // Shift down to connect flush with yTop of the main bar
+            child: _buildContextualZone(context),
           ),
-      ],
+          // Zones B+C: Player bar below
+          if (_showHand(game.phase))
+            HumanPlayerMajlisBar(
+              isProjectExpanded: _activePicker == _DashboardPicker.projects,
+              onProjectTap: () {
+                setState(() {
+                  _activePicker = _activePicker == _DashboardPicker.projects
+                      ? _DashboardPicker.none
+                      : _DashboardPicker.projects;
+                });
+              },
+            ),
+        ],
+      ),
     );
   }
 
