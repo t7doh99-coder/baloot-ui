@@ -326,11 +326,18 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                 child: cardFace,
               );
 
-              final draggableChild = (widget.canPlay && isValid && isSelected)
+              // Any valid playable card is directly draggable — no pre-selection needed.
+              // Dragging auto-selects the card on start for correct visual feedback.
+              final draggableChild = (widget.canPlay && isValid)
                   ? Draggable<CardModel>(
                       data: cardModel,
                       maxSimultaneousDrags: 1,
                       dragAnchorStrategy: _handCardCenterDragAnchor,
+                      onDragStarted: () {
+                        // Auto-select so the card pops up visually when dragged
+                        _triggerBounce(index);
+                        widget.onCardTap(cardModel);
+                      },
                       feedback: Material(
                         elevation: 10,
                         shadowColor: Colors.black54,
@@ -347,7 +354,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                               width: _cardWidth,
                               height: _cardHeight,
                               faceUp: true,
-                              selected: isSelected,
+                              selected: true,
                               suppressSelectionOffset: true,
                               dimmed: false,
                               onTap: null,
