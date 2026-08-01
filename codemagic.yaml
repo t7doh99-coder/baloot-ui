@@ -11,9 +11,6 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: com.viscame.baloot
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: $BUNDLE_ID
     scripts:
       - name: Get Flutter packages
         script: |
@@ -24,6 +21,9 @@ workflows:
           pod install --repo-update
       - name: Set up code signing
         script: |
+          app-store-connect fetch-signing-files $BUNDLE_ID \
+            --type IOS_APP_STORE \
+            --create
           xcode-project use-profiles
       - name: Flutter build IPA
         script: |
