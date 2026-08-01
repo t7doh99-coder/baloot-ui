@@ -250,50 +250,57 @@ class _HomeScreenState extends State<HomeScreen> {
             child: CustomPaint(painter: DiamondOnlyPainter()),
           ),
 
-          // Main content column — includes bottom nav so panel can cover it
-          SafeArea(
-            child: Column(
-              children: [
-                _T1TopBar(isArabic: isArabic),
-                if (_currentIndex == 2) ...[
-                  const _T1PlayerCard(),
-                ],
-                Expanded(
-                  child: _currentIndex == 2
-                      ? SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          child: Column(
-                            children: [
-                              // Play button row (same as Test 1's _buildPlayHub)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 40, left: 12, right: 12),
-                                child: _T3BattleRow(
-                                  selectedMode: _selectedMode,
-                                  savedOfflineDifficulty: _savedOfflineDifficulty,
-                                  onPlayPress: _onPlayNow,
-                                  onModePress: () =>
-                                      setState(() => _showModePanel = true),
-                                ),
+          // Main content column — SafeArea only top so bottom nav anchors flush
+          Column(
+            children: [
+              // Top content wrapped in SafeArea (handles notch + status bar only)
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _T1TopBar(isArabic: isArabic),
+                    if (_currentIndex == 2) ...[
+                      const _T1PlayerCard(),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _currentIndex == 2
+                    ? SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          children: [
+                            // Play button row
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40, left: 12, right: 12),
+                              child: _T3BattleRow(
+                                selectedMode: _selectedMode,
+                                savedOfflineDifficulty: _savedOfflineDifficulty,
+                                onPlayPress: _onPlayNow,
+                                onModePress: () =>
+                                    setState(() => _showModePanel = true),
                               ),
-                              // Tournament banner — below play button, same as Test 1
-                              _TournamentBanner(isArabic: isArabic),
-                              const SizedBox(height: 14),
-                            ],
-                          ),
-                        )
-                      : _ComingSoonPage(
-                          title: tabNames[_currentIndex],
-                          isArabic: isArabic,
+                            ),
+                            // Tournament banner
+                            _TournamentBanner(isArabic: isArabic),
+                            const SizedBox(height: 14),
+                          ],
                         ),
-                ),
-                // Bottom nav is inside the column so panel can cover it
-                _BottomNav(
-                  isArabic: isArabic,
-                  currentIndex: _currentIndex,
-                  onTap: (i) => setState(() => _currentIndex = i),
-                ),
-              ],
-            ),
+                      )
+                    : _ComingSoonPage(
+                        title: tabNames[_currentIndex],
+                        isArabic: isArabic,
+                      ),
+              ),
+              // Bottom nav is OUTSIDE SafeArea — manages its own iOS safe area
+              // via internal SafeArea(top: false), anchors flush to screen bottom
+              _BottomNav(
+                isArabic: isArabic,
+                currentIndex: _currentIndex,
+                onTap: (i) => setState(() => _currentIndex = i),
+              ),
+            ],
           ),
 
           // Game mode panel — Positioned.fill covers EVERYTHING including bottom nav
