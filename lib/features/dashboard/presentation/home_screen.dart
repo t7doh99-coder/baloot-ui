@@ -34,7 +34,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 //  For "Test 3" menu item. No changes to the original home screen.
 // (section)
 
-// (section)
+/// Pushes a screen with a slide-up-from-bottom transition.
+/// Unlike the default iOS slide-from-right, this covers the screen underneath
+/// completely during both open and close, preventing the background flash.
+/// Top-level so it is accessible from ALL widget classes in this file.
+Future<T?> _pushSlideUp<T>(BuildContext context, Widget screen) {
+  return Navigator.of(context).push<T>(
+    PageRouteBuilder<T>(
+      pageBuilder: (_, __, ___) => screen,
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+      transitionsBuilder: (_, animation, __, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(curve),
+          child: child,
+        );
+      },
+    ),
+  );
+}
+
+
 class _T3GameMode {
   final String id;
   final String? sectionHeader;
@@ -167,32 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /// Pushes a screen with a slide-up-from-bottom transition.
-  /// Unlike the default iOS slide-from-right, this covers the home screen
-  /// completely during both open and close, preventing the background flash.
-  Future<T?> _pushSlideUp<T>(BuildContext context, Widget screen) {
-    return Navigator.of(context).push<T>(
-      PageRouteBuilder<T>(
-        pageBuilder: (_, __, ___) => screen,
-        transitionDuration: const Duration(milliseconds: 320),
-        reverseTransitionDuration: const Duration(milliseconds: 280),
-        transitionsBuilder: (_, animation, __, child) {
-          final curve = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 1),
-              end: Offset.zero,
-            ).animate(curve),
-            child: child,
-          );
-        },
-      ),
-    );
-  }
 
   // (section)
   void _onPlayNow() async {
@@ -2006,39 +2008,48 @@ class _T3BattleRowState extends State<_T3BattleRow>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                    Text(
-                      widget.selectedMode.name,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.readexPro(
-                        color: const Color(0xFFC49028),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        shadows: const [
-                          Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
-                        ],
-                      ),
-                    ),
-                    if (widget.selectedMode.id == 'merge_tactics') ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        isAr
-                          ? 'الطور : ${switch (widget.savedOfflineDifficulty) {
-                              BotDifficulty.easy => 'مبتدئ',
-                              BotDifficulty.medium => 'عادي',
-                              BotDifficulty.hard => 'خبير',
-                            }}'
-                          : 'MODE : ${switch (widget.savedOfflineDifficulty) {
-                              BotDifficulty.easy => 'BEGINNER',
-                              BotDifficulty.medium => 'REGULAR',
-                              BotDifficulty.hard => 'EXPERT',
-                            }}',
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.selectedMode.name,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.readexPro(
                           color: const Color(0xFFC49028),
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
                           shadows: const [
                             Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
                           ],
+                        ),
+                      ),
+                    ),
+                    if (widget.selectedMode.id == 'merge_tactics') ...[
+                      const SizedBox(height: 1),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          isAr
+                            ? 'الطور : ${switch (widget.savedOfflineDifficulty) {
+                                BotDifficulty.easy => 'مبتدئ',
+                                BotDifficulty.medium => 'عادي',
+                                BotDifficulty.hard => 'خبير',
+                              }}'
+                            : 'MODE : ${switch (widget.savedOfflineDifficulty) {
+                                BotDifficulty.easy => 'BEGINNER',
+                                BotDifficulty.medium => 'REGULAR',
+                                BotDifficulty.hard => 'EXPERT',
+                              }}',
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.readexPro(
+                            color: const Color(0xFFC49028),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            shadows: const [
+                              Shadow(color: Colors.black87, offset: Offset(0, 1), blurRadius: 3),
+                            ],
+                          ),
                         ),
                       ),
                     ],
