@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/errors/game_exceptions.dart';
 import '../../../core/interfaces/i_baloot_controller.dart';
 import '../../../data/models/card_model.dart';
@@ -560,6 +560,8 @@ class BalootGameController implements IBalootController {
       isOpenPlay: isOpenPlay,
       currentPlayerIndex: nextSeat,
     );
+    logger.log('[DoubleDebug] callDouble: seat=$seatIndex level=$level → roundState.doubleStatus=${_roundState.doubleStatus}');
+    debugPrint('[DoubleDebug] callDouble: seat=$seatIndex level=$level → ds=${_roundState.doubleStatus}');
   }
 
   /// Skip the double window and proceed to play.
@@ -568,7 +570,10 @@ class BalootGameController implements IBalootController {
       throw const InvalidMoveException('Double window is not open.');
     }
     _escalationDefenderSeat = null;
+    final dsBeforeSkip = _roundState.doubleStatus;
     _roundState = _roundState.copyWith(isDoubleWindowOpen: false);
+    logger.log('[DoubleDebug] skipDoubleWindow: doubleStatus BEFORE=$dsBeforeSkip, AFTER=${_roundState.doubleStatus}');
+    debugPrint('[DoubleDebug] skipDoubleWindow: BEFORE=$dsBeforeSkip AFTER=${_roundState.doubleStatus}');
     _gamePhase = GamePhase.playing;
     _startPlayPhase();
   }
@@ -613,6 +618,7 @@ class BalootGameController implements IBalootController {
       doubleStatus: _roundState.doubleStatus,
       isOpenPlay: _roundState.isOpenPlay,
       playerSeat: seatIndex,
+      playedCards: _turnManager!.playedCards,
     );
 
     if (!validation.isValid) {
@@ -826,6 +832,7 @@ class BalootGameController implements IBalootController {
       doubleStatus: _roundState.doubleStatus,
       isOpenPlay: _roundState.isOpenPlay,
       playerSeat: opponentSeat,
+      playedCards: _turnManager!.playedCards,
     );
 
     if (!validation.isValid) {
@@ -956,18 +963,31 @@ class BalootGameController implements IBalootController {
       (_dealerIndex + 1) % 4,
     );
 
+    final hasSeqA = teamAProjects.any((p) => p.type != ProjectType.baloot);
+    final hasSeqB = teamBProjects.any((p) => p.type != ProjectType.baloot);
+
     if (projectWinner == 'A') {
       // Team A won, delete Team B's projects (except Baloot, which is handled later)
       _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 != 0 && p.type != ProjectType.baloot);
-      logger.log('Team A won project priority. Team B projects nullified.');
+      if (hasSeqB) {
+        logger.log('Team A won project priority. Team B projects nullified.');
+      } else if (hasSeqA) {
+        logger.log('Team A won project priority.');
+      }
     } else if (projectWinner == 'B') {
       // Team B won, delete Team A's projects
       _activeDeclaredProjects.removeWhere((p) => p.playerIndex % 2 == 0 && p.type != ProjectType.baloot);
-      logger.log('Team B won project priority. Team A projects nullified.');
+      if (hasSeqA) {
+        logger.log('Team B won project priority. Team A projects nullified.');
+      } else if (hasSeqB) {
+        logger.log('Team B won project priority.');
+      }
     }
   }
 
   void _scoreRound() {
+    logger.log('[DoubleDebug] _scoreRound called: doubleStatus=${_roundState.doubleStatus}');
+    debugPrint('[DoubleDebug] _scoreRound: doubleStatus=${_roundState.doubleStatus}');
     _gamePhase = GamePhase.scoring;
 
     final mode = _roundState.activeMode!;

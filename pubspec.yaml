@@ -1,7 +1,7 @@
 name: baloot_game
 description: Royal Baloot — A premium VIP card game experience by Antigravitty.
 publish_to: 'none'
-version: 1.0.0+4
+version: 1.0.0+5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

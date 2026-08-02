@@ -44,6 +44,19 @@ class TurnManager {
   // History of all tricks
   final List<TrickResult> trickHistory = [];
 
+  Set<CardModel> get playedCards {
+    final set = <CardModel>{};
+    for (final trick in trickHistory) {
+      for (final play in trick.cards) {
+        set.add(play.card);
+      }
+    }
+    for (final play in _currentTrick) {
+      set.add(play.card);
+    }
+    return set;
+  }
+
   TurnManager({
     required this.mode,
     this.trumpSuit,

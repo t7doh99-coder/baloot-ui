@@ -359,6 +359,16 @@ class GameProvider extends ChangeNotifier {
     return _engine.allowedActions(0).contains(BidAction.sawa);
   }
 
+  bool _hasRound2PendingBid = false;
+
+  /// Whether Auto-Akkah is enabled by the user (default true)
+  bool _autoAkkahEnabled = true;
+  bool get autoAkkahEnabled => _autoAkkahEnabled;
+  void toggleAutoAkkah() {
+    _autoAkkahEnabled = !_autoAkkahEnabled;
+    notifyListeners();
+  }
+
   bool get hasRound2PendingBid =>
       phase == GamePhase.notStarted ? false : _engine.hasRound2PendingBid;
 
@@ -744,7 +754,7 @@ class GameProvider extends ChangeNotifier {
     _autoPlaySuspended = false;
 
     if (_engine.gamePhase == GamePhase.bidding) {
-      _showBubble(_engine.roundState.dealerIndex, 'Awal');
+      // Dealer does not speak when bidding starts
     }
     _scheduleNextAction();
   }
@@ -823,7 +833,9 @@ class GameProvider extends ChangeNotifier {
     if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
+      debugPrint('[GameProvider] humanDouble: level=$level (before) ds=${_engine.roundState.doubleStatus}');
       _engine.callDouble(0, level, isOpenPlay: isOpenPlay);
+      debugPrint('[GameProvider] humanDouble: AFTER ds=${_engine.roundState.doubleStatus}');
       _showBubble(0, _doubleLabel(level));
       HapticFeedback.heavyImpact();
       _afterEngineAction();
@@ -838,7 +850,9 @@ class GameProvider extends ChangeNotifier {
     if (_turnTimer == null) return; // Ignore input during system pauses/animations
     _cancelTimers();
     try {
+      debugPrint('[GameProvider] humanSkipDouble: BEFORE ds=${_engine.roundState.doubleStatus}');
       _engine.skipDoubleWindow();
+      debugPrint('[GameProvider] humanSkipDouble: AFTER ds=${_engine.roundState.doubleStatus}');
       _showBubble(0, 'Pass');
       _afterEngineAction();
     } catch (e) {
@@ -914,7 +928,7 @@ class GameProvider extends ChangeNotifier {
       } else if (trickBefore == 1) {
         // Announce user's manually declared projects (if any) when they play their first card
         _announceProjects(0);
-      } else if (_engine.isAkka(card)) {
+      } else if (_autoAkkahEnabled && _engine.isAkka(card)) {
         // Standard "أكة" — auto-detect strongest remaining card of suit
         _showBubble(0, 'Akka');
       }
@@ -939,7 +953,7 @@ class GameProvider extends ChangeNotifier {
   /// Human declares a project — only allowed during Trick 1 of playing phase.
   void humanDeclareProject(int projectIndex) {
     final ok = canDeclareProjects;
-    if (!ok || _turnTimer == null) return;
+    if (!ok) return;
     try {
       _engine.declareProject(0, projectIndex);
       notifyListeners();
@@ -950,7 +964,7 @@ class GameProvider extends ChangeNotifier {
 
   void humanUndeclareProject(ProjectType type) {
     final ok = canDeclareProjects;
-    if (!ok || _turnTimer == null) return;
+    if (!ok) return;
     try {
       _engine.undeclareProject(0, type);
       notifyListeners();
@@ -1132,7 +1146,7 @@ class GameProvider extends ChangeNotifier {
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
             if (_engine.gamePhase == GamePhase.bidding) {
-              _showBubble(_engine.roundState.dealerIndex, 'Awal');
+              // Dealer does not speak when bidding starts
             }
           }
           notifyListeners();
@@ -1185,7 +1199,7 @@ class GameProvider extends ChangeNotifier {
       _roundCancelled = false;
       _cancelledNewDealerName = '';
       if (_engine.gamePhase == GamePhase.bidding) {
-        _showBubble(newDealerSeat, 'Awal');
+        // Dealer does not speak when bidding starts
       }
       notifyListeners();
       _scheduleNextAction();
@@ -1201,7 +1215,7 @@ class GameProvider extends ChangeNotifier {
       _prevPhase = _engine.gamePhase;
       _prevBiddingPhase = _engine.roundState.biddingPhase;
       if (_engine.gamePhase == GamePhase.bidding) {
-        _showBubble(_engine.roundState.dealerIndex, 'Awal');
+        // Dealer does not speak when bidding starts
       }
       notifyListeners();
       _scheduleNextAction();
@@ -1328,6 +1342,7 @@ class GameProvider extends ChangeNotifier {
     final phaseBefore = _engine.gamePhase;
     final bpBefore = roundState.biddingPhase;
     final dealerBefore = roundState.dealerIndex;
+    final hasPendingBidBefore = _engine.hasRound2PendingBid;
 
     try {
       // In-play Sawa (hand reveal / end round): human only — bots never auto-claim.
@@ -1340,7 +1355,7 @@ class GameProvider extends ChangeNotifier {
 
       // Show speech bubble for bot actions
       if (phaseBefore == GamePhase.bidding) {
-        _inferBotBidBubble(seat, bpBefore);
+        _inferBotBidBubble(seat, bpBefore, hasPendingBidBefore);
       } else if (phaseBefore == GamePhase.doubleWindow) {
         _inferBotDoubleBubble(seat);
       } else if (phaseBefore == GamePhase.playing) {
@@ -1377,7 +1392,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Infer what the bot bid and show a speech bubble.
-  void _inferBotBidBubble(int seat, BiddingPhase bpBefore) {
+  void _inferBotBidBubble(int seat, BiddingPhase bpBefore, bool hasPendingBidBefore) {
     final rs = _engine.roundState;
 
     if (bpBefore == BiddingPhase.qablakIntervention) {
@@ -1399,7 +1414,12 @@ class GameProvider extends ChangeNotifier {
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
         _showBubble(seat, 'Ashkal');
       } else {
-        _showBubble(seat, 'Pass');
+        final isFirstBidder = seat == (_engine.roundState.dealerIndex + 1) % 4;
+        if (!_engine.hasActiveHakamBid && isFirstBidder) {
+          _showBubble(seat, 'Awal');
+        } else {
+          _showBubble(seat, 'Pass');
+        }
       }
     } else if (bpBefore == BiddingPhase.round2) {
       // Round 2: check if this bot just placed a pending bid
@@ -1416,7 +1436,11 @@ class GameProvider extends ChangeNotifier {
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
          _showBubble(seat, 'Ashkal');
       } else {
-        _showBubble(seat, 'PassR2');
+        if (hasPendingBidBefore) {
+          _showBubble(seat, 'Pass');
+        } else {
+          _showBubble(seat, 'PassR2');
+        }
       }
     } else {
       _showBubble(seat, 'Pass');
@@ -1698,7 +1722,14 @@ class GameProvider extends ChangeNotifier {
       case BidAction.sawa:         return 'Sawa';
       case BidAction.pass:
         if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
-          return 'PassR2';
+          if (!_engine.hasRound2PendingBid) {
+            return 'PassR2';
+          }
+        } else if (_engine.roundState.biddingPhase == BiddingPhase.round1) {
+          final isFirstBidder = 0 == (_engine.roundState.dealerIndex + 1) % 4;
+          if (!_engine.hasActiveHakamBid && isFirstBidder) {
+            return 'Awal';
+          }
         }
         return 'Pass';
       case BidAction.confirmHakam: 
