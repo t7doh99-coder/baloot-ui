@@ -765,13 +765,8 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
   Widget build(BuildContext context) {
     final game = widget.game;
 
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-
-    return Container(
-      // Fill ALL the way to the physical screen edge with the bar's dark color
-      // so there's no transparent gap below the buttons on iOS
-      color: const Color(0xFF1E1808),
-      padding: EdgeInsets.only(bottom: bottomInset),
+    return SafeArea(
+      top: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
