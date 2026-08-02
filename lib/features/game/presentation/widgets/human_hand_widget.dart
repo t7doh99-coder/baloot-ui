@@ -192,6 +192,17 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
   }
 
   @override
+  void didUpdateWidget(_DesignerHandFan oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the cards list changed (trick completed / round started), reset any stuck
+    // bounce state so no card remains visually elevated from a previous animation.
+    if (oldWidget.cards != widget.cards) {
+      _bouncingIndex = null;
+      if (_springCtrl.isAnimating) _springCtrl.stop();
+    }
+  }
+
+  @override
   void dispose() {
     _springCtrl.dispose();
     super.dispose();
