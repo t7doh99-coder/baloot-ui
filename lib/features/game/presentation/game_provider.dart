@@ -847,7 +847,15 @@ class GameProvider extends ChangeNotifier {
   }
 
   void selectCard(CardModel card) {
-    if (phase != GamePhase.playing) return;
+    if (phase != GamePhase.playing) {
+      // Phase changed away from playing (e.g. bidding popup appeared while a
+      // card was selected) — clear any stuck selection and bail out.
+      if (_selectedCard != null) {
+        _selectedCard = null;
+        notifyListeners();
+      }
+      return;
+    }
     // Note: intentionally NO _turnTimer guard here — card selection (visual + sound)
     // should always work so the player can pre-select their card on the bot's turn.
     // Always play sound on EVERY tap (both select and deselect).
@@ -1065,6 +1073,13 @@ class GameProvider extends ChangeNotifier {
       _clearAllBubbles();
       // Play sound for the distribution of the remaining 4 cards
       _audioService.playEffect('card distribution sound.mp3');
+    }
+
+    // Auto-clear any selected card whenever we leave the playing phase.
+    // This prevents cards from appearing stuck-elevated when a bidding popup
+    // or double window appears after the player had pre-selected a card.
+    if (_prevPhase == GamePhase.playing && newPhase != GamePhase.playing) {
+      _selectedCard = null;
     }
 
     // Detect "round just completed" by watching playing → scoring.
