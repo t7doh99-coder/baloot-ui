@@ -345,9 +345,14 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                       maxSimultaneousDrags: 1,
                       dragAnchorStrategy: _handCardCenterDragAnchor,
                       onDragStarted: () {
-                        // Auto-select so the card pops up visually when dragged
                         _triggerBounce(index);
-                        widget.onCardTap(cardModel);
+                        // Only auto-select if not already selected.
+                        // If already selected, calling onCardTap would immediately
+                        // play the card (double-tap-to-play logic) before the drag
+                        // reaches the drop target — which breaks drag entirely.
+                        if (!isSelected) {
+                          widget.onCardTap(cardModel);
+                        }
                       },
                       feedback: Material(
                         elevation: 10,
