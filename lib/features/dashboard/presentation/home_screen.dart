@@ -3208,103 +3208,104 @@ class _BottomNav extends StatelessWidget {
       (icon: 'assets/icons/chat.png', lbl: isArabic ? 'دردشة' : 'Chat'),
     ];
 
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF1E1808),  // bgCanvas
         border: Border(top: BorderSide(color: Color(0x21FFFFFF))),
       ),
-      child: SafeArea(
-        top: false,
-        child: Stack(
-          children: [
-            // Top shimmer line
-            Positioned(
-              top: 0, left: 16, right: 16, height: 1,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [
-                    Colors.transparent,
-                    Color(0x38C49028),
-                    Color(0x38DFAE45),
-                    Color(0x38C49028),
-                    Colors.transparent,
-                  ]),
-                ),
+      // Fill dark color all the way to physical edge — content padded above home indicator
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Stack(
+        children: [
+          // Top shimmer line
+          Positioned(
+            top: 0, left: 16, right: 16, height: 1,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  Colors.transparent,
+                  Color(0x38C49028),
+                  Color(0x38DFAE45),
+                  Color(0x38C49028),
+                  Colors.transparent,
+                ]),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: nav.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final item = entry.value;
-                  final on = currentIndex == i;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => onTap(i),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: on ? const Color(0x1FC49028) : null,  // sandGold tint
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: on ? const Color(0x38C49028) : Colors.transparent,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: nav.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                final on = currentIndex == i;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => onTap(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: on ? const Color(0x1FC49028) : null,  // sandGold tint
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: on ? const Color(0x38C49028) : Colors.transparent,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Active indicator dot
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              width: on ? 24 : 0,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: on ? _kCYN : Colors.transparent,
+                                borderRadius: BorderRadius.circular(2),
+                                boxShadow: on
+                                    ? const [
+                                        BoxShadow(color: Color(0xFFDFAE45), blurRadius: 14),
+                                        BoxShadow(color: Color(0x6BDFAE45), blurRadius: 28),
+                                      ]
+                                    : null,
+                              ),
                             ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Active indicator dot
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 220),
-                                width: on ? 24 : 0,
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  color: on ? _kCYN : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(2),
-                                  boxShadow: on
-                                      ? const [
-                                          BoxShadow(color: Color(0xFFDFAE45), blurRadius: 14),
-                                          BoxShadow(color: Color(0x6BDFAE45), blurRadius: 28),
-                                        ]
-                                      : null,
+                            Opacity(
+                              opacity: on ? 1.0 : 0.5,
+                              child: Image.asset(
+                                item.icon,
+                                width: 26,
+                                height: 26,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                item.lbl,
+                                maxLines: 1,
+                                style: GoogleFonts.readexPro(
+                                  fontSize: 9.5,
+                                  fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+                                  color: on ? _kCYN : const Color(0xFF806840),
                                 ),
                               ),
-                              Opacity(
-                                opacity: on ? 1.0 : 0.5,
-                                child: Image.asset(
-                                  item.icon,
-                                  width: 26,
-                                  height: 26,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  item.lbl,
-                                  maxLines: 1,
-                                  style: GoogleFonts.readexPro(
-                                    fontSize: 9.5,
-                                    fontWeight: on ? FontWeight.w800 : FontWeight.w500,
-                                    color: on ? _kCYN : const Color(0xFF806840),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                );
+              }).toList(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
