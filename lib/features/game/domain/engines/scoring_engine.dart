@@ -70,13 +70,13 @@ class ScoringEngine {
       // Example: 65 abnaat → 65/5 = 13 ✓ (old formula gave 14 ✗)
       return (abnat / 5).round();
     }
-    // Hakam: Jawaker rounding -- .5 rounds DOWN, .6+ rounds UP
-    return _jawakerRound(abnat / 10);
+    // Hakam: Traditional Baloot rounding -- .5 rounds DOWN, .6+ rounds UP
+    return _balootRound(abnat / 10);
   }
 
-  /// Jawaker-style rounding: exactly .5 rounds DOWN, .6+ rounds UP.
+  /// Traditional Baloot rounding: exactly .5 rounds DOWN, .6+ rounds UP.
   /// 15.5 -> 15, 15.6 -> 16
-  int _jawakerRound(double value) {
+  int _balootRound(double value) {
     final fractional = value - value.truncate();
     if ((fractional - 0.5).abs() < 0.0001) {
       return value.truncate(); // .5 rounds DOWN
@@ -403,30 +403,25 @@ class ScoringEngine {
 
     if (doubleStatus != DoubleStatus.none) {
       // With double: winner gets base value, loser gets 0.
-      // Project scoreboard pts added separately (Abnat conversion bypassed).
+      // Projects: Winner gets their own projects (if they won priority). Loser's projects are nullified.
       final basePts = _doubleBaseValue(doubleStatus, mode);
+      final multiplier = _projectMultiplier(doubleStatus);
+      
       aPts = buyerTeam == 'A' ? basePts : 0;
       bPts = buyerTeam == 'B' ? basePts : 0;
 
-      final multiplier = _projectMultiplier(doubleStatus);
-      if (projectWinningTeam == 'A') {
+      // Only give project points if the round WINNER also won project priority
+      if (buyerTeam == 'A' && projectWinningTeam == 'A') {
         aPts += teamAProjectScoreboard * multiplier;
-      } else if (projectWinningTeam == 'B') {
+      } else if (buyerTeam == 'B' && projectWinningTeam == 'B') {
         bPts += teamBProjectScoreboard * multiplier;
       }
     } else {
       // No double: convert TRICK Abnaat to scoreboard points.
-      // Per Standard: Sun always totals 26, Hakam always totals 16.
-      // We ALWAYS calculate the BUYER'S score first to ensure rounding consistency
-      // (Buyer rounds DOWN on .5 in Hakam) and then derive the defender as the remainder.
-      final modeTotal = mode == GameMode.sun ? 26 : 16;
-      if (buyerTeam == 'A') {
-        aPts = abnatToScoreboard(teamAAbnat, mode);
-        bPts = modeTotal - aPts;
-      } else {
-        bPts = abnatToScoreboard(teamBAbnat, mode);
-        aPts = modeTotal - bPts;
-      }
+      // Kammelna Rule: Both teams are rounded completely independently.
+      // The total score might occasionally sum to 15, 16, or 17 in Hakam (or 25, 26, 27 in Sun).
+      aPts = abnatToScoreboard(teamAAbnat, mode);
+      bPts = abnatToScoreboard(teamBAbnat, mode);
 
       // Add project scoreboard points for the winning team
       if (projectWinningTeam == 'A') {

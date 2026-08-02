@@ -117,6 +117,14 @@ class GameAudioService {
         file = 'qablak.mp3';
       } else if (k.contains('sun') || k.contains('صن') || k.contains('يقلب')) {
         file = 'sun.mp3';
+      } else if (k.contains('♥')) {
+        file = 'hearts.mp3';
+      } else if (k.contains('♦')) {
+        file = 'diamonds.mp3';
+      } else if (k.contains('♠')) {
+        file = 'spades.mp3';
+      } else if (k.contains('♣')) {
+        file = 'clubs.mp3';
       } else if (k.contains('thani') || k.contains('ثاني') || k.contains('sani')) {
         file = 'thani.mp3';
       } else if (k.contains('hakam') || k.contains('حكم') || k.contains('hokum')) {

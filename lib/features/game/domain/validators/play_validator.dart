@@ -42,6 +42,7 @@ class PlayValidator {
     DoubleStatus doubleStatus = DoubleStatus.none,
     bool isOpenPlay = true,
     int? playerSeat,
+    Set<CardModel>? playedCards,
   }) {
     // If leading the trick
     if (currentTrick.isEmpty) {
@@ -100,21 +101,8 @@ class PlayValidator {
         );
         if (currentWinnerSeat >= 0 &&
             (currentWinnerSeat % 2 == playerSeat % 2)) {
-          
-          // Partner is winning. Check the "Ace" exception for the 3rd player.
-          // In Hakam, if the 3rd player is void, they must cut their partner's 
-          // winning trick UNLESS the partner led an Ace (or declared Ekka).
-          bool mustCutPartner = false;
-          if (currentTrick.length == 2 && currentWinnerSeat == currentTrick.first.playerIndex) {
-            final ledCard = currentTrick.first.card;
-            if (ledCard.rank != Rank.ace) {
-              mustCutPartner = true;
-            }
-          }
-
-          if (!mustCutPartner) {
-            exempt = true;
-          }
+          // Partner is winning. You are exempt from cutting them.
+          exempt = true;
         }
 
         // (b) Opponent already trumped & we can't overtrump → free play
@@ -250,6 +238,7 @@ class PlayValidator {
     DoubleStatus doubleStatus = DoubleStatus.none,
     bool isOpenPlay = true,
     int? playerSeat,
+    Set<CardModel>? playedCards,
   }) {
     return hand.where((card) {
       final result = validate(
@@ -261,6 +250,7 @@ class PlayValidator {
         doubleStatus: doubleStatus,
         isOpenPlay: isOpenPlay,
         playerSeat: playerSeat,
+        playedCards: playedCards,
       );
       return result.isValid;
     }).toList();

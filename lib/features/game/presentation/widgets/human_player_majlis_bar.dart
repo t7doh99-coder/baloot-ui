@@ -214,6 +214,26 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
             Row(
               children: [
                 Expanded(
+                  child: _QaidButton(
+                    isActive: game.canClaimQaid,
+                    onTap: () => game.humanClaimQaid(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: (game.phase == GamePhase.playing && !game.canDeclareProjects)
+                    ? _AutoAkkahButton(
+                        isActive: game.autoAkkahEnabled,
+                        onTap: () => game.toggleAutoAkkah(),
+                      )
+                    : _ProjectButton(
+                        isActive: game.canDeclareProjects,
+                        isExpanded: widget.isProjectExpanded,
+                        onTap: widget.onProjectTap ?? () {},
+                      ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: _SawaButton(
                     isActive: (game.canSawa && !game.isSawaRevealPlaying) || game.canHumanBidSawa,
                     onTap: () {
@@ -223,22 +243,6 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                         game.humanClaimSawa();
                       }
                     },
-
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ProjectButton(
-                    isActive: game.canDeclareProjects,
-                    isExpanded: widget.isProjectExpanded,
-                    onTap: widget.onProjectTap ?? () {},
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _QaidButton(
-                    isActive: game.canClaimQaid,
-                    onTap: () => game.humanClaimQaid(),
                   ),
                 ),
               ],
@@ -680,6 +684,87 @@ class _QaidButton extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
                   fontFamily: GoogleFonts.readexPro().fontFamily,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoAkkahButton extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _AutoAkkahButton({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    const gold = Color(0xFFD4AF37);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          context.read<GameProvider>().audioService.playGoldButton();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 42,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isActive ? gold : Colors.white.withValues(alpha: 0.1),
+                width: 1.5,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                        blurStyle: BlurStyle.inner,
+                      ),
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                        blurStyle: BlurStyle.inner,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Center(
+              child: Text(
+                loc.autoAkkah,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: GameL10n.of(context).isArabic ? GoogleFonts.readexPro().fontFamily : null,
                   height: 1.1,
                 ),
               ),

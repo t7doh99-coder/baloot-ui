@@ -42,10 +42,10 @@ class GameL10n {
   String get switchToSun => _ar ? 'يقلب صن' : 'Switch to Sun';
   String get projects => _ar ? 'المشاريع' : 'Projects';
   String get cancel => _ar ? 'إلغاء' : 'Cancel';
-  String get closed => _ar ? 'مقفل' : 'Closed';
+  String get closed => _ar ? 'مقفول' : 'Closed';
   String get open => _ar ? 'مفتوح' : 'Open';
   String get doubleWord => _ar ? 'دبل' : 'Double';
-  String get triple => _ar ? 'تربل' : 'Triple';
+  String get triple => _ar ? 'ثري' : 'Triple';
   String get four => _ar ? 'فور' : 'Four';
   String get gahwa => _ar ? 'قهوة' : 'Gahwa';
   String get qaid => _ar ? 'قيدها' : 'Qaid';
@@ -71,6 +71,7 @@ class GameL10n {
   String get noProjectsFound => _ar ? 'لا توجد مشاريع في يدك' : 'No projects found in your hand';
   String get skip => _ar ? 'تخطي' : 'Skip';
   String get declared => _ar ? 'معلنة' : 'Declared';
+  String get autoAkkah => _ar ? 'تأكيك تلقائي' : 'Auto Akkah';
   String get abnat => _ar ? 'أبناط' : 'Abnat';
   String get gameLogCopied => _ar ? 'تم نسخ السجل!' : 'Game log copied to clipboard!';
   String get copyGameLog => _ar ? 'نسخ سجل اللعب' : 'Copy Game Log';
@@ -213,7 +214,7 @@ class GameL10n {
       'Hakam Sani' => 'حكم ثاني',
       'Ashkal' => 'أشكل',
       'Double' => 'دبل',
-      'Triple' => 'تربل',
+      'Triple' => 'ثري',
       'Four' => 'فور',
       'Gahwa' => 'قهوة',
       'Qaid' => 'قيدها',

@@ -887,8 +887,8 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
     if (bp == BiddingPhase.hakamConfirmation) {
       return [
-        _GameBtn(label: loc.confirmHakam, onTap: () => gp.humanBid(BidAction.confirmHakam)),
         _GameBtn(label: loc.switchToSun, onTap: () => gp.humanBid(BidAction.sun)),
+        _GameBtn(label: loc.confirmHakam, onTap: () => gp.humanBid(BidAction.confirmHakam)),
       ];
     }
 
@@ -896,7 +896,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final isHakam = widget.game.activeRound2PendingMode == GameMode.hakam;
       return [
         if (isHakam) _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
+        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
 
@@ -931,14 +931,14 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     if (gp.isHumanBuyer) {
       if (status == DoubleStatus.doubled && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.pass,   onTap: () => gp.humanSkipDouble()),
           _GameBtn(label: loc.triple, onTap: () => openDoublePicker(DoubleStatus.tripled)),
+          _GameBtn(label: loc.pass,   onTap: () => gp.humanSkipDouble()),
         ];
       }
       if (status == DoubleStatus.four && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.pass,  onTap: () => gp.humanSkipDouble()),
           _GameBtn(label: loc.gahwa, onTap: () => gp.humanDouble(DoubleStatus.gahwa)),
+          _GameBtn(label: loc.pass,  onTap: () => gp.humanSkipDouble()),
         ];
       }
       return [];
@@ -952,21 +952,21 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       }
       if (status != DoubleStatus.none) return [];
       return [
-        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
         _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
       ];
     }
 
     if (status == DoubleStatus.none) {
       return [
-        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
         _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+        _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
       ];
     }
     if (status == DoubleStatus.tripled) {
       return [
-        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
         _GameBtn(label: loc.four, onTap: () => openDoublePicker(DoubleStatus.four)),
+        _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
       ];
     }
     return [];
