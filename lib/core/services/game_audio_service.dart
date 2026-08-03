@@ -87,18 +87,36 @@ class GameAudioService {
   void playBubble(String bubbleKey) {
     if (_muted) return;
 
-    // Handle "Hakam ♠" style keys (strip the suit symbol)
-    String key = bubbleKey;
-    if (key.startsWith('Hakam Sani ') && key.length > 11) {
-      key = 'Hakam Sani';
-    } else if (key.startsWith('Hakam ') && key.length > 6) {
-      key = 'Hakam';
+    String? file;
+    final k = bubbleKey.toLowerCase();
+
+    // 1. Highest priority: if the bubble contains a specific suit symbol, play that suit's audio.
+    // This fixes the bug where "Hakam Sani ♥" was being truncated to "Hakam Sani" and playing thani.mp3.
+    if (k.contains('♥')) {
+      file = 'hearts.mp3';
+    } else if (k.contains('♦')) {
+      file = 'diamonds.mp3';
+    } else if (k.contains('♠')) {
+      file = 'spades.mp3';
+    } else if (k.contains('♣')) {
+      file = 'clubs.mp3';
     }
 
-    String? file = _bubbleToFile[key];
-
+    // 2. If no specific suit found, process through the normal keys
     if (file == null) {
-      final k = bubbleKey.toLowerCase();
+      // Handle "Hakam" or "Hakam Sani" fallback keys
+      String key = bubbleKey;
+      if (key.startsWith('Hakam Sani ') && key.length > 11) {
+        key = 'Hakam Sani';
+      } else if (key.startsWith('Hakam ') && key.length > 6) {
+        key = 'Hakam';
+      }
+
+      file = _bubbleToFile[key];
+    }
+
+    // 3. Fallback to keyword matching if exact key isn't found
+    if (file == null) {
       if (k.contains('سرا') || k.contains('sera')) {
         file = 'sera.mp3';
       } else if (k.contains('400') || k.contains('أربعمائة')) {
@@ -117,14 +135,6 @@ class GameAudioService {
         file = 'qablak.mp3';
       } else if (k.contains('sun') || k.contains('صن') || k.contains('يقلب')) {
         file = 'sun.mp3';
-      } else if (k.contains('♥')) {
-        file = 'hearts.mp3';
-      } else if (k.contains('♦')) {
-        file = 'diamonds.mp3';
-      } else if (k.contains('♠')) {
-        file = 'spades.mp3';
-      } else if (k.contains('♣')) {
-        file = 'clubs.mp3';
       } else if (k.contains('thani') || k.contains('ثاني') || k.contains('sani')) {
         file = 'thani.mp3';
       } else if (k.contains('hakam') || k.contains('حكم') || k.contains('hokum')) {
