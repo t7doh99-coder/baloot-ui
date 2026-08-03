@@ -820,7 +820,9 @@ class GameProvider extends ChangeNotifier {
       final label = _bidActionLabel(action, secondHakamSuit);
 
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
-      _showBubble(0, label);
+      if (label != null) {
+        _showBubble(0, label);
+      }
       HapticFeedback.lightImpact();
       _afterEngineAction();
     } catch (e) {
@@ -1418,6 +1420,8 @@ class GameProvider extends ChangeNotifier {
       // Third pass just entered confirmation; this seat was the passer
       _showBubble(seat, 'Pass');
     } else if (bpBefore == BiddingPhase.round1) {
+      final isFirst = seat == (rs.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
+
       // Round 1: check if this bot just bid Hakam or Sun
       if (_engine.activeRound1HakamSeat == seat) {
         _showBubble(seat, 'Hakam');
@@ -1426,7 +1430,11 @@ class GameProvider extends ChangeNotifier {
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
         _showBubble(seat, 'Ashkal');
       } else {
-        _showBubble(seat, 'Pass');
+        // In Kammelna, if the first player passes, they do NOT say "Bas". 
+        // The fact that they already said "Awal" is enough.
+        if (!isFirst) {
+          _showBubble(seat, 'Pass');
+        }
       }
     } else if (bpBefore == BiddingPhase.round2) {
       // Round 2: check if this bot just placed a pending bid
@@ -1719,7 +1727,7 @@ class GameProvider extends ChangeNotifier {
   //  HELPERS
   // ══════════════════════════════════════════════════════════════════
 
-  String _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
+  String? _bidActionLabel(BidAction action, Suit? secondHakamSuit) {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
       case BidAction.sun:          return 'Sun';
@@ -1731,6 +1739,12 @@ class GameProvider extends ChangeNotifier {
         if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
           if (!_engine.hasRound2PendingBid) {
             return 'PassR2';
+          }
+        } else if (_engine.roundState.biddingPhase == BiddingPhase.round1) {
+          final isFirstBidderRound1 = 0 == (_engine.roundState.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
+          if (isFirstBidderRound1) {
+            // Kammelna style: if the first player passes, they say nothing (they already said "Awal")
+            return null;
           }
         }
         return 'Pass';
