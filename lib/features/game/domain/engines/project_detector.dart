@@ -239,23 +239,19 @@ class ProjectDetector {
       }
     }
 
-    // 4×(10/J/Q/K) same rank → 100 (Hakam ONLY per Standard)
-    // In Sun, 4-of-a-kind (non-Ace) is NOT a valid project.
-    if (mode == GameMode.hakam) {
-      final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
-      for (final rank in courtRanks) {
-        final sameRankCards = hand.where((c) => c.rank == rank).toList();
-        if (sameRankCards.length == 4) {
-          final highest = sameRankCards
-              .map((c) => c.getStrength(mode: GameMode.sun))
-              .reduce((a, b) => a > b ? a : b);
-          // All 4-of-a-kind = 100 per Standard (Jacks NOT special)
-          projects.add(DetectedProject(
-            type: ProjectType.hundred,
-            cards: sameRankCards,
-            highestStrength: highest,
-          ));
-        }
+    // 4×(10/J/Q/K) same rank → 100 (Valid in both Sun and Hakam)
+    final courtRanks = {Rank.ten, Rank.jack, Rank.queen, Rank.king};
+    for (final rank in courtRanks) {
+      final sameRankCards = hand.where((c) => c.rank == rank).toList();
+      if (sameRankCards.length == 4) {
+        final highest = sameRankCards
+            .map((c) => c.getStrength(mode: GameMode.sun))
+            .reduce((a, b) => a > b ? a : b);
+        projects.add(DetectedProject(
+          type: ProjectType.hundred,
+          cards: sameRankCards,
+          highestStrength: highest,
+        ));
       }
     }
 
