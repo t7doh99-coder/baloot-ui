@@ -83,15 +83,6 @@ class GameAudioService {
   /// Dynamic base path — switches between en/ar based on current language.
   String get _basePath => 'audio/$_langCode/voice1';
 
-  /// Play 'Awal' first, then play the actual bubble voice.
-  void playAwalThen(String bubbleKey) {
-    if (_muted) return;
-    _playVoice('awal.mp3');
-    Future.delayed(const Duration(milliseconds: 700), () {
-      playBubble(bubbleKey);
-    });
-  }
-
   /// Play the voice clip associated with a speech bubble key.
   void playBubble(String bubbleKey) {
     if (_muted) return;

@@ -818,10 +818,9 @@ class GameProvider extends ChangeNotifier {
     _cancelTimers();
     try {
       final label = _bidActionLabel(action, secondHakamSuit);
-      final isFirst = 0 == (_engine.roundState.dealerIndex + 1) % 4 && _engine.roundState.biddingPhase == BiddingPhase.round1;
 
       _engine.placeBid(0, action, secondHakamSuit: secondHakamSuit);
-      _showBubble(0, label, playAwalFirst: isFirst);
+      _showBubble(0, label);
       HapticFeedback.lightImpact();
       _afterEngineAction();
     } catch (e) {
@@ -1296,6 +1295,17 @@ class GameProvider extends ChangeNotifier {
 
   /// Dispatches the actual turn (human timer or bot delay) for [seat].
   void _dispatchTurn(int seat) {
+    // ── Kammelna logic: Announce 'Awal' exactly when the first player's timer starts ──
+    final isFirstBidderRound1 = 
+        _engine.gamePhase == GamePhase.bidding && 
+        _engine.roundState.biddingPhase == BiddingPhase.round1 && 
+        !_engine.hasActiveHakamBid &&
+        seat == (_engine.roundState.dealerIndex + 1) % 4;
+
+    if (isFirstBidderRound1) {
+      _showBubble(seat, 'Awal');
+    }
+
     if (seat == 0) {
       // Human's turn — start timer
       _startTurnTimer();
@@ -1408,17 +1418,15 @@ class GameProvider extends ChangeNotifier {
       // Third pass just entered confirmation; this seat was the passer
       _showBubble(seat, 'Pass');
     } else if (bpBefore == BiddingPhase.round1) {
-      final isFirst = seat == (rs.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
-
       // Round 1: check if this bot just bid Hakam or Sun
       if (_engine.activeRound1HakamSeat == seat) {
-        _showBubble(seat, 'Hakam', playAwalFirst: isFirst);
+        _showBubble(seat, 'Hakam');
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
-        _showBubble(seat, 'Sun', playAwalFirst: isFirst);
+        _showBubble(seat, 'Sun');
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
-        _showBubble(seat, 'Ashkal', playAwalFirst: isFirst);
+        _showBubble(seat, 'Ashkal');
       } else {
-        _showBubble(seat, 'Pass', playAwalFirst: isFirst);
+        _showBubble(seat, 'Pass');
       }
     } else if (bpBefore == BiddingPhase.round2) {
       // Round 2: check if this bot just placed a pending bid
@@ -1508,12 +1516,8 @@ class GameProvider extends ChangeNotifier {
   //  SPEECH BUBBLES
   // ══════════════════════════════════════════════════════════════════
 
-  void _showBubble(int seat, String text, {bool playAwalFirst = false}) {
-    if (playAwalFirst) {
-      _audioService.playAwalThen(text);
-    } else {
-      _audioService.playBubble(text);
-    }
+  void _showBubble(int seat, String text) {
+    _audioService.playBubble(text);
     _bubbleTimers[seat]?.cancel();
     _bubbles[seat] = PlayerBubble(
       seatIndex: seat,
