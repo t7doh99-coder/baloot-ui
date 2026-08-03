@@ -1417,8 +1417,9 @@ class GameProvider extends ChangeNotifier {
         _showBubble(seat, 'Pass');
       }
     } else if (bpBefore == BiddingPhase.hakamConfirmation) {
-      // Third pass just entered confirmation; this seat was the passer
-      _showBubble(seat, 'Pass');
+      // The pending buyer is confirming their bid after everyone else passed.
+      // This is a silent action in Kammelna (they already announced it during Round 2).
+      return;
     } else if (bpBefore == BiddingPhase.round1) {
       final isFirst = seat == (rs.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
 
@@ -1444,7 +1445,7 @@ class GameProvider extends ChangeNotifier {
           _showBubble(seat, 'Sun');
         } else {
           final suit = _engine.activeRound2PendingTrump;
-          _showBubble(seat, 'Hakam Sani ${_suitSymbol(suit)}');
+          _showBubble(seat, _suitSymbol(suit));
         }
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
          _showBubble(seat, 'Sun');
@@ -1731,7 +1732,7 @@ class GameProvider extends ChangeNotifier {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
       case BidAction.sun:          return 'Sun';
-      case BidAction.secondHakam:  return 'Hakam Sani ${_suitSymbol(secondHakamSuit)}';
+      case BidAction.secondHakam:  return _suitSymbol(secondHakamSuit);
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.qablak:       return 'Qablak';
       case BidAction.sawa:         return 'Sawa';
@@ -1749,12 +1750,7 @@ class GameProvider extends ChangeNotifier {
         }
         return 'Pass';
       case BidAction.confirmHakam: 
-        final trump = _engine.roundState.trumpSuit;
-        final buyerCard = _engine.roundState.buyerCard;
-        if (trump != null && buyerCard != null && trump != buyerCard.suit) {
-          return 'Hakam Sani ${_suitSymbol(trump)}';
-        }
-        return 'Hakam';
+        return null;
     }
   }
 
