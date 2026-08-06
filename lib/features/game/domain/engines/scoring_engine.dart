@@ -65,10 +65,14 @@ class ScoringEngine {
   /// Hakam: round(abnaat ÷ 10) with .5 rounding DOWN
   int abnatToScoreboard(int abnat, GameMode mode) {
     if (mode == GameMode.sun) {
-      // Standard Sun: abnaat ÷ 5 (equivalent to (abnaat × 2) ÷ 10)
-      // This avoids the .5 rounding bug from the old round(x/10)*2 formula.
-      // Example: 65 abnaat → 65/5 = 13 ✓ (old formula gave 14 ✗)
-      return (abnat / 5).round();
+      // Standard Sun (Kammelna/Pagat):
+      // If the units digit is exactly 5, it is NOT rounded (e.g., 65 -> 13, 55 -> 11).
+      // Otherwise, it is rounded to the nearest 10, then multiplied by 2.
+      // e.g. 64 -> 60 -> 12. 67 -> 70 -> 14.
+      if (abnat % 10 == 5) {
+        return abnat ~/ 5;
+      }
+      return (abnat / 10).round() * 2;
     }
     // Hakam: Traditional Baloot rounding -- .5 rounds DOWN, .6+ rounds UP
     return _balootRound(abnat / 10);

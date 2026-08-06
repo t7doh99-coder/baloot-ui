@@ -242,7 +242,14 @@ class _PhasePill extends StatelessWidget {
 
 class _RoundCancelledOverlay extends StatefulWidget {
   final String newDealerName;
-  const _RoundCancelledOverlay({required this.newDealerName});
+  final bool isKasho;
+  final String? kashoPlayerName;
+
+  const _RoundCancelledOverlay({
+    required this.newDealerName,
+    this.isKasho = false,
+    this.kashoPlayerName,
+  });
 
   @override
   State<_RoundCancelledOverlay> createState() => _RoundCancelledOverlayState();
@@ -308,10 +315,12 @@ class _RoundCancelledOverlayState extends State<_RoundCancelledOverlay>
               ],
             ),
             child: Text(
-              'الجلسة ملغية  •  موزع جديد: ${widget.newDealerName}',
+              widget.isKasho
+                  ? 'كاشو من ${widget.kashoPlayerName ?? ''}  •  موزع جديد: ${widget.newDealerName}'
+                  : 'الجلسة ملغية  •  موزع جديد: ${widget.newDealerName}',
               textDirection: TextDirection.rtl,
               style: TextStyle(
-                color: Color(0xFFD4AF37),
+                color: const Color(0xFFD4AF37),
                 fontSize: 12,
                 fontFamily: GoogleFonts.readexPro().fontFamily,
                 fontWeight: FontWeight.w700,

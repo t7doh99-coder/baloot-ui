@@ -10,7 +10,7 @@ import '../lib/data/models/round_state_model.dart';
 void main() {
   test('Simulate 1000 deals and count Hakam vs Sun vs Pass-all', () {
     final rng = Random(42);
-    final bot = const BotEngine();
+    final bot = BotEngine();
     int hakamR1 = 0;
     int sunR1 = 0;
     int sunR2 = 0;

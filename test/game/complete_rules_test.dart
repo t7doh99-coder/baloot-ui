@@ -585,10 +585,12 @@ void main() {
       }
     });
 
-    test('Sun: abnat / 5', () {
-      expect(scoring.abnatToScoreboard(65, GameMode.sun), 13);
-      expect(scoring.abnatToScoreboard(60, GameMode.sun), 12);
-      expect(scoring.abnatToScoreboard(70, GameMode.sun), 14);
+    test('Sun: abnat / 5 (Kammelna)', () {
+      final engine = ScoringEngine();
+      expect(engine.abnatToScoreboard(65, GameMode.sun), 13); // exactly 5 -> 13
+      expect(engine.abnatToScoreboard(64, GameMode.sun), 12); // rounds to 6 -> 12
+      expect(engine.abnatToScoreboard(67, GameMode.sun), 14); // rounds to 7 -> 14
+      expect(engine.abnatToScoreboard(62, GameMode.sun), 12); // rounds to 6 -> 12
     });
   });
 

@@ -463,8 +463,7 @@ void main() {
     });
 
     test('5.7 Gahwa', () {
-      // Gahwa results in isGameOver = true, score is returned as 0 from normal logic
-      // (Winner is decided outside)
+      // Gahwa results in isGameOver = true, score is returned as 152 for the winner
       final result = engine.calculateRoundScore(
         teamAAbnat: 85,
         teamBAbnat: 77,
@@ -474,7 +473,7 @@ void main() {
         teamBTricksCount: 3,
         doubleStatus: DoubleStatus.gahwa,
       );
-      expect(result.teamAPoints, 0);
+      expect(result.teamAPoints, 152); // Buyer won
       expect(result.teamBPoints, 0);
       expect(engine.isGameOver(0, 0, DoubleStatus.gahwa), true);
     });
@@ -501,10 +500,10 @@ void main() {
       expect(engine.abnatToScoreboard(86, GameMode.hakam), 9);
     });
 
-    test('8.4 Sun abnat/5 Formula', () {
-      expect(engine.abnatToScoreboard(65, GameMode.sun), 13);
-      expect(engine.abnatToScoreboard(60, GameMode.sun), 12);
-      expect(engine.abnatToScoreboard(70, GameMode.sun), 14);
+    test('8.4 Sun: abnat / 5 Formula (Kammelna)', () {
+      expect(engine.abnatToScoreboard(65, GameMode.sun), 13); // exactly 5 -> 13
+      expect(engine.abnatToScoreboard(64, GameMode.sun), 12); // rounds to 6 -> 12
+      expect(engine.abnatToScoreboard(67, GameMode.sun), 14); // rounds to 7 -> 14
     });
   });
 

@@ -13,6 +13,7 @@ enum BidAction {
   qablak, // قبلك
   sawa, // سوى (defender locks Hakam)
   confirmHakam, // تأكيد الحكم
+  kasho, // تكويش (cancel round due to bad hand)
 }
 
 /// Manages the Mzad (bidding) phase per BALOOT_RULES.md Section 4.
@@ -61,13 +62,14 @@ class BiddingManager {
     required this.dealerIndex,
     required this.buyerCard,
   }) {
-    // First bidder is to the dealer's right.
-    // Screen seats: 0=bottom, 1=right, 2=top, 3=left → +1 = right.
-    _currentBidder = (dealerIndex + 1) % 4;
+    // Kammelna Rule: Player 1 (dealer + 1) automatically says "Awal" (Holding).
+    // The actual timer/bidding choices begin with Player 2 (dealer + 2).
+    _currentBidder = (dealerIndex + 2) % 4;
   }
 
   BiddingPhase get phase => _phase;
   int get currentBidder => _currentBidder;
+  int get passCount => _passCount;
   bool get isFinished => _isFinished;
   BidResult? get result => _result;
 
@@ -330,6 +332,15 @@ class BiddingManager {
           _triggerQablakOrComplete(seatIndex, true);
         }
 
+      case BidAction.kasho:
+        _result = BidResult(
+          mode: GameMode.sun, // Arbitrary, since it's cancelled
+          buyerIndex: seatIndex,
+          isKasho: true,
+        );
+        _phase = BiddingPhase.cancelled;
+        _isFinished = true;
+
 
       default:
         throw InvalidBidException(
@@ -497,6 +508,16 @@ class BiddingManager {
             _advanceBidder();
           }
         }
+        break;
+
+      case BidAction.kasho:
+        _result = BidResult(
+          mode: GameMode.sun, // Arbitrary, since it's cancelled
+          buyerIndex: seatIndex,
+          isKasho: true,
+        );
+        _phase = BiddingPhase.cancelled;
+        _isFinished = true;
         break;
 
       default:

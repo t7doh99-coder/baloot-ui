@@ -78,7 +78,7 @@ void main() {
         final c = BalootGameController(random: Random(seed));
         c.startNewGame(['A', 'B', 'C', 'D']);
         _syncTestRound(c);
-        if (c.roundState.dealerIndex == 0) {
+        if (c.roundState.dealerIndex == 0 && c.roundState.buyerCard?.rank != Rank.ace) {
           ctrl = c;
           break;
         }
@@ -90,9 +90,14 @@ void main() {
       ctrl.placeBid(2, BidAction.pass);
       ctrl.placeBid(3, BidAction.pass);
       ctrl.placeBid(0, BidAction.ashkal);
+      
+      // Qablak phase for Ashkal
+      ctrl.placeBid(1, BidAction.pass);
+      ctrl.placeBid(2, BidAction.pass);
+      ctrl.placeBid(3, BidAction.pass);
 
       expect(ctrl.roundState.isAshkal, true);
-      expect(ctrl.roundState.buyerIndex, 2); // teammate of bidder 0 holds buyer card
+      expect(ctrl.roundState.buyerIndex, 2); // teammate gets the card, so buyerIndex points to teammate
     });
 
     test('all pass both rounds → new round with advanced dealer', () {
@@ -114,8 +119,9 @@ void main() {
         }
       }
 
-      // Dealer should have advanced
-      expect(ctrl.gamePhase, GamePhase.bidding);
+      // Dealer should have advanced after starting new round
+      expect(ctrl.gamePhase, GamePhase.dealing);
+      ctrl.startNewRound();
       expect(ctrl.roundState.dealerIndex != initialDealer, true);
     });
   });
@@ -158,9 +164,9 @@ void main() {
 
       // Round should be scored
       expect(
-        ctrl.gamePhase == GamePhase.dealing || ctrl.gamePhase == GamePhase.gameOver,
+        ctrl.gamePhase == GamePhase.scoring || ctrl.gamePhase == GamePhase.gameOver,
         true,
-        reason: 'Game should be in dealing (next round) or gameOver after 8 tricks',
+        reason: 'Game should be in scoring (next round) or gameOver after 8 tricks',
       );
 
       // Score should have changed
@@ -239,7 +245,7 @@ void main() {
   });
 
   group('Gahwa instant win', () {
-    test('calling Gahwa ends the game', () {
+    test('calling Gahwa transitions to playing (win applied after round ends)', () {
       final ctrl = BalootGameController(random: Random(42));
       ctrl.startNewGame(['A', 'B', 'C', 'D']);
       _syncTestRound(ctrl);
@@ -269,8 +275,8 @@ void main() {
       ctrl.callDouble(defenderSeat, DoubleStatus.four);
       ctrl.callDouble(buyerTeamSeat, DoubleStatus.gahwa);
 
-      expect(ctrl.isGameOver, true);
-      expect(ctrl.gamePhase, GamePhase.gameOver);
+      expect(ctrl.isGameOver, false); // must play round first
+      expect(ctrl.gamePhase, GamePhase.playing);
     });
   });
 
@@ -325,7 +331,7 @@ void main() {
         }
 
         // Start next round if needed
-        if (ctrl.gamePhase == GamePhase.dealing) {
+        if (ctrl.gamePhase == GamePhase.dealing || ctrl.gamePhase == GamePhase.scoring) {
           ctrl.startNewRound();
         }
 

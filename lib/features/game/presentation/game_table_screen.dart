@@ -824,7 +824,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     const extraBottomPadding = 14.0;
 
     // Stepped console box: left/right margin = 14px, bottom margin = 0px, flat bottom corners to connect with below bar
-    return Container(
+    final consoleBox = Container(
       height: barH + extraBottomPadding,
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 0),
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 4 + extraBottomPadding),
@@ -856,6 +856,30 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
             .toList(),
       ),
     );
+
+    if (game.phase == GamePhase.bidding && game.canKasho && _activePicker == _DashboardPicker.none) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 140,
+                child: _GameBtn(
+                  label: loc.kasho,
+                  onTap: () => context.read<GameProvider>().humanBid(BidAction.kasho),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          consoleBox,
+        ],
+      );
+    }
+
+    return consoleBox;
   }
 
   // ── Bidding action buttons ──────────────────────────────────────────────
@@ -907,7 +931,10 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
       _GameBtn(
         label: loc.secondHakam,
-        onTap: () => setState(() => _activePicker = _DashboardPicker.suit),
+        onTap: () {
+          gp.playUiAudio('hukam sani');
+          setState(() => _activePicker = _DashboardPicker.suit);
+        },
       ),
       if (isDealer || isSane)
         _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),

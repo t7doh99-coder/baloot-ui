@@ -111,6 +111,7 @@ class GameL10n {
   String get doubleShort => _ar ? 'دبل' : 'Double';
   String get gameOverShort => _ar ? 'انتهت اللعبة' : 'Game over';
   String get bidding => _ar ? 'المزاد' : 'Bidding';
+  String get kasho => _ar ? 'كاشو' : 'Kasho';
   String buyerLine(String name) => _ar ? 'المشتري: $name' : 'Buyer: $name';
   String get bidRound1 => _ar ? 'المزاد — الجولة ١' : 'Bid Round 1';
   String get bidRound2 => _ar ? 'المزاد — الجولة ٢' : 'Bid Round 2';
@@ -211,8 +212,13 @@ class GameL10n {
       'Qabalk' => 'قبلك',
       'Sawa' => 'سوا',
       'Awal' => 'أول',
+      'Kasho' => 'كاشو',
       'Hakam Sani' => 'حكم ثاني',
-      'Ashkal' => 'أشكل',
+      'Ashkal' => 'أشكال',
+      'Hearts' => 'هاص',
+      'Diamonds' => 'ديمن',
+      'Spades' => 'سبيت',
+      'Clubs' => 'شيريا',
       'Double' => 'دبل',
       'Triple' => 'ثري',
       'Four' => 'فور',

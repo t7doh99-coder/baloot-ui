@@ -15,12 +15,14 @@ class BidResult {
   final int buyerIndex; // Seat 0-3
   final Suit? trumpSuit; // null for Sun
   final bool isAshkal;
+  final bool isKasho;
 
   const BidResult({
     required this.mode,
     required this.buyerIndex,
     this.trumpSuit,
     this.isAshkal = false,
+    this.isKasho = false,
   });
 
   @override
@@ -140,8 +142,11 @@ class RoundStateModel {
   final CardModel? buyerCard;
   final bool isAshkal;
   final DoubleStatus doubleStatus;
+  final int? doubleCallerIndex;
   final bool isOpenPlay;
   final int trickNumber; // 1-8
+  final int? kashoPlayerIndex;
+  final bool isKasho;
   final List<CardPlayModel> currentTrick;
   final List<int> teamATricksWon; // trick indices won by team A
   final List<int> teamBTricksWon;
@@ -160,8 +165,11 @@ class RoundStateModel {
     this.buyerCard,
     this.isAshkal = false,
     this.doubleStatus = DoubleStatus.none,
+    this.doubleCallerIndex,
     this.isOpenPlay = true,
     this.trickNumber = 1,
+    this.kashoPlayerIndex,
+    this.isKasho = false,
     this.currentTrick = const [],
     this.teamATricksWon = const [],
     this.teamBTricksWon = const [],
@@ -187,8 +195,11 @@ class RoundStateModel {
     CardModel? buyerCard,
     bool? isAshkal,
     DoubleStatus? doubleStatus,
+    int? doubleCallerIndex,
     bool? isOpenPlay,
     int? trickNumber,
+    int? kashoPlayerIndex,
+    bool? isKasho,
     List<CardPlayModel>? currentTrick,
     List<int>? teamATricksWon,
     List<int>? teamBTricksWon,
@@ -207,8 +218,11 @@ class RoundStateModel {
       buyerCard: buyerCard ?? this.buyerCard,
       isAshkal: isAshkal ?? this.isAshkal,
       doubleStatus: doubleStatus ?? this.doubleStatus,
+      doubleCallerIndex: doubleCallerIndex ?? this.doubleCallerIndex,
       isOpenPlay: isOpenPlay ?? this.isOpenPlay,
       trickNumber: trickNumber ?? this.trickNumber,
+      kashoPlayerIndex: kashoPlayerIndex ?? this.kashoPlayerIndex,
+      isKasho: isKasho ?? this.isKasho,
       currentTrick: currentTrick ?? this.currentTrick,
       teamATricksWon: teamATricksWon ?? this.teamATricksWon,
       teamBTricksWon: teamBTricksWon ?? this.teamBTricksWon,
@@ -236,6 +250,7 @@ class RoundStateModel {
       'buyerIndex': buyerIndex,
       'isAshkal': isAshkal,
       'doubleStatus': doubleStatus.name,
+      'doubleCallerIndex': doubleCallerIndex,
       'isOpenPlay': isOpenPlay,
       'trickNumber': trickNumber,
       'currentTrickCount': currentTrick.length,

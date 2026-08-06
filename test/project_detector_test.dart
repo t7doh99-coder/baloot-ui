@@ -80,7 +80,7 @@ void main() {
       });
     });
 
-    group('E4: 4-of-a-Kind (Hakam ONLY)', () {
+    group('E4: 4-of-a-Kind (100 Project)', () {
       test('4 Jacks in Hakam = hundred (100, NOT 200)', () {
         final hand = [
           const CardModel(suit: Suit.hearts, rank: Rank.jack),
@@ -98,7 +98,7 @@ void main() {
         expect(hundreds.first.cards.length, 4);
       });
 
-      test('4 Jacks in Sun → NOT detected', () {
+      test('4 Jacks in Sun → detected as hundred (100)', () {
         final hand = [
           const CardModel(suit: Suit.hearts, rank: Rank.jack),
           const CardModel(suit: Suit.spades, rank: Rank.jack),
@@ -113,7 +113,7 @@ void main() {
         final fourOfKind = projects.where((p) =>
             p.type == ProjectType.hundred && p.cards.length == 4 &&
             p.cards.every((c) => c.rank == Rank.jack));
-        expect(fourOfKind.isEmpty, true);
+        expect(fourOfKind.isNotEmpty, true);
       });
     });
 

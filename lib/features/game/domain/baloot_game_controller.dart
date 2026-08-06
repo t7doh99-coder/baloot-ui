@@ -308,17 +308,17 @@ class BalootGameController implements IBalootController {
       _hands[i].sort((a, b) => a.compareTo(b));
     }
 
-    _roundState = RoundStateModel(
-      dealerIndex: _dealerIndex,
-      currentPlayerIndex: (_dealerIndex + 1) % 4, // first bidder = to dealer's right
-      buyerCard: _deckManager.buyerCard,
-    );
-
     final firstToBid = (_dealerIndex + 1) % 4;
     logger.log('Dealer: Seat $_dealerIndex. First to bid: Seat $firstToBid. Buyer card: ${_deckManager.buyerCard!.displayName}');
     _biddingManager = BiddingManager(
       dealerIndex: _dealerIndex,
       buyerCard: _deckManager.buyerCard!,
+    );
+
+    _roundState = RoundStateModel(
+      dealerIndex: _dealerIndex,
+      currentPlayerIndex: _biddingManager!.currentBidder, // Kammelna starts bidding at dealer + 2
+      buyerCard: _deckManager.buyerCard,
     );
 
     _turnManager = null;
@@ -410,15 +410,23 @@ class BalootGameController implements IBalootController {
     if (_biddingManager!.isFinished) {
       final bidResult = _biddingManager!.result;
 
-      if (bidResult == null) {
-        // All passed both rounds → cancelled, advance dealer
-        logger.log('All players passed. Round cancelled.');
-        _roundState = _roundState.copyWith(
-          biddingPhase: BiddingPhase.cancelled,
-        );
+      if (bidResult == null || bidResult.isKasho) {
+        // All passed both rounds, OR someone called Kasho → cancelled, advance dealer
+        if (bidResult?.isKasho == true) {
+          logger.log('Seat ${bidResult!.buyerIndex} called Kasho! Hand is garbage. Round cancelled.');
+          _roundState = _roundState.copyWith(
+            biddingPhase: BiddingPhase.cancelled,
+            kashoPlayerIndex: bidResult.buyerIndex,
+          );
+        } else {
+          logger.log('All players passed. Round cancelled.');
+          _roundState = _roundState.copyWith(
+            biddingPhase: BiddingPhase.cancelled,
+          );
+        }
+        
         _dealerIndex = (_dealerIndex + 1) % 4; // dealer passes to the right
         _gamePhase = GamePhase.dealing;
-        startNewRound();
         return;
       }
 
@@ -557,6 +565,7 @@ class BalootGameController implements IBalootController {
 
     _roundState = _roundState.copyWith(
       doubleStatus: level,
+      doubleCallerIndex: seatIndex,
       isOpenPlay: isOpenPlay,
       currentPlayerIndex: nextSeat,
     );
@@ -1294,6 +1303,9 @@ class BalootGameController implements IBalootController {
 
   Suit? get activeRound2PendingTrump =>
       _biddingManager?.activeRound2PendingTrump;
+
+  /// Current pass count in the active bidding round.
+  int get passCount => _biddingManager?.passCount ?? 0;
 
   /// Returns the list of legally playable cards for [seatIndex].
   List<CardModel> getValidCards(int seatIndex) {

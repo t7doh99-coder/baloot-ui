@@ -285,6 +285,18 @@ class GameProvider extends ChangeNotifier {
   /// Whether it's the human player's turn.
   bool get isHumanTurn => currentPlayerIndex == 0;
 
+  /// Whether the human player's current hand qualifies for a Kasho cancel (only 7s, 8s, 9s).
+  bool get canKasho {
+    if (phase != GamePhase.bidding) return false;
+    if (playerHand.length != 5) return false;
+    for (final card in playerHand) {
+      if (card.rank != Rank.seven && card.rank != Rank.eight && card.rank != Rank.nine) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Timer countdown value (0–10), ticking only while the periodic timer runs.
   int get timerSeconds => _timerSeconds;
 
@@ -1075,6 +1087,9 @@ class GameProvider extends ChangeNotifier {
     // Silently transition to Round 2 (no bubble, matches Kammelna)
     if (_prevPhase == GamePhase.bidding && newPhase == GamePhase.bidding && _prevBiddingPhase == BiddingPhase.round1 && newBiddingPhase == BiddingPhase.round2) {
       HapticFeedback.lightImpact();
+      Timer(const Duration(milliseconds: 1500), () {
+        _audioService.playBubble('Thani2');
+      });
     }
     
     _prevDealerIndex = newDealerIndex;
@@ -1189,24 +1204,18 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Called when all 4 players passed both bidding rounds.
-  /// Shows a 2-second "Round Cancelled / New Dealer" overlay then resumes.
+  /// Called when all 4 players passed both bidding rounds, or when Kasho is successfully bid.
+  /// Instantly transitions to the next deal, matching Jawaker/Kammelna behavior (no artificial delay).
   void _showCancelledOverlay(int newDealerSeat) {
     _cancelTimers();
-    _roundCancelled = true;
-    _cancelledNewDealerName = playerName(newDealerSeat);
     _prevPhase = phase;
+    
+    // Instantly proceed with the new round without pausing for an overlay
+    if (_engine.gamePhase == GamePhase.bidding) {
+      // Dealer does not speak when bidding starts
+    }
     notifyListeners();
-
-    _botTimer = Timer(const Duration(milliseconds: 2200), () {
-      _roundCancelled = false;
-      _cancelledNewDealerName = '';
-      if (_engine.gamePhase == GamePhase.bidding) {
-        // Dealer does not speak when bidding starts
-      }
-      notifyListeners();
-      _scheduleNextAction();
-    });
+    _scheduleNextAction();
   }
 
   /// Move engine from dealing → bidding, then continue the turn loop.
@@ -1297,15 +1306,17 @@ class GameProvider extends ChangeNotifier {
 
   /// Dispatches the actual turn (human timer or bot delay) for [seat].
   void _dispatchTurn(int seat) {
-    // ── Kammelna logic: Announce 'Awal' exactly when the first player's timer starts ──
+    // ── Kammelna logic: The first player (dealer + 1) implicitly holds their priority.
+    // They say "Awal" instantly without a timer, and the actual bidding choices start at Player 2 (dealer + 2).
     final isFirstBidderRound1 = 
         _engine.gamePhase == GamePhase.bidding && 
         _engine.roundState.biddingPhase == BiddingPhase.round1 && 
         !_engine.hasActiveHakamBid &&
-        seat == (_engine.roundState.dealerIndex + 1) % 4;
+        _engine.passCount == 0 &&
+        seat == (_engine.roundState.dealerIndex + 2) % 4;
 
     if (isFirstBidderRound1) {
-      _showBubble(seat, 'Awal');
+      _showBubble((_engine.roundState.dealerIndex + 1) % 4, 'Awal');
     }
 
     if (seat == 0) {
@@ -1431,11 +1442,8 @@ class GameProvider extends ChangeNotifier {
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
         _showBubble(seat, 'Ashkal');
       } else {
-        // In Kammelna, if the first player passes, they do NOT say "Bas". 
-        // The fact that they already said "Awal" is enough.
-        if (!isFirst) {
-          _showBubble(seat, 'Pass');
-        }
+        // The Awal player MUST say Pass when they pass
+        _showBubble(seat, 'Pass');
       }
     } else if (bpBefore == BiddingPhase.round2) {
       // Round 2: check if this bot just placed a pending bid
@@ -1445,7 +1453,11 @@ class GameProvider extends ChangeNotifier {
           _showBubble(seat, 'Sun');
         } else {
           final suit = _engine.activeRound2PendingTrump;
-          _showBubble(seat, _suitSymbol(suit));
+          // Mimic 2-step human UI: "Hukam Sani" -> 0.7s -> Suit
+          _showBubble(seat, 'Hukam Sani');
+          Timer(const Duration(milliseconds: 700), () {
+            _showBubble(seat, _suitNameText(suit));
+          });
         }
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
          _showBubble(seat, 'Sun');
@@ -1524,6 +1536,11 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
   //  SPEECH BUBBLES
   // ══════════════════════════════════════════════════════════════════
+
+  /// Exposes a way to play direct UI sound feedback (e.g. tapping Hakam Sani)
+  void playUiAudio(String key) {
+    _audioService.playBubble(key);
+  }
 
   void _showBubble(int seat, String text) {
     _audioService.playBubble(text);
@@ -1732,7 +1749,7 @@ class GameProvider extends ChangeNotifier {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
       case BidAction.sun:          return 'Sun';
-      case BidAction.secondHakam:  return _suitSymbol(secondHakamSuit);
+      case BidAction.secondHakam:  return _suitNameText(secondHakamSuit);
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.qablak:       return 'Qablak';
       case BidAction.sawa:         return 'Sawa';
@@ -1741,16 +1758,12 @@ class GameProvider extends ChangeNotifier {
           if (!_engine.hasRound2PendingBid) {
             return 'PassR2';
           }
-        } else if (_engine.roundState.biddingPhase == BiddingPhase.round1) {
-          final isFirstBidderRound1 = 0 == (_engine.roundState.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
-          if (isFirstBidderRound1) {
-            // Kammelna style: if the first player passes, they say nothing (they already said "Awal")
-            return null;
-          }
         }
         return 'Pass';
       case BidAction.confirmHakam: 
         return null;
+      case BidAction.kasho:
+        return 'Kasho';
     }
   }
 
@@ -1770,6 +1783,16 @@ class GameProvider extends ChangeNotifier {
       case Suit.diamonds: return '♦';
       case Suit.spades:   return '♠';
       case Suit.clubs:    return '♣';
+      case null:          return '';
+    }
+  }
+
+  String _suitNameText(Suit? suit) {
+    switch (suit) {
+      case Suit.hearts:   return 'Hearts';
+      case Suit.diamonds: return 'Diamonds';
+      case Suit.spades:   return 'Spades';
+      case Suit.clubs:    return 'Clubs';
       case null:          return '';
     }
   }

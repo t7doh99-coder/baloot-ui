@@ -16,8 +16,12 @@ void main() {
         expect(engine.abnatToScoreboard(42, GameMode.sun), 8);
       });
 
-      test('65 Abnat → 14 pts (round(6.5)→7 → ×2)', () {
-        expect(engine.abnatToScoreboard(65, GameMode.sun), 14);
+      test('Sun formula: Pagat/Kammelna exception (65=13, 64=12, 67=14)', () {
+        expect(engine.abnatToScoreboard(65, GameMode.sun), 13); // exactly 5 -> 13
+        expect(engine.abnatToScoreboard(64, GameMode.sun), 12); // round to nearest 10
+        expect(engine.abnatToScoreboard(67, GameMode.sun), 14); // round to nearest 10
+        expect(engine.abnatToScoreboard(62, GameMode.sun), 12); // round to nearest 10
+        expect(engine.abnatToScoreboard(55, GameMode.sun), 11); // exactly 5 -> 11
       });
 
       test('Sun round totals = 26 (130 total abnat)', () {
@@ -102,7 +106,7 @@ void main() {
         projectWinningTeam: 'B', // B wins project priority; irrelevant for Khams
       );
       expect(result.isKhams, true);
-      expect(result.teamBPoints, 26 + 5);
+      expect(result.teamBPoints, 26 + 15);
       expect(result.teamAPoints, 0);
     });
   });
@@ -303,7 +307,7 @@ void main() {
       expect(result.teamAPoints, 64);
     });
 
-    test('Triple + Sera: project multiplier capped at ×2', () {
+    test('Triple + Sera: project multiplier is x3', () {
       final result = engine.calculateRoundScore(
         teamAAbnat: 100,
         teamBAbnat: 62,
@@ -316,8 +320,8 @@ void main() {
         teamAProjectScoreboard: 2, // Sera = 2 pts
       );
 
-      // 48 (triple base) + 2×2 (project capped at ×2) = 52
-      expect(result.teamAPoints, 52);
+      // 48 (triple base) + 2×3 = 54
+      expect(result.teamAPoints, 54);
     });
 
     test('Tie with double: double caller loses (81 vs 81)', () {

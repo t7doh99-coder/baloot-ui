@@ -620,7 +620,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
               children: [
                 Expanded(
                   child: Text(
-                    isAr ? 'البيان' : 'Details',
+                    isAr ? 'النشرة' : 'Details',
                     style: GoogleFonts.readexPro(
                       color: const Color(0xFFC9A84C).withValues(alpha: 0.8),
                       fontSize: 10,
@@ -658,37 +658,33 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
               ],
             ),
           ),
-          // In Doubled games, trick abnaat and ground don't matter for points, so hide them.
-          if (r.doubleStatus == DoubleStatus.none) ...[
-            // Row 1: Tricks (pure card points from tricks — no ground bonus)
-            _buildTableRow(
-              label: isAr ? 'الأوراق / الأبناط' : 'Tricks',
-              sub: isAr ? 'نقاط أوراق الأكلات' : 'card pts won in tricks',
-              themVal: '$teamBPureCards',
-              usVal: '$teamAPureCards',
-            ),
-            // Row 2: Ground (+10 last trick bonus)
-            _buildTableRow(
-              label: isAr ? 'الأرضية' : 'Ground',
-              sub: isAr ? 'مكافأة آخر أكلة' : 'last trick bonus (+10)',
-              themVal: teamBGround > 0 ? '+$teamBGround' : '0',
-              usVal: teamAGround > 0 ? '+$teamAGround' : '0',
-            ),
-          ],
+          // Row 1: Tricks (pure card points from tricks — no ground bonus)
+          _buildTableRow(
+            label: isAr ? 'الأكلات' : 'Tricks',
+            sub: isAr ? 'نقاط أوراق الأكلات' : 'card pts won in tricks',
+            themVal: '$teamBPureCards',
+            usVal: '$teamAPureCards',
+          ),
+          // Row 2: Ground (+10 last trick bonus)
+          _buildTableRow(
+            label: isAr ? 'الأرض' : 'Ground',
+            sub: isAr ? 'مكافأة آخر أكلة' : 'last trick bonus (+10)',
+            themVal: teamBGround > 0 ? '$teamBGround' : '0',
+            usVal: teamAGround > 0 ? '$teamAGround' : '0',
+          ),
           // Row 3: Projects — individual declaration breakdown
           ..._buildProjectRows(isAr, r),
           // Baloot sub-row (always scores independently, even if project comparison lost)
           if (r.balootTeam != null) _buildBalootRow(isAr, r),
           
-          if (r.doubleStatus == DoubleStatus.none)
-            // Row 4: Trick pts subtotal = Tricks + Ground (before conversion)
-            _buildTableRow(
-              label: isAr ? 'نقاط الأوراق' : 'Trick pts',
-              sub: isAr ? 'صف 1 + صف 2' : 'row 1 + row 2',
-              themVal: '$teamBTrickPts',
-              usVal: '$teamATrickPts',
-              isSubtotal: true,
-            ),
+          // Row 4: Total Abnat (Tricks + Ground + Projects)
+          _buildTableRow(
+            label: isAr ? 'الأبناط' : 'Total Abnat',
+            sub: isAr ? 'مجموع الأبناط' : 'total raw pts',
+            themVal: '${r.teamBAbnat}',
+            usVal: '${r.teamAAbnat}',
+            isSubtotal: true,
+          ),
         ],
       ),
     );
@@ -796,7 +792,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
           SizedBox(
             width: 70,
             child: Text(
-              balootIsUs ? '0' : '+2',
+              balootIsUs ? '0' : '2',
               textAlign: TextAlign.center,
               style: GoogleFonts.readexPro(
                 color: balootIsUs ? Colors.white.withValues(alpha: 0.3) : const Color(0xFFFF3D3D),
@@ -808,7 +804,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
           SizedBox(
             width: 70,
             child: Text(
-              balootIsUs ? '+2' : '0',
+              balootIsUs ? '2' : '0',
               textAlign: TextAlign.center,
               style: GoogleFonts.readexPro(
                 color: balootIsUs ? const Color(0xFF00E87A) : Colors.white.withValues(alpha: 0.3),
@@ -993,7 +989,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
           SizedBox(
             width: 70,
             child: Text(
-              isUsProject ? '—' : '+$abnat',
+              isUsProject ? '—' : '$abnat',
               textAlign: TextAlign.center,
               style: GoogleFonts.readexPro(
                 color: isUsProject
@@ -1007,7 +1003,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
           SizedBox(
             width: 70,
             child: Text(
-              isUsProject ? '+$abnat' : '—',
+              isUsProject ? '$abnat' : '—',
               textAlign: TextAlign.center,
               style: GoogleFonts.readexPro(
                 color: isUsProject
@@ -1050,7 +1046,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
         children: [
           Expanded(
             child: Text(
-              isAr ? 'نتيجة الجولة' : 'ROUND RESULT',
+              isAr ? 'النتيجة' : 'ROUND RESULT',
               style: GoogleFonts.readexPro(
                 color: const Color(0xFFC49028),
                 fontSize: 12,

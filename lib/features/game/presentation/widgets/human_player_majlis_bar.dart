@@ -11,6 +11,8 @@ import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../../domain/managers/bidding_manager.dart' show BidAction;
+import '../../../../data/models/card_model.dart' show GameMode;
+import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../game_provider.dart';
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,
@@ -68,38 +70,52 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
   }
 
   /// Two stacked lines narrows horizontal width vs "Sun · Dealer" (fixes bar overflow).
-  static ({String primary, String? secondary})? _badgeParts(
+  static ({String primary, String? secondary, String? tertiary})? _badgeParts(
     GameProvider game,
     GameL10n loc,
   ) {
     final mode = game.gameModeLabel;
+    
+    String? doubleLabel;
+    if (game.roundState.doubleCallerIndex == 0 && game.roundState.doubleStatus != DoubleStatus.none) {
+      switch (game.roundState.doubleStatus) {
+        case DoubleStatus.doubled: doubleLabel = loc.doubleWord; break;
+        case DoubleStatus.tripled: doubleLabel = loc.triple; break;
+        case DoubleStatus.four: doubleLabel = loc.four; break;
+        case DoubleStatus.gahwa: doubleLabel = loc.gahwa; break;
+        default: break;
+      }
+    }
+
     if (game.isSawaRevealPlaying && game.sawaRevealClaimSeat == 0) {
       if (mode != '—') {
-        return (primary: loc.modeLabel(mode), secondary: loc.sawa);
+        return (primary: loc.modeLabel(mode), secondary: loc.sawa, tertiary: doubleLabel);
       }
-      return (primary: loc.sawa, secondary: null);
+      return (primary: loc.sawa, secondary: null, tertiary: doubleLabel);
     }
     
     final humanDealer = game.dealerIndex == 0;
     final humanBuyer = game.buyerIndex == 0;
     
     if (humanDealer && mode != '—') {
-      return (primary: loc.modeLabel(mode), secondary: loc.dealer);
+      return (primary: loc.modeLabel(mode), secondary: loc.dealer, tertiary: doubleLabel);
     }
     if (humanBuyer && mode != '—') {
-      return (primary: loc.modeLabel(mode), secondary: loc.buyer);
+      return (primary: loc.modeLabel(mode), secondary: loc.buyer, tertiary: doubleLabel);
     }
     
-    if (mode != '—') return (primary: loc.modeLabel(mode), secondary: null);
+    if (mode != '—') return (primary: loc.modeLabel(mode), secondary: null, tertiary: doubleLabel);
     
     if (game.phase != GamePhase.notStarted) {
-      if (humanDealer) return (primary: loc.dealer, secondary: null);
-      if (humanBuyer) return (primary: loc.buyer, secondary: null);
+      if (humanDealer) return (primary: loc.dealer, secondary: null, tertiary: doubleLabel);
+      if (humanBuyer) return (primary: loc.buyer, secondary: null, tertiary: doubleLabel);
       // Show defender role once buyer is selected
       if (game.isHumanDefender) {
-        return (primary: loc.modeLabel(mode != '—' ? mode : 'Def.'), secondary: null);
+        return (primary: loc.modeLabel(mode != '—' ? mode : 'Def.'), secondary: null, tertiary: doubleLabel);
       }
     }
+    
+    if (doubleLabel != null) return (primary: doubleLabel, secondary: null, tertiary: null);
     
     return null;
   }
@@ -162,7 +178,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                         Expanded(
                           child: badge != null
                               ? _InfoBox(
-                                  child: _BadgeText(primary: badge.primary, secondary: badge.secondary),
+                                  child: _BadgeText(primary: badge.primary, secondary: badge.secondary, tertiary: badge.tertiary),
                                 )
                               : const SizedBox.shrink(),
                         ),
@@ -221,7 +237,9 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: (game.phase == GamePhase.playing && !game.canDeclareProjects)
+                  child: (game.phase == GamePhase.playing && 
+                          !game.canDeclareProjects && 
+                          game.roundState.activeMode == GameMode.hakam)
                     ? _AutoAkkahButton(
                         isActive: game.autoAkkahEnabled,
                         onTap: () => game.toggleAutoAkkah(),
@@ -341,16 +359,21 @@ class _RankChip extends StatelessWidget {
 
 /// Plain text badge — no capsule/pill, just text centred inside the [_InfoBox].
 class _BadgeText extends StatelessWidget {
-  const _BadgeText({required this.primary, this.secondary});
+  const _BadgeText({required this.primary, this.secondary, this.tertiary});
   final String primary;
   final String? secondary;
+  final String? tertiary;
 
   @override
   Widget build(BuildContext context) {
     final ar = context.read<LocaleProvider>().isArabic;
+    final combinedPrimary = tertiary != null 
+        ? (ar ? '$tertiary • $primary' : '$primary • $tertiary') 
+        : primary;
+
     if (secondary == null) {
       return Text(
-        primary.toUpperCase(),
+        combinedPrimary.toUpperCase(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center,
@@ -366,34 +389,34 @@ class _BadgeText extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          primary.toUpperCase(),
+          combinedPrimary.toUpperCase(),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: _kGTextPrim,
-            fontSize: 13,
+            color: _kGSandGold,
+            fontSize: 12.5,
             fontWeight: FontWeight.w700,
             letterSpacing: ar ? 0 : 0.15,
             height: 1.15,
           ),
         ),
-        Text(
-          secondary!.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: const Color(0xFFFFD700),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: ar ? 0 : 0.1,
-            height: 1.1,
+        if (secondary != null)
+          Text(
+            secondary!.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: const Color(0xFFFFD700),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: ar ? 0 : 0.1,
+              height: 1.1,
+            ),
           ),
-        ),
       ],
     );
   }

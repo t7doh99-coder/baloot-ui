@@ -13,7 +13,7 @@ import '../../../../core/l10n/locale_provider.dart';
 import '../../../../core/layout/game_table_layout.dart';
 import '../../../../data/models/card_model.dart'
     show CardModel, Suit, Rank, GameMode;
-import '../../../../data/models/round_state_model.dart' show BiddingPhase, ProjectType;
+import '../../../../data/models/round_state_model.dart' show BiddingPhase, ProjectType, DoubleStatus;
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart'
@@ -376,6 +376,7 @@ class _SeatPlayerInfoBox extends StatelessWidget {
   Widget build(BuildContext context) {
     context.watch<LocaleProvider>();
     final loc = GameL10n.of(context);
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final game = context.watch<GameProvider>();
     final highlighted = isActive;
 
@@ -405,12 +406,20 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       final bp = game.biddingPhase;
       if (bp == BiddingPhase.round1 || bp == BiddingPhase.hakamConfirmation) {
         if (seatIndex == game.activeRound1HakamSeat) {
-          footerLabel = loc.hakam;
+          final suit = game.buyerCard?.suit;
+          final suitSym = suit != null ? _suitSymbol(suit) : '';
+          footerLabel = isAr ? 'حكم $suitSym' : '$suitSym Hakam';
         }
       } else if (bp == BiddingPhase.round2) {
         if (seatIndex == game.activeRound2PendingBuyerSeat) {
           final pendingMode = game.activeRound2PendingMode;
-          footerLabel = pendingMode == GameMode.sun ? loc.sun : loc.hakam;
+          if (pendingMode == GameMode.sun) {
+            footerLabel = loc.sun;
+          } else {
+            final pendingSuit = game.activeRound2PendingTrump;
+            final suitSym = pendingSuit != null ? _suitSymbol(pendingSuit) : '';
+            footerLabel = isAr ? 'حكم $suitSym' : '$suitSym Hakam';
+          }
         }
       }
     } else if (seatIndex == game.buyerIndex &&
@@ -422,7 +431,21 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       } else if (game.roundState.activeMode == GameMode.sun) {
         footerLabel = loc.sun;
       } else {
-        footerLabel = loc.hakam;
+        final suit = game.roundState.trumpSuit;
+        final suitSym = suit != null ? _suitSymbol(suit) : '';
+        footerLabel = isAr ? 'حكم $suitSym' : '$suitSym Hakam';
+      }
+    }
+
+    String? doubleBadgeLabel;
+    // ── Display Double Status on the caller's avatar ──
+    if (game.roundState.doubleCallerIndex == seatIndex && game.roundState.doubleStatus != DoubleStatus.none) {
+      switch (game.roundState.doubleStatus) {
+        case DoubleStatus.doubled: doubleBadgeLabel = loc.doubleWord; break;
+        case DoubleStatus.tripled: doubleBadgeLabel = loc.triple; break;
+        case DoubleStatus.four: doubleBadgeLabel = loc.four; break;
+        case DoubleStatus.gahwa: doubleBadgeLabel = loc.gahwa; break;
+        default: break;
       }
     }
 
@@ -570,10 +593,41 @@ class _SeatPlayerInfoBox extends StatelessWidget {
                 fontFamily: GoogleFonts.readexPro().fontFamily,
               ),
             ),
+            )
+          : null;
+
+    final doublePillBadge = doubleBadgeLabel != null
+        ? Container(
+            width: 68,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _kGBgCard.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _kGSandGold.withValues(alpha: 0.85),
+                width: 1.1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              doubleBadgeLabel!.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFFFFD700),
+                fontSize: 11.0,
+                fontWeight: FontWeight.w700,
+                fontFamily: GoogleFonts.readexPro().fontFamily,
+              ),
+            ),
           )
         : null;
-
-    // Outer card wrapper — single unified border around the whole shape
     final cardContent = Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(kRadius),
@@ -592,23 +646,32 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       child: topSection,
     );
 
-    // Base card with twin stacked floating pills when both mode and dealer are present
-    final Widget baseCard = (hasFooter || secondaryPillBadge != null)
+    // Base card with dynamically stacked floating pills
+    final bool hasAnyPill = hasFooter || doublePillBadge != null || secondaryPillBadge != null;
+    
+    final List<Widget> pillLayers = [];
+    double currentOffset = -14.0;
+    
+    if (pillBadge != null) {
+      pillLayers.add(Positioned(bottom: currentOffset, child: pillBadge));
+      currentOffset -= 26.0;
+    }
+    if (doublePillBadge != null) {
+      pillLayers.add(Positioned(bottom: currentOffset, child: doublePillBadge!));
+      currentOffset -= 26.0;
+    }
+    if (secondaryPillBadge != null) {
+      pillLayers.add(Positioned(bottom: currentOffset, child: secondaryPillBadge!));
+    }
+
+    final Widget baseCard = hasAnyPill
         ? Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
             children: [
               cardContent,
-              if (secondaryPillBadge != null)
-                Positioned(
-                  bottom: -40,
-                  child: secondaryPillBadge,
-                ),
-              if (pillBadge != null)
-                Positioned(
-                  bottom: -14,
-                  child: pillBadge,
-                ),
+              // Add pills in reverse order so the top ones render above the bottom ones if they overlap
+              ...pillLayers.reversed,
             ],
           )
         : cardContent;

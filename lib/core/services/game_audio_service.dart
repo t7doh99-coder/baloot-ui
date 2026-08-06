@@ -92,13 +92,13 @@ class GameAudioService {
 
     // 1. Highest priority: if the bubble contains a specific suit symbol, play that suit's audio.
     // This fixes the bug where "Hakam Sani ♥" was being truncated to "Hakam Sani" and playing thani.mp3.
-    if (k.contains('♥')) {
+    if (k.contains('♥') || k.contains('hearts')) {
       file = 'hearts.mp3';
-    } else if (k.contains('♦')) {
+    } else if (k.contains('♦') || k.contains('diamonds')) {
       file = 'diamonds.mp3';
-    } else if (k.contains('♠')) {
+    } else if (k.contains('♠') || k.contains('spades')) {
       file = 'spades.mp3';
-    } else if (k.contains('♣')) {
+    } else if (k.contains('♣') || k.contains('clubs')) {
       file = 'clubs.mp3';
     }
 
@@ -135,8 +135,10 @@ class GameAudioService {
         file = 'qablak.mp3';
       } else if (k.contains('sun') || k.contains('صن') || k.contains('يقلب')) {
         file = 'sun.mp3';
-      } else if (k.contains('thani') || k.contains('ثاني') || k.contains('sani')) {
+      } else if (k.contains('hukam sani') || k.contains('hakam sani') || k.contains('حكم ثاني')) {
         file = 'thani.mp3';
+      } else if (k.contains('thani') || k.contains('sani') || k.contains('ثاني')) {
+        file = 'thani2.mp3';
       } else if (k.contains('hakam') || k.contains('حكم') || k.contains('hokum')) {
         file = 'hokum.mp3';
       } else if (k.contains('double') || k.contains('دبل') || k.contains('دابل')) {

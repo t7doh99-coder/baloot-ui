@@ -8,7 +8,7 @@ import '../lib/features/game/domain/managers/deck_manager.dart';
 void main() {
   test('Score distributions for 5-card hands', () {
     final rng = Random(42);
-    final bot = const BotEngine();
+    final bot = BotEngine();
     
     final hakamScores = <int>[];
     final sunScores = <int>[];
