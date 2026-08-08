@@ -362,14 +362,12 @@ class GameProvider extends ChangeNotifier {
   /// Bidding phase (round1 / round2 / completed / cancelled).
   BiddingPhase get biddingPhase => roundState.biddingPhase;
 
-  /// Whether someone has already bid Hakam in Round 1 (Sawa available).
+  /// Whether someone has already bid Hakam in Round 1.
   bool get hasActiveHakamBid =>
       phase == GamePhase.notStarted ? false : _engine.hasActiveHakamBid;
 
-  /// Defending player (seat 0) may call **Sawa** on an active opponent bid (§4.4).
-  bool get canHumanBidSawa {
-    return _engine.allowedActions(0).contains(BidAction.sawa);
-  }
+  /// Always false — Sawa bidding lock removed (Kammelna standard: opponents just press Pass).
+  bool get canHumanBidSawa => false;
 
   bool _hasRound2PendingBid = false;
 
@@ -734,6 +732,13 @@ class GameProvider extends ChangeNotifier {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
         _prevBiddingPhase = _engine.roundState.biddingPhase;
+        if (_engine.gamePhase == GamePhase.bidding) {
+          // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
+          final dealerSeat = _engine.roundState.dealerIndex;
+          Timer(const Duration(milliseconds: 400), () {
+            _showBubble(dealerSeat, 'Awal');
+          });
+        }
         notifyListeners();
       } catch (e, st) {
         debugPrint('[GameProvider] prepareMatch deal failed: $e\n$st');
@@ -748,6 +753,13 @@ class GameProvider extends ChangeNotifier {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
         _prevBiddingPhase = _engine.roundState.biddingPhase;
+        if (_engine.gamePhase == GamePhase.bidding) {
+          // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
+          final dealerSeat = _engine.roundState.dealerIndex;
+          Timer(const Duration(milliseconds: 400), () {
+            _showBubble(dealerSeat, 'Awal');
+          });
+        }
         notifyListeners();
       } catch (e, st) {
         debugPrint('[GameProvider] prepareMatch deal retry failed: $e\n$st');
@@ -1007,20 +1019,31 @@ class GameProvider extends ChangeNotifier {
       (s) => List<CardModel>.from(_engine.getHand(s)),
     );
     _sawaRevealClaimSeat = seat;
+    
+    // Check if the claim is false (Khataa). If so, bots will object!
+    final isSawaValid = _engine.isSawaMathematicallyValid(seat);
+    if (!isSawaValid) {
+      // Find an opponent to object
+      final opponentSeat = (seat + 1) % 4; // Right opponent
+      Timer(const Duration(milliseconds: 1500), () {
+        _showBubble(opponentSeat, 'Qaid'); // Qaid translates to Object (إعتراض)
+      });
+    }
+
     notifyListeners();
 
     _sawaRevealTimer = Timer(
       const Duration(milliseconds: _sawaRevealDurationMs),
-      () => _finalizeSawaReveal(seat),
+      () => _finalizeSawaReveal(seat, isObjectionCorrect: !isSawaValid),
     );
   }
 
-  void _finalizeSawaReveal(int seat) {
+  void _finalizeSawaReveal(int seat, {required bool isObjectionCorrect}) {
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
 
     try {
-      if (phase != GamePhase.playing || !_engine.canSawa(seat)) {
+      if (phase != GamePhase.playing) {
         _clearSawaRevealState();
         notifyListeners();
         return;
@@ -1029,7 +1052,7 @@ class GameProvider extends ChangeNotifier {
       _sawaRevealClaimSeat = null;
 
       _sawaSkipTablePauseBeforeScoreboard = true;
-      _engine.claimSawa(seat);
+      _engine.resolveSawaObjection(seat, isObjectionCorrect);
       if (seat == 0) HapticFeedback.heavyImpact();
       _afterEngineAction();
     } catch (e) {
@@ -1164,7 +1187,11 @@ class GameProvider extends ChangeNotifier {
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
             if (_engine.gamePhase == GamePhase.bidding) {
-              // Dealer does not speak when bidding starts
+              // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
+              final dealerSeat = _engine.roundState.dealerIndex;
+              Timer(const Duration(milliseconds: 400), () {
+                _showBubble(dealerSeat, 'Awal');
+              });
             }
           }
           notifyListeners();
@@ -1212,7 +1239,11 @@ class GameProvider extends ChangeNotifier {
     
     // Instantly proceed with the new round without pausing for an overlay
     if (_engine.gamePhase == GamePhase.bidding) {
-      // Dealer does not speak when bidding starts
+      // Kammelna rule: The DEALER announces 'Awal' when a new round starts.
+      final dealerSeat = _engine.roundState.dealerIndex;
+      Timer(const Duration(milliseconds: 400), () {
+        _showBubble(dealerSeat, 'Awal');
+      });
     }
     notifyListeners();
     _scheduleNextAction();
@@ -1227,7 +1258,11 @@ class GameProvider extends ChangeNotifier {
       _prevPhase = _engine.gamePhase;
       _prevBiddingPhase = _engine.roundState.biddingPhase;
       if (_engine.gamePhase == GamePhase.bidding) {
-        // Dealer does not speak when bidding starts
+        // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
+        final dealerSeat = _engine.roundState.dealerIndex;
+        Timer(const Duration(milliseconds: 400), () {
+          _showBubble(dealerSeat, 'Awal');
+        });
       }
       notifyListeners();
       _scheduleNextAction();
@@ -1306,18 +1341,6 @@ class GameProvider extends ChangeNotifier {
 
   /// Dispatches the actual turn (human timer or bot delay) for [seat].
   void _dispatchTurn(int seat) {
-    // ── Kammelna logic: The first player (dealer + 1) implicitly holds their priority.
-    // They say "Awal" instantly without a timer, and the actual bidding choices start at Player 2 (dealer + 2).
-    final isFirstBidderRound1 = 
-        _engine.gamePhase == GamePhase.bidding && 
-        _engine.roundState.biddingPhase == BiddingPhase.round1 && 
-        !_engine.hasActiveHakamBid &&
-        _engine.passCount == 0 &&
-        seat == (_engine.roundState.dealerIndex + 2) % 4;
-
-    if (isFirstBidderRound1) {
-      _showBubble((_engine.roundState.dealerIndex + 1) % 4, 'Awal');
-    }
 
     if (seat == 0) {
       // Human's turn — start timer
@@ -1432,9 +1455,9 @@ class GameProvider extends ChangeNotifier {
       // This is a silent action in Kammelna (they already announced it during Round 2).
       return;
     } else if (bpBefore == BiddingPhase.round1) {
-      final isFirst = seat == (rs.dealerIndex + 1) % 4 && !_engine.hasActiveHakamBid;
-
-      // Round 1: check if this bot just bid Hakam or Sun
+      // Round 1: check if this bot just bid Hakam, Sun, or passed.
+      // Note: 'Awal' is announced by the DEALER when the round starts,
+      // not by the first bidder when they pass.
       if (_engine.activeRound1HakamSeat == seat) {
         _showBubble(seat, 'Hakam');
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
@@ -1442,7 +1465,6 @@ class GameProvider extends ChangeNotifier {
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
         _showBubble(seat, 'Ashkal');
       } else {
-        // The Awal player MUST say Pass when they pass
         _showBubble(seat, 'Pass');
       }
     } else if (bpBefore == BiddingPhase.round2) {
@@ -1752,7 +1774,6 @@ class GameProvider extends ChangeNotifier {
       case BidAction.secondHakam:  return _suitNameText(secondHakamSuit);
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.qablak:       return 'Qablak';
-      case BidAction.sawa:         return 'Sawa';
       case BidAction.pass:
         if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
           if (!_engine.hasRound2PendingBid) {

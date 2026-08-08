@@ -144,17 +144,18 @@ void main() {
       expect(game.gameScore.teamB, 0);
     });
 
-    test('Scenario 2: Sawa Bidding Lock', () {
+    test('Scenario 2: Hokom Bid Lock via Pass (Kammelna style)', () {
       final game = createGame();
       
       // Dealer 0. Player 1 calls Hakam.
       game.placeBid(1, BidAction.hakam);
-      // Player 2 calls Sawa
-      game.placeBid(2, BidAction.sawa);
+      // All 3 opponents press Pass to naturally lock the bid (Kammelna standard).
+      game.placeBid(2, BidAction.pass);
+      game.placeBid(3, BidAction.pass);
+      game.placeBid(0, BidAction.pass);
       
-      // Bidding ends immediately
-      // The game phase should transition to dealing because after bidding finishes, the game automatically proceeds to Play Phase (dealing the remaining 3 cards).
-      // Let's verify score is 0. 
+      // Bidding ends — buyer must now confirm Hakam or switch to Sun.
+      // Scores remain 0 until round is played.
       expect(game.gameScore.teamA, 0);
       expect(game.gameScore.teamB, 0);
     });

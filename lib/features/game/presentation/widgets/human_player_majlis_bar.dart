@@ -253,13 +253,9 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _SawaButton(
-                    isActive: (game.canSawa && !game.isSawaRevealPlaying) || game.canHumanBidSawa,
+                    isActive: game.canSawa && !game.isSawaRevealPlaying,
                     onTap: () {
-                      if (game.canHumanBidSawa) {
-                        game.humanBid(BidAction.sawa);
-                      } else {
-                        game.humanClaimSawa();
-                      }
+                      game.humanClaimSawa();
                     },
                   ),
                 ),

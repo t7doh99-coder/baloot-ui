@@ -126,7 +126,6 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 > [!IMPORTANT] **Hakam Confirmation Step (Visca ME / Jawaker / Kammelna — VERIFIED):**
 > Selecting **Hakam** (Round 1 on buyer card, or **Round 2 Second Hakam**) does **not** immediately lock the contract if other players can still respond. When **no one** has switched to Sun and **no Sawa** has locked the bid:
 > - If another player picks **Sun** in Round 1 → game becomes Sun immediately (Sun > Hukm).
-> - If another player calls **Sawa** on an existing Hakam bid → Hakam is locked immediately.
 > - If **all 3 other players Pass** after a Hakam bid → the **same Hakam bidder** enters a **Confirmation Step**:
 >   1. **Confirm Hakam** — locks Hakam (Round 1: buyer card suit; Round 2: chosen Second Hakam suit).
 >   2. **Switch to Sun** — converts the game to Sun instead; **same player remains buyer**.
@@ -137,26 +136,20 @@ Screen seat map: 0=bottom(you), 1=right, 2=top(partner), 3=left. +1 = next playe
 ### 4.3 Round 2 Options (if all pass Round 1)
 | Option | Result |
 |--------|--------|
-| **Sun** | No-trump game. Others Pass or Sawa; three Passes lock Sun (no Hakam-style confirmation). |
-| **Second Hakam** | Choose a NEW trump suit (must differ from Buyer Card's suit). Others Pass or Sawa; three Passes → **same confirmation** as §4.2: **Confirm Hakam** or **Switch to Sun**. |
+| **Sun** | No-trump game. Others Pass; three Passes lock Sun (no Hakam-style confirmation). |
+| **Second Hakam** | Choose a NEW trump suit (must differ from Buyer Card's suit). Others Pass; three Passes → **same confirmation** as §4.2: **Confirm Hakam** or **Switch to Sun**. |
+| **Ashkal** | Available to **Dealer** and **Sane** (left of dealer) only. Plays as Sun, gives face-up card to partner. |
 | **Pass** | Pass to next player. |
 
-> [!WARNING] **Ashkal is NOT available in Round 2** (verified: Jawaker + Kamelna + Pagat).
-> Round 2 options are: Sun, Second Hakam, or Pass only.
+> [!WARNING] **Qablak in Round 2 (Thani):**
+> Qablak (stealing a Sun bid) is **strictly forbidden** in Round 2, *unless* the face-up card is an Ace. If the face-up card is not an Ace, a Sun bid completes immediately.
 
-### 4.4 Sawa (سوى) — Bid Matching
-> [!IMPORTANT] **Confirmed from client meeting video (14-00-32.mp4 @ 00:54) + Jawaker / Kammelna:**
-> Sawa matches the current bid level and **immediately ends the bidding phase**.
-> Only a player on the **defending team** (opponents of the Hakam / Sun / Second-Hakam bidder) may call Sawa — not the bidder’s partner.
-> The **buyer** remains the player who first declared that contract (original Hakam / Sun / Second Hakam bidder); Sawa does not move the buyer to the Sawa caller.
-> The opposing team does NOT get a further bidding chance after Sawa.
-> (Exception: The defending team may still call a Double BEFORE the first card is played.)
 
 ### 4.5 If ALL players pass BOTH rounds
 - Round is **cancelled**. New deal with the next dealer.
 
 ### 4.6 Ashkal (أشكال) Mode — Special Case
-- Available to: **Dealer** and **Player to the LEFT of the Dealer** only.
+- Available to: **Dealer** and **Player to the LEFT of the Dealer** only, in **both Round 1 and Round 2**.
 - The bidder does NOT take the Buyer Card themselves.
 - The Buyer Card is given to the bidder's **teammate** instead.
 - Game automatically plays as **Sun (No-Trump)**.

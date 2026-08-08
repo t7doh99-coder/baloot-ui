@@ -859,6 +859,20 @@ class BalootGameController implements IBalootController {
       return false;
     }
 
+    // To prevent accidental Sawa claims early in the game (which result in a devastating
+    // Kabout penalty), the Sawa button is only available when 4 or fewer cards remain.
+    if (_hands[seatIndex].length > 4) {
+      return false;
+    }
+
+    return true; // We no longer mathematically block them; they can make a false claim.
+  }
+
+  /// Evaluates whether the Sawa claim made by [seatIndex] is actually correct.
+  /// Used by the Engine to resolve Objections, and by Bots to decide if they should object.
+  bool isSawaMathematicallyValid(int seatIndex) {
+    if (_turnManager == null) return false;
+    
     final playedCards = _turnManager!.trickHistory
         .expand((trick) => trick.cards)
         .map((play) => play.card)
@@ -874,11 +888,8 @@ class BalootGameController implements IBalootController {
     );
   }
 
+  @override
   void claimSawa(int seatIndex) {
-    if (!canSawa(seatIndex)) {
-      throw const InvalidMoveException('Sawa is not currently valid (you do not hold all Master Cards).');
-    }
-
     logger.log('--- SAWA CLAIMED by Seat $seatIndex ---');
     _lastPlaySawaClaimSeat = seatIndex;
 
@@ -951,6 +962,89 @@ class BalootGameController implements IBalootController {
     );
 
     _scoreRound();
+  }
+
+  @override
+  void resolveSawaObjection(int claimantSeat, bool isObjectionCorrect) {
+    if (_gamePhase != GamePhase.playing) return;
+
+    if (isObjectionCorrect) {
+      // The objection was correct -> The claimant made a false Sawa claim.
+      // This is a Khataa. The opposing team instantly wins all points (Kabout).
+      final winnerTeam = claimantSeat % 2 == 0 ? 'B' : 'A';
+      final mode = _roundState.activeMode ?? GameMode.sun;
+      
+      // Projects: The claiming team forfeits all projects. We only count the winning team's projects.
+      int teamAProjectScoreboard = 0, teamBProjectScoreboard = 0;
+      for (final p in _activeDeclaredProjects) {
+        if (p.type == ProjectType.baloot) continue;
+        if (p.playerIndex % 2 == 0) {
+          if (winnerTeam == 'A') teamAProjectScoreboard += p.getScoreboardPoints(mode);
+        } else {
+          if (winnerTeam == 'B') teamBProjectScoreboard += p.getScoreboardPoints(mode);
+        }
+      }
+
+      int balootPts = 0;
+      String? balootTeam;
+      final balootProjects = _activeDeclaredProjects.where((p) => p.type == ProjectType.baloot);
+      if (balootProjects.isNotEmpty) {
+        final bTeam = balootProjects.first.playerIndex % 2 == 0 ? 'A' : 'B';
+        if (bTeam == winnerTeam) {
+          balootPts = 2;
+          balootTeam = bTeam;
+        }
+      }
+
+      final scoreResult = _scoringEngine.calculateViolationScore(
+        mode: mode,
+        winningTeam: winnerTeam,
+        doubleStatus: _roundState.doubleStatus,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPts,
+        balootTeam: balootTeam,
+      );
+
+      final finalScoreResult = RoundScoreResult(
+        teamAPoints: scoreResult.teamAPoints,
+        teamBPoints: scoreResult.teamBPoints,
+        teamARawAbnat: scoreResult.teamARawAbnat,
+        teamBRawAbnat: scoreResult.teamBRawAbnat,
+        isKhams: scoreResult.isKhams,
+        isKabout: scoreResult.isKabout,
+        winningTeam: scoreResult.winningTeam,
+        reason: 'false_sawa_claim',
+        teamATrickAbnat: scoreResult.teamATrickAbnat,
+        teamBTrickAbnat: scoreResult.teamBTrickAbnat,
+        lastTrickBonusTeam: scoreResult.lastTrickBonusTeam,
+        teamAProjectAbnat: scoreResult.teamAProjectAbnat,
+        teamBProjectAbnat: scoreResult.teamBProjectAbnat,
+        mode: scoreResult.mode,
+        buyerTeam: scoreResult.buyerTeam,
+        doubleStatus: scoreResult.doubleStatus,
+        teamAProjectsList: scoreResult.teamAProjectsList,
+        teamBProjectsList: scoreResult.teamBProjectsList,
+      );
+
+      _lastRoundScoreResult = finalScoreResult;
+      _teamAScore += finalScoreResult.teamAPoints;
+      _teamBScore += finalScoreResult.teamBPoints;
+
+      logger.log('FALSE SAWA CLAIM by Seat $claimantSeat. Penalty applied.');
+      logger.log('Score Added -> Team A: +${finalScoreResult.teamAPoints}, Team B: +${finalScoreResult.teamBPoints}');
+
+      if (_scoringEngine.isGameOver(_teamAScore, _teamBScore, _roundState.doubleStatus)) {
+        _gamePhase = GamePhase.gameOver;
+      } else {
+        _dealerIndex = (_dealerIndex + 1) % 4;
+        _gamePhase = GamePhase.scoring;
+      }
+    } else {
+      // The objection was incorrect -> The claimant's Sawa was actually valid.
+      // Award the points normally as if no objection happened.
+      claimSawa(claimantSeat);
+    }
   }
 
   void _filterLosingProjects() {

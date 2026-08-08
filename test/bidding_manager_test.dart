@@ -359,45 +359,6 @@ void main() {
       });
     });
 
-    group('B13: Sawa Bidding', () {
-      test('Sawa locks Round 1 Hakam immediately for original buyer', () {
-        final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard); // 1 is first
-        bm.placeBid(1, BidAction.hakam);
-        // Opponent (2) calls Sawa
-        bm.placeBid(2, BidAction.sawa);
-        expect(bm.isFinished, true);
-        expect(bm.result!.mode, GameMode.hakam);
-        expect(bm.result!.buyerIndex, 1); // Original buyer keeps it
-      });
-
-      test('Sawa by teammate throws error', () {
-        final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard);
-        bm.placeBid(1, BidAction.hakam);
-        bm.placeBid(2, BidAction.pass);
-        // Teammate (3) tries to call Sawa
-        expect(
-          () => bm.placeBid(3, BidAction.sawa),
-          throwsA(isA<InvalidBidException>()),
-        );
-      });
-
-      test('Sawa locks Round 2 Second Hakam immediately', () {
-        final bm = BiddingManager(dealerIndex: 0, buyerCard: buyerCard); // 1 is first
-        bm.placeBid(1, BidAction.pass);
-        bm.placeBid(2, BidAction.pass);
-        bm.placeBid(3, BidAction.pass);
-        bm.placeBid(0, BidAction.pass);
-        // Round 2
-        bm.placeBid(1, BidAction.secondHakam, secondHakamSuit: Suit.clubs);
-        // Opponent (2) calls Sawa
-        bm.placeBid(2, BidAction.sawa);
-        expect(bm.isFinished, true);
-        expect(bm.result!.mode, GameMode.hakam);
-        expect(bm.result!.buyerIndex, 1);
-        expect(bm.result!.trumpSuit, Suit.clubs);
-      });
-    });
-
     group('B12: Edge Cases', () {
       test('Bidding on wrong turn throws exception', () {
         final bm = BiddingManager(dealerIndex: 3, buyerCard: buyerCard);
