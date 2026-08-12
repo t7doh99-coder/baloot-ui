@@ -209,11 +209,11 @@ The player sitting to the **RIGHT of the dealer** leads the first trick in the r
 - If still tied (same rank and same high card, and neither side wins the trump split) → **turn-order tiebreak**: the team whose player declared first (starting from right of dealer) wins the comparison and reveals their projects.
 - **Baloot (K+Q):** evaluated separately per engine rules (see §6.5); sequence-project tiebreaks do not cancel Baloot except where Khams stealing rules apply (§14.4).
 
-### 6.4 Project Multiplier Rule (Jawaker/Kamelna — VERIFIED)
+### 6.4 Project Multiplier Rule (Jawaker/Kammelna — VERIFIED)
 > [!IMPORTANT] When a Double/Triple/Four is active:
-> - Project scoreboard points are multiplied by **×2 MAXIMUM** (capped), even in Triple/Four.
-> - Example: Double active + Sera (2 pts) = **2 × 2 = 4 pts** from Sera alone.
-> - Example: Triple active + Sera (2 pts) = **2 × 2 = 4 pts** (NOT 2 × 3).
+> - Project scoreboard points are multiplied by the **same factor** as the round (×2, ×3, or ×4).
+> - Example: Double active + Sera (2 pts) = **2 × 2 = 4 pts** from Sera.
+> - Example: Triple active + Sera (2 pts) = **2 × 3 = 6 pts** from Sera.
 > - **Exception: Baloot is ALWAYS exactly 2 pts — it is immune to ALL multipliers.**
 
 ### 6.5 Baloot Declaration Timing

@@ -1186,6 +1186,9 @@ class GameProvider extends ChangeNotifier {
             _engine.startNewRound();
             _prevPhase = _engine.gamePhase;
             _prevBiddingPhase = _engine.roundState.biddingPhase;
+            // Clear all lingering bubbles (e.g. Akka from last trick)
+            // so they don't bleed into the new bidding phase.
+            _clearAllBubbles();
             if (_engine.gamePhase == GamePhase.bidding) {
               // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
               final dealerSeat = _engine.roundState.dealerIndex;
@@ -1236,7 +1239,8 @@ class GameProvider extends ChangeNotifier {
   void _showCancelledOverlay(int newDealerSeat) {
     _cancelTimers();
     _prevPhase = phase;
-    
+    // Clear any lingering bubbles from the cancelled round.
+    _clearAllBubbles();
     // Instantly proceed with the new round without pausing for an overlay
     if (_engine.gamePhase == GamePhase.bidding) {
       // Kammelna rule: The DEALER announces 'Awal' when a new round starts.

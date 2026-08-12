@@ -8,7 +8,7 @@ import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/game_l10n.dart';
 import '../../../core/l10n/locale_provider.dart';
-import '../../../data/models/card_model.dart' show CardModel, Suit, GameMode;
+import '../../../data/models/card_model.dart' show CardModel, Suit, Rank, GameMode;
 import '../../../data/models/round_state_model.dart'
     show BiddingPhase, DoubleStatus, ProjectType;
 import '../domain/baloot_game_controller.dart' show GamePhase;
@@ -891,12 +891,16 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final dealer    = widget.game.dealerIndex;
       final sane      = (dealer + 3) % 4;
       final canAshkal = (0 == dealer || 0 == sane);
+      // Ashkal is illegal on an Ace buyer card — hide the button to prevent confusion.
+      // (The engine still handles it as a penalty if somehow triggered, but the button
+      // simply should not appear, matching Kammelna behaviour.)
+      final buyerIsAce = widget.game.buyerCard?.rank == Rank.ace;
 
       return [
         _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        if (!gp.hasActiveHakamBid)
+        if (!gp.hasActiveHakamBid || dealer == 0 || sane == 0)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
-        if (!gp.hasActiveHakamBid && canAshkal)
+        if (canAshkal && !buyerIsAce)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
       ];
@@ -924,8 +928,10 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       ];
     }
 
-    final isDealer = widget.game.roundState.dealerIndex == _humanSeat;
-    final isSane   = (widget.game.roundState.dealerIndex + 3) % 4 == _humanSeat;
+    final isDealer  = widget.game.roundState.dealerIndex == _humanSeat;
+    final isSane    = (widget.game.roundState.dealerIndex + 3) % 4 == _humanSeat;
+    // Ashkal on an Ace is illegal in Round 2 as well — hide the button.
+    final buyerIsAce = widget.game.buyerCard?.rank == Rank.ace;
 
     return [
       _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
@@ -936,7 +942,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
           setState(() => _activePicker = _DashboardPicker.suit);
         },
       ),
-      if (isDealer || isSane)
+      if ((isDealer || isSane) && !buyerIsAce)
         _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
       _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
     ];

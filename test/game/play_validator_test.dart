@@ -250,6 +250,19 @@ void main() {
         ),
       ];
 
+      // Seat 3 (Team B) tries to drop a lower trump than the teammate's cut
+      final resultTeammate = validator.validate(
+        card: const CardModel(suit: Suit.spades, rank: Rank.seven), // Lower trump
+        hand: hand,
+        currentTrick: trickForTeammate,
+        mode: GameMode.hakam,
+        trumpSuit: Suit.spades,
+        playerSeat: 3,
+      );
+
+      // Since teammate (seat 1) is currently winning with Rank.nine trump, 
+      // seat 3 is NOT forced to overtrump.
+      expect(resultTeammate.isValid, true);
       // Seat 3 (Team B) — seat 1 (Team B teammate) cut. Up-trump should NOT apply.
       final result = validator.validate(
         card: const CardModel(suit: Suit.spades, rank: Rank.seven), // low trump
@@ -262,6 +275,38 @@ void main() {
 
       expect(result.isValid, true,
           reason: 'Teammate cut should NOT trigger up-trump');
+    });
+
+    test('Client Issue #3: Partner winning with Akkah (Ace) -> Free to discard non-trump', () {
+      final hand = [
+        const CardModel(suit: Suit.spades, rank: Rank.ten), // A trump
+        const CardModel(suit: Suit.diamonds, rank: Rank.seven), // Garbage
+      ];
+      final trick = [
+        const CardPlayModel(
+          card: CardModel(suit: Suit.hearts, rank: Rank.ace), // Akkah!
+          playerIndex: 0, // Partner leads Akkah
+        ),
+        const CardPlayModel(
+          card: CardModel(suit: Suit.hearts, rank: Rank.ten), // Opponent follows
+          playerIndex: 1,
+        ),
+      ];
+
+      // You are Seat 2. Void in Hearts (led suit). You have a Trump (Spades).
+      // Partner (Seat 0) is winning with Ace of Hearts.
+      // You should be FREE to play garbage (Diamonds), NOT forced to trump.
+      final resultGarbage = validator.validate(
+        card: const CardModel(suit: Suit.diamonds, rank: Rank.seven), // Play garbage
+        hand: hand,
+        currentTrick: trick,
+        mode: GameMode.hakam,
+        trumpSuit: Suit.spades,
+        playerSeat: 2,
+      );
+
+      // You are NOT forced to play your trump because partner is winning!
+      expect(resultGarbage.isValid, true);
     });
   });
 
