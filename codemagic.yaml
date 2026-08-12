@@ -6,7 +6,7 @@ workflows:
     integrations:
       app_store_connect: Codemagic
     environment:
-      flutter: stable
+      flutter: 3.35.5
       xcode: latest
       cocoapods: default
       groups:
