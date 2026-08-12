@@ -20,6 +20,8 @@ workflows:
       - name: Install CocoaPods dependencies
         script: |
           cd ios
+          rm -rf Pods
+          rm -f Podfile.lock
           pod install --repo-update
       - name: Initialize keychain
         script: |
