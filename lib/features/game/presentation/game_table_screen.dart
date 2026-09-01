@@ -18,10 +18,12 @@ import 'widgets/deal_overlay_widget.dart';
 import 'widgets/human_hand_widget.dart';
 import 'widgets/human_player_majlis_bar.dart';
 import 'widgets/player_seat_widget.dart';
-
 import 'widgets/scoring_overlays.dart';
 import 'widgets/trick_area_widget.dart';
 import 'widgets/last_trick_mini_widget.dart';
+import 'widgets/qaydha_review_overlay.dart';
+
+import 'package:flutter_svg/flutter_svg.dart';
 import 'widgets/game_table_majlis_hud.dart';
 import 'widgets/majlis_table_background.dart';
 import 'designer_table_test_screen.dart';
@@ -418,11 +420,13 @@ class _GameTableScreenState extends State<GameTableScreen> {
               right: 0,
               child: Center(child: _DoubleBadge(status: game.doubleStatus)),
             ),
-          // Show overlay whenever a round result exists (prioritize round scoreboard)
           if (game.lastRoundResult != null)
             const RoundScoreOverlay()
           else if (game.showGameOverOverlay)
             const GameOverOverlay(),
+
+          // Qaydha (Kammelna-style) Review Overlay
+          const QaydhaReviewOverlay(),
 
           // Qaid (Violation) Banner — Standard-style
           if (game.qaidViolationMessage != null)
@@ -938,7 +942,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       _GameBtn(
         label: loc.secondHakam,
         onTap: () {
-          gp.playUiAudio('hukam sani');
+          gp.audioService.playBubble('hukam sani');
           setState(() => _activePicker = _DashboardPicker.suit);
         },
       ),

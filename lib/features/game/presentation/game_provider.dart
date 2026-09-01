@@ -19,12 +19,13 @@ import '../../../data/models/player_stats.dart';
 import '../../../data/models/rank_tier.dart';
 import '../../../data/models/round_state_model.dart';
 import '../domain/baloot_game_controller.dart' show GamePhase, BalootGameController;
+import '../domain/engines/qaydha_engine.dart';
+import '../domain/models/qaydha_models.dart';
 import '../domain/engines/project_detector.dart';
 import '../domain/managers/turn_manager.dart' show TrickResult;
 import '../domain/engines/scoring_engine.dart' show RoundScoreResult;
 import '../domain/managers/bidding_manager.dart';
-import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
-import '../../../core/services/game_audio_service.dart';
+import 'widgets/qaydha_types.dart' show QaydhaActionType;
 
 // ══════════════════════════════════════════════════════════════════
 //  GAME PROVIDER — Presentation-layer ViewModel
@@ -1820,6 +1821,180 @@ class GameProvider extends ChangeNotifier {
       case Suit.clubs:    return 'Clubs';
       case null:          return '';
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  QAYDHA / CHALLENGE LOGIC
+  // ══════════════════════════════════════════════════════════════════
+  
+  bool _isQaydhaReviewVisible = false;
+  bool get isQaydhaReviewVisible => _isQaydhaReviewVisible;
+
+  QaydhaActionType? _currentQaydhaAction;
+  QaydhaActionType? get currentQaydhaAction => _currentQaydhaAction;
+
+  int? _selectedQaydhaViolationIndex;
+  int? get selectedQaydhaViolationIndex => _selectedQaydhaViolationIndex;
+
+  int? _selectedQaydhaTrickIndex;
+  int? get selectedQaydhaTrickIndex => _selectedQaydhaTrickIndex;
+
+  int? _selectedQaydhaCardSeatIndex;
+  int? get selectedQaydhaCardSeatIndex => _selectedQaydhaCardSeatIndex;
+
+  // Proof card: selected from player hand box (the card they SHOULD have played)
+  int? _selectedQaydhaProofSeatIndex;
+  int? get selectedQaydhaProofSeatIndex => _selectedQaydhaProofSeatIndex;
+  int? _selectedQaydhaProofCardIndex;
+  int? get selectedQaydhaProofCardIndex => _selectedQaydhaProofCardIndex;
+
+  QaydhaResult? _qaydhaChallengeResult;
+  QaydhaResult? get qaydhaChallengeResult => _qaydhaChallengeResult;
+
+  // ── Contextual Challenge Windows (7-second timer) ──
+  Timer? _falseEkkaWindowTimer;
+  bool _isFalseEkkaWindowOpen = false;
+  bool get isFalseEkkaWindowOpen => _isFalseEkkaWindowOpen;
+
+  Timer? _falseSawaWindowTimer;
+  bool _isFalseSawaWindowOpen = false;
+  bool get isFalseSawaWindowOpen => _isFalseSawaWindowOpen;
+
+  void handleQaydhaMenuSelection(QaydhaActionType action) {
+    startQaydha(action);
+  }
+
+  void startQaydha(QaydhaActionType action) {
+    _isQaydhaReviewVisible = true;
+    _currentQaydhaAction = action;
+    _selectedQaydhaViolationIndex = action == QaydhaActionType.wrongTrick ? 4 : null;
+    _selectedQaydhaTrickIndex = null;
+    _selectedQaydhaCardSeatIndex = null;
+    _selectedQaydhaProofSeatIndex = null;
+    _selectedQaydhaProofCardIndex = null;
+    
+    _autoPlaySuspended = true;
+    _cancelTimers();
+    _audioService.playNormalButton();
+    notifyListeners();
+  }
+
+  void cancelQaydha() {
+    _isQaydhaReviewVisible = false;
+    _currentQaydhaAction = null;
+    _qaydhaChallengeResult = null;
+    _selectedQaydhaProofSeatIndex = null;
+    _selectedQaydhaProofCardIndex = null;
+    _autoPlaySuspended = false;
+    _audioService.playNormalButton();
+    notifyListeners();
+    _scheduleNextAction();
+  }
+
+  void setQaydhaViolationIndex(int index) {
+    _selectedQaydhaViolationIndex = index;
+    audioService.playCardSelect();
+    notifyListeners();
+  }
+
+  void selectQaydhaCard(int trickIndex, int seatIndex) {
+    if (_selectedQaydhaTrickIndex == trickIndex && _selectedQaydhaCardSeatIndex == seatIndex) {
+      _selectedQaydhaTrickIndex = null;
+      _selectedQaydhaCardSeatIndex = null;
+    } else {
+      _selectedQaydhaTrickIndex = trickIndex;
+      _selectedQaydhaCardSeatIndex = seatIndex;
+    }
+    // Clear proof card when accused card changes
+    _selectedQaydhaProofSeatIndex = null;
+    _selectedQaydhaProofCardIndex = null;
+    audioService.playCardSelect();
+    notifyListeners();
+  }
+
+  void selectQaydhaProofCard(int seatIndex, int cardIndex) {
+    if (_selectedQaydhaProofSeatIndex == seatIndex &&
+        _selectedQaydhaProofCardIndex == cardIndex) {
+      // Deselect if tapped again
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
+    } else {
+      _selectedQaydhaProofSeatIndex = seatIndex;
+      _selectedQaydhaProofCardIndex = cardIndex;
+    }
+    audioService.playCardSelect();
+    notifyListeners();
+  }
+
+  void submitQaydhaChallenge() {
+    if (_currentQaydhaAction == QaydhaActionType.wrongSawa) {
+      if (isSawaRevealPlaying) {
+        _finalizeSawaReveal(0, isObjectionCorrect: true);
+      }
+      cancelQaydha();
+      return;
+    }
+
+    QaydhaViolationType violationType;
+    if (_currentQaydhaAction == QaydhaActionType.wrongTrick) {
+      violationType = QaydhaViolationType.falseEkka;
+    } else {
+      final vIdx = _selectedQaydhaViolationIndex ?? 0;
+      violationType = QaydhaViolationType.values[vIdx.clamp(0, QaydhaViolationType.values.length - 1)];
+    }
+
+    int effectiveTrickIndex = _selectedQaydhaTrickIndex ?? 0;
+    int effectiveSeatIndex = _selectedQaydhaCardSeatIndex ?? 1;
+
+    try {
+      _qaydhaChallengeResult = QaydhaEngine.evaluateChallenge(
+        history: trickHistoryThisRound,
+        challengerIndex: 0,
+        trickIndex: effectiveTrickIndex,
+        accusedSeatIndex: effectiveSeatIndex,
+        violationType: violationType,
+        gameMode: _engine.roundState.activeMode ?? GameMode.hakam,
+        trumpSuit: _engine.roundState.trumpSuit,
+        doubleStatus: _engine.roundState.doubleStatus,
+        proofCardIndex: _selectedQaydhaProofCardIndex,
+      );
+      audioService.playGoldButton();
+      notifyListeners();
+    } catch (e) {
+      print("Qaydha error: $e");
+      _qaydhaChallengeResult = QaydhaResult(
+        challengerIndex: 0,
+        accusedCard: const CardModel(suit: Suit.spades, rank: Rank.ace),
+        trickIndex: effectiveTrickIndex,
+        violationType: violationType,
+        isCorrect: false,
+      );
+      audioService.playGoldButton();
+      notifyListeners();
+    }
+  }
+
+  void closeQaydhaResult() {
+    if (_qaydhaChallengeResult != null) {
+      if (_qaydhaChallengeResult!.isCorrect) {
+        _engine.applyQaydhaResult(_qaydhaChallengeResult!);
+      }
+    }
+    cancelQaydha();
+  }
+
+  bool get canEkka => _engine.canEkka(0) && !isSawaRevealPlaying;
+  
+  void claimEkka() {
+    if (!canEkka) return;
+    _showBubble(0, 'Ekka');
+    HapticFeedback.heavyImpact();
+    _engine.claimEkka(0);
+  }
+  void setMockQaydhaTricks(List<dynamic> tricks) {}
+  void forceShowQaydhaReview() {
+    _isQaydhaReviewVisible = true;
+    notifyListeners();
   }
 
   // ══════════════════════════════════════════════════════════════════

@@ -43,6 +43,7 @@ class PlayValidator {
     bool isOpenPlay = true,
     int? playerSeat,
     Set<CardModel>? playedCards,
+    int? ekkaClaimSeat,
   }) {
     // If leading the trick
     if (currentTrick.isEmpty) {
@@ -105,7 +106,12 @@ class PlayValidator {
           exempt = true;
         }
 
-        // (b) Opponent already trumped & we can't overtrump → free play
+        // (b) Partner claimed Ekka → free play
+        if (ekkaClaimSeat != null && (ekkaClaimSeat % 2 == playerSeat % 2)) {
+          exempt = true;
+        }
+
+        // (c) Opponent already trumped & we can't overtrump → free play
         if (!exempt) {
           final highestOppTrump = _highestOpponentTrumpStrength(
             currentTrick: currentTrick,
@@ -239,6 +245,7 @@ class PlayValidator {
     bool isOpenPlay = true,
     int? playerSeat,
     Set<CardModel>? playedCards,
+    int? ekkaClaimSeat,
   }) {
     return hand.where((card) {
       final result = validate(
@@ -251,6 +258,7 @@ class PlayValidator {
         isOpenPlay: isOpenPlay,
         playerSeat: playerSeat,
         playedCards: playedCards,
+        ekkaClaimSeat: ekkaClaimSeat,
       );
       return result.isValid;
     }).toList();

@@ -8,6 +8,7 @@ class TrickResult {
   final int abnat; // Points from this trick's cards
   final bool isLastTrick;
   final int lastTrickBonus; // +10 if last trick
+  final Map<int, List<CardModel>>? handsAtStartOfTrick; // Hands snapshot for Qaydha
 
   const TrickResult({
     required this.winnerIndex,
@@ -15,6 +16,7 @@ class TrickResult {
     required this.abnat,
     required this.isLastTrick,
     required this.lastTrickBonus,
+    this.handsAtStartOfTrick,
   });
 
   int get totalAbnat => abnat + lastTrickBonus;
@@ -40,6 +42,9 @@ class TurnManager {
   final List<int> teamBTricksWon = [];
   int teamAAbnat = 0;
   int teamBAbnat = 0;
+
+  // Snapshot of hands at the start of the current trick (for Qaydha Engine)
+  Map<int, List<CardModel>> _currentTrickHandsSnapshot = {};
 
   // History of all tricks
   final List<TrickResult> trickHistory = [];
@@ -89,7 +94,12 @@ class TurnManager {
 
   /// Play a card into the current trick.
   /// Returns a [TrickResult] when the trick is complete (4 cards), null otherwise.
-  TrickResult? playCard(int seatIndex, CardModel card, {bool advanceTurn = true}) {
+  TrickResult? playCard(int seatIndex, CardModel card, {bool advanceTurn = true, Map<int, List<CardModel>>? currentHands}) {
+    if (_currentTrick.isEmpty && currentHands != null) {
+      // Snapshot hands at the very start of the trick
+      _currentTrickHandsSnapshot = currentHands.map((key, value) => MapEntry(key, List.from(value)));
+    }
+    
     _currentTrick.add(CardPlayModel(card: card, playerIndex: seatIndex));
 
     if (_currentTrick.length < 4) {
@@ -155,6 +165,7 @@ class TurnManager {
       abnat: abnat,
       isLastTrick: isLastTrick,
       lastTrickBonus: isLastTrick ? 10 : 0,
+      handsAtStartOfTrick: _currentTrickHandsSnapshot,
     );
   }
 

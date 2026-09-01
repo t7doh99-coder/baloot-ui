@@ -209,6 +209,24 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
     if (r.isKabout) {
       message = isAr ? '🏆 كبوت!!' : '🏆 KABOOT!!';
       color = const Color(0xFFFFD700);
+    } else if (r.isQaydha) {
+      if (r.qaydhaCorrect) {
+        if (weWon) {
+          message = isAr ? 'قيد صحيح: فزنا 🎉' : 'Correct Qaydha: We Win!';
+          color = const Color(0xFF00E87A);
+        } else {
+          message = isAr ? 'قيد صحيح: خسرنا 💔' : 'Correct Qaydha: We Lost';
+          color = const Color(0xFFFF3D3D);
+        }
+      } else {
+        if (weWon) {
+          message = isAr ? 'قيد خاطئ: فزنا 🎉' : 'Wrong Qaydha: We Win!';
+          color = const Color(0xFF00E87A);
+        } else {
+          message = isAr ? 'قيد خاطئ: خسرنا 💔' : 'Wrong Qaydha: We Lost';
+          color = const Color(0xFFFF3D3D);
+        }
+      }
     } else if (r.teamAPoints == r.teamBPoints) {
       message = isAr ? 'سوا — تعادل' : 'SAWA — Draw';
       color = const Color(0xFFC9A84C);
@@ -1188,7 +1206,7 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
     final teamB = total.teamB;
     
     final humanWon = game.didHumanWinGame;
-    final isArabic = context.read<LocaleProvider>().isArabic;
+    final isArabic = context.watch<LocaleProvider>().isArabic;
 
     return Positioned.fill(
       child: Container(
@@ -1281,7 +1299,7 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
                                       color: Colors.white54,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 2,
+                                      letterSpacing: context.watch<LocaleProvider>().isArabic ? 0 : 2,
                                     ),
                                   ),
                                   const SizedBox(height: 18),
@@ -1510,7 +1528,7 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
               color: textColor,
               fontSize: 16,
               fontWeight: FontWeight.w900,
-              letterSpacing: context.read<LocaleProvider>().isArabic ? 0 : 1.0,
+              letterSpacing: context.watch<LocaleProvider>().isArabic ? 0 : 1.0,
               shadows: [
                 Shadow(
                   color: Colors.black.withValues(alpha: 0.5),

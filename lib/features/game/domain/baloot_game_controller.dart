@@ -16,6 +16,8 @@ import 'engines/sawa_probability_engine.dart';
 import '../../../data/models/bot_difficulty.dart';
 import '../../../data/models/bot_personality.dart';
 import '../../../core/utils/game_logger.dart';
+import 'models/qaydha_models.dart';
+import 'models/qaydha_models.dart';
 
 /// The game phase the controller is currently in.
 enum GamePhase { notStarted, dealing, bidding, doubleWindow, playing, scoring, gameOver }
@@ -78,6 +80,10 @@ class BalootGameController implements IBalootController {
 
   /// Set when the round ends via in-play **Sawa** (master cards), not trick 8 played out.
   int? _lastPlaySawaClaimSeat;
+
+  int? _ekkaClaimSeat;
+  @override
+  int? get ekkaClaimSeat => _ekkaClaimSeat;
 
   BalootGameController({
     Random? random,
@@ -602,6 +608,22 @@ class BalootGameController implements IBalootController {
   }
 
   @override
+  bool canEkka(int seatIndex) {
+    if (_gamePhase != GamePhase.playing) return false;
+    if (_turnManager?.currentPlayerIndex != seatIndex) return false;
+    // You can only call Ekka when leading a trick
+    if (_turnManager?.currentTrick.isNotEmpty ?? true) return false;
+    return true;
+  }
+
+  @override
+  void claimEkka(int seatIndex) {
+    if (!canEkka(seatIndex)) return;
+    _ekkaClaimSeat = seatIndex;
+    logger.log('Seat $seatIndex claimed Ekka!');
+  }
+
+  @override
   void playCard(int seatIndex, CardModel card) {
     if (_gamePhase != GamePhase.playing) {
       throw const InvalidMoveException('Not in play phase.');
@@ -628,6 +650,7 @@ class BalootGameController implements IBalootController {
       isOpenPlay: _roundState.isOpenPlay,
       playerSeat: seatIndex,
       playedCards: _turnManager!.playedCards,
+      ekkaClaimSeat: _ekkaClaimSeat,
     );
 
     if (!validation.isValid) {
@@ -656,7 +679,7 @@ class BalootGameController implements IBalootController {
     _botEngine.recordCardPlayed(card, seatIndex, leadSuit);
 
     // Play the card and advance the turn.
-    final trickResult = _turnManager!.playCard(seatIndex, card, advanceTurn: true);
+    final trickResult = _turnManager!.playCard(seatIndex, card, advanceTurn: true, currentHands: _hands.asMap());
     logger.log('Seat $seatIndex played ${card.displayName}');
 
     _roundState = _roundState.copyWith(
@@ -679,6 +702,7 @@ class BalootGameController implements IBalootController {
     _botEngine.recordTrickResult(trickResult.winnerIndex);
     // Trick complete
       logger.log('Trick completed. Winner: Seat ${trickResult.winnerIndex}');
+      _ekkaClaimSeat = null; // Reset Ekka claim at the end of the trick
       _roundState = _roundState.copyWith(
         trickNumber: _turnManager!.trickNumber,
         currentTrick: const [],
@@ -764,18 +788,15 @@ class BalootGameController implements IBalootController {
   }
 
   /// Whether the human player (seat 0) can currently claim Qaid.
-  /// Per Standard: Qaid is available during play phase when it's NOT the human's turn
-  /// (an opponent has just played a card that might be a violation).
+  /// Per HTML spec: Qaid is available at ANY time after the first card of the
+  /// round has been played (mid-trick, between tricks — any time).
+  /// It is only disabled during: dealing, bidding, multiplier window,
+  /// when another Qaid is already in progress, and after the round ends.
   bool canClaimQaid(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
-    // Can only claim when it's NOT your turn (opponent just played)
-    if (_turnManager!.currentPlayerIndex == seatIndex) return false;
-    // Must have cards in the current trick (someone played)
-    if (_turnManager!.currentTrick.isEmpty) return false;
-    // The last card played must be by an opponent (different team)
-    final lastPlay = _turnManager!.currentTrick.last;
-    final sameTeam = (lastPlay.playerIndex % 2) == (seatIndex % 2);
-    if (sameTeam) return false;
+    // Must have at least one COMPLETED trick in this round to challenge (accuse) a card.
+    final hasHistory = _turnManager!.trickHistory.isNotEmpty;
+    if (!hasHistory) return false;
     return true;
   }
 
@@ -854,18 +875,14 @@ class BalootGameController implements IBalootController {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
     
     // Only allow Sawa if it's the player's turn to lead a trick
-    // (If they are in the middle of a trick, wait until next trick to claim)
+    // (i.e. no cards have been played in the current trick yet)
     if (_turnManager!.currentPlayerIndex != seatIndex || _turnManager!.currentTrick.isNotEmpty) {
       return false;
     }
 
-    // To prevent accidental Sawa claims early in the game (which result in a devastating
-    // Kabout penalty), the Sawa button is only available when 4 or fewer cards remain.
-    if (_hands[seatIndex].length > 4) {
-      return false;
-    }
-
-    return true; // We no longer mathematically block them; they can make a false claim.
+    // Per HTML spec: Sawa is available anytime after the first card of the round
+    // has been played. There is no hand-size restriction.
+    return true;
   }
 
   /// Evaluates whether the Sawa claim made by [seatIndex] is actually correct.
@@ -1252,8 +1269,111 @@ class BalootGameController implements IBalootController {
     }
   }
 
-  // ── Bot Logic ──
+  // ── Qaydha Integration ──
+  
+  /// Applies a Qaydha result, forcefully ending the round and calculating scores based on the challenge.
+  void applyQaydhaResult(QaydhaResult qaydhaResult) {
+    if (_gamePhase != GamePhase.playing) return;
 
+    logger.log('--- QAYDHA CHALLENGE FIRED ---');
+    logger.log('Is Correct: ${qaydhaResult.isCorrect}, Type: ${qaydhaResult.violationType.name}');
+    
+    if (!qaydhaResult.isCorrect) {
+      logger.log('Qaydha challenge was incorrect. Game resumes normally.');
+      return;
+    }
+    
+    _endRoundWithQaydha(qaydhaResult);
+  }
+
+  void _endRoundWithQaydha(QaydhaResult qaydhaResult) {
+    _gamePhase = GamePhase.scoring;
+
+    final mode = _roundState.activeMode!;
+    final buyerTeam = _roundState.isBuyerTeamA() ? 'A' : 'B';
+
+    // 1. Calculate project Abnat (both teams keep their declared projects)
+    int teamAProjectAbnat = 0;
+    int teamBProjectAbnat = 0;
+    int teamAProjectScoreboard = 0;
+    int teamBProjectScoreboard = 0;
+
+    final teamAProjects = _activeDeclaredProjects.where((p) => _roundState.isTeamA(p.playerIndex)).toList();
+    final teamBProjects = _activeDeclaredProjects.where((p) => !_roundState.isTeamA(p.playerIndex)).toList();
+
+    for (final p in teamAProjects) {
+      if (p.type != ProjectType.baloot) {
+        teamAProjectAbnat += p.getAbnat(mode);
+        teamAProjectScoreboard += p.getScoreboardPoints(mode);
+      }
+    }
+    for (final p in teamBProjects) {
+      if (p.type != ProjectType.baloot) {
+        teamBProjectAbnat += p.getAbnat(mode);
+        teamBProjectScoreboard += p.getScoreboardPoints(mode);
+      }
+    }
+
+    // 2. Baloot
+    int balootPts = 0;
+    String? balootTeam;
+    if (_balootDeclaredBy.isNotEmpty) {
+      final seat = _balootDeclaredBy.first;
+      balootPts = 2; // Fixed scoreboard points
+      balootTeam = _roundState.isTeamA(seat) ? 'A' : 'B';
+    }
+
+    // Get current trick points so far, PLUS all unplayed cards as part of the trick penalty pool
+    int baseTotalTrickAbnat = mode == GameMode.hakam ? 152 : 130;
+    int groundBonus = 10;
+    int totalTrickPool = baseTotalTrickAbnat + groundBonus;
+
+    // Fake the Abnat so that one team gets the full pool and the other gets 0
+    final isChallengerA = qaydhaResult.challengerIndex % 2 == 0;
+    final winnerIsA = qaydhaResult.isCorrect ? isChallengerA : !isChallengerA;
+    
+    final scoreResult = _scoringEngine.calculateRoundScore(
+      teamAAbnat: winnerIsA ? totalTrickPool : 0,
+      teamBAbnat: winnerIsA ? 0 : totalTrickPool,
+      mode: mode,
+      buyerTeam: buyerTeam,
+      teamATricksCount: winnerIsA ? 8 : 0,
+      teamBTricksCount: winnerIsA ? 0 : 8,
+      teamAProjectAbnat: teamAProjectAbnat,
+      teamBProjectAbnat: teamBProjectAbnat,
+      teamAProjectScoreboard: teamAProjectScoreboard,
+      teamBProjectScoreboard: teamBProjectScoreboard,
+      balootPoints: balootPts,
+      balootTeam: balootTeam,
+      doubleStatus: _roundState.doubleStatus,
+      isKabout: false,
+      buyerCardIsAce: false,
+      qaydhaResult: qaydhaResult,
+      teamAProjectsList: teamAProjects.where((p) => p.type != ProjectType.baloot).toList(),
+      teamBProjectsList: teamBProjects.where((p) => p.type != ProjectType.baloot).toList(),
+    );
+
+    _lastRoundScoreResult = scoreResult;
+
+    _teamAScore += scoreResult.teamAPoints;
+    _teamBScore += scoreResult.teamBPoints;
+    logger.log('Round Score (QAYDHA) -> Team A: +${scoreResult.teamAPoints}, Team B: +${scoreResult.teamBPoints}');
+
+    if (_roundState.doubleStatus == DoubleStatus.gahwa) {
+      if (scoreResult.winningTeam == 'A') _teamAScore = _targetScore;
+      else _teamBScore = _targetScore;
+    }
+
+    if (_teamAScore >= _targetScore || _teamBScore >= _targetScore) {
+      if (_teamAScore != _teamBScore) {
+        _gamePhase = GamePhase.gameOver;
+      } else {
+        // tie - play one more round
+      }
+    }
+  }
+
+  // ── Bot Logic ──
 
   /// Smart bot play using [BotEngine] for strategic decisions.
   ///
@@ -1329,6 +1449,7 @@ class BalootGameController implements IBalootController {
           teamBAbnat: _turnManager!.teamBAbnat,
           buyerIndex: _roundState.buyerIndex ?? -1,
           trickHistory: _turnManager!.trickHistory,
+          ekkaClaimSeat: _ekkaClaimSeat,
         );
         playCard(seatIndex, card);
 

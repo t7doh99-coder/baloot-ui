@@ -24,6 +24,7 @@ import 'widgets/premium_subscription_popup.dart';
 import 'navigation_shell.dart';
 import 'alerts_screen.dart';
 import 'player_profile_screen.dart';
+import 'qaydha_test_screen.dart';
 import 'widgets/animated_flame_icon.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 import '../../../data/models/rank_tier.dart';
@@ -619,7 +620,10 @@ class _T1TopBar extends StatelessWidget {
                               _pushSlideUp(context, const NavigationShell());
                             }),
                             _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () => Navigator.pop(dialogContext)),
+                            _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () {
+                              Navigator.pop(dialogContext);
+                              _pushSlideUp(context, const QaydhaTestScreen());
+                            }),
                           ],
                         ),
                       ),

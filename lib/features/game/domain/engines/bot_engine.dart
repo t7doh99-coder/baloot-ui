@@ -364,6 +364,7 @@ class BotEngine {
     required int buyerIndex,
     required int seatIndex,
     List<TrickResult>? trickHistory,
+    int? ekkaClaimSeat,
   }) {
     final validCards = _validator.getValidCards(
       hand: hand,
@@ -373,6 +374,7 @@ class BotEngine {
       doubleStatus: doubleStatus,
       isOpenPlay: isOpenPlay,
       playerSeat: seatIndex,
+      ekkaClaimSeat: ekkaClaimSeat,
     );
 
     if (validCards.isEmpty) return hand.first;

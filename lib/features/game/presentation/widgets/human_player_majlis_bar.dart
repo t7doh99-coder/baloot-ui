@@ -230,10 +230,20 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
             Row(
               children: [
                 Expanded(
-                  child: _QaidButton(
-                    isActive: game.canClaimQaid,
-                    onTap: () => game.humanClaimQaid(),
-                  ),
+                  child: (game.isFalseSawaWindowOpen || game.isFalseEkkaWindowOpen)
+                      ? _AkshifAlWaraqButton(
+                          onTap: () {
+                            if (game.isFalseSawaWindowOpen) {
+                              game.handleQaydhaMenuSelection(QaydhaActionType.sawa);
+                            } else {
+                              game.handleQaydhaMenuSelection(QaydhaActionType.ekka);
+                            }
+                          },
+                        )
+                      : _QaidButton(
+                          isActive: game.canClaimQaid,
+                          onTap: () => game.handleQaydhaMenuSelection(QaydhaActionType.reviewTricks),
+                        ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -974,4 +984,43 @@ class _MajlisBarFillPainter extends CustomPainter {
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _AkshifAlWaraqButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AkshifAlWaraqButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = context.watch<LocaleProvider>().isArabic;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFC42828),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFF5252), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFFC42828).withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 1)
+          ]
+        ),
+        child: Center(
+          child: Text(
+            ar ? 'اكشف الورق' : 'Reveal Cards',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              fontFamily: GoogleFonts.readexPro().fontFamily,
+              height: 1.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

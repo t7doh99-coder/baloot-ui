@@ -1,5 +1,6 @@
 import '../../../../data/models/card_model.dart';
 import '../../../../data/models/round_state_model.dart';
+import '../models/qaydha_models.dart';
 
 /// Result of scoring a completed round, with full breakdown for overlay UI.
 class RoundScoreResult {
@@ -23,6 +24,13 @@ class RoundScoreResult {
   final DoubleStatus doubleStatus;
   final List<DeclaredProject> teamAProjectsList;
   final List<DeclaredProject> teamBProjectsList;
+  final String? balootTeam;
+  final int balootPoints;
+
+  // Qaydha fields
+  final bool isQaydha;
+  final bool qaydhaCorrect;
+  final String? qaydhaChallengerTeam;
 
   const RoundScoreResult({
     required this.teamAPoints,
@@ -43,6 +51,11 @@ class RoundScoreResult {
     this.doubleStatus = DoubleStatus.none,
     this.teamAProjectsList = const [],
     this.teamBProjectsList = const [],
+    this.balootTeam,
+    this.balootPoints = 0,
+    this.isQaydha = false,
+    this.qaydhaCorrect = false,
+    this.qaydhaChallengerTeam,
   });
 }
 
@@ -114,6 +127,7 @@ class ScoringEngine {
     String? doubleCallerTeam,
     List<DeclaredProject> teamAProjectsList = const [],
     List<DeclaredProject> teamBProjectsList = const [],
+    QaydhaResult? qaydhaResult,
   }) {
     // teamAAbnat / teamBAbnat are TRICK card points only (including ground).
     // Projects are handled separately via their own scoreboard point values.
@@ -134,15 +148,24 @@ class ScoringEngine {
       int finalProjA = effectiveProjectA;
       int finalProjB = effectiveProjectB;
 
-      // Rule 14.4: Stolen projects in Khams.
-      // Update breakdown Abnat to match the stolen points logic in _scoreKhams.
-      if (base.isKhams) {
-        if (buyerTeam == 'A') {
-          // Team A (Buyer) projects are stolen by Team B (Defenders)
+      // Rule 14.4 & Qaydha: Stolen projects in Khams or Qaydha.
+      // Update breakdown Abnat to match the stolen points logic.
+      if (base.isKhams || (base.isQaydha && base.qaydhaCorrect)) {
+        // In Qaydha, the winner steals. In Khams, the Defenders steal.
+        // Let's determine who stole.
+        String stealer;
+        if (base.isQaydha) {
+          stealer = base.winningTeam;
+        } else {
+          stealer = buyerTeam == 'A' ? 'B' : 'A';
+        }
+
+        if (stealer == 'B') {
+          // Team A projects are stolen by Team B
           finalProjA = 0;
           finalProjB = teamBProjectAbnat + teamAProjectAbnat;
         } else {
-          // Team B (Buyer) projects are stolen by Team A (Defenders)
+          // Team B projects are stolen by Team A
           finalProjB = 0;
           finalProjA = teamAProjectAbnat + teamBProjectAbnat;
         }
@@ -178,7 +201,27 @@ class ScoringEngine {
         doubleStatus: doubleStatus,
         teamAProjectsList: teamAProjectsList,
         teamBProjectsList: teamBProjectsList,
+        balootTeam: balootTeam,
+        balootPoints: balootPoints,
+        isQaydha: base.isQaydha,
+        qaydhaCorrect: base.qaydhaCorrect,
+        qaydhaChallengerTeam: base.qaydhaChallengerTeam,
       );
+    }
+
+    if (qaydhaResult != null) {
+      return _withBreakdown(_scoreQaydha(
+        qaydhaResult: qaydhaResult,
+        teamAAbnat: trickAbnatA,
+        teamBAbnat: trickAbnatB,
+        mode: mode,
+        buyerTeam: buyerTeam,
+        doubleStatus: doubleStatus,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPoints,
+        balootTeam: balootTeam,
+      ));
     }
 
     if (isKabout) {
@@ -259,6 +302,70 @@ class ScoringEngine {
     ));
   }
 
+  RoundScoreResult _scoreQaydha({
+    required QaydhaResult qaydhaResult,
+    required int teamAAbnat,
+    required int teamBAbnat,
+    required GameMode mode,
+    required String buyerTeam,
+    DoubleStatus doubleStatus = DoubleStatus.none,
+    int teamAProjectScoreboard = 0,
+    int teamBProjectScoreboard = 0,
+    int balootPoints = 0,
+    String? balootTeam,
+  }) {
+    final challengerTeam = (qaydhaResult.challengerIndex % 2 == 0) ? 'A' : 'B';
+    final winnerTeam = qaydhaResult.isCorrect ? challengerTeam : (challengerTeam == 'A' ? 'B' : 'A');
+    final isA = winnerTeam == 'A';
+
+    // The winning team takes ALL trick points (base pool: 152 in Hakam, 130 in Sun, plus last trick ground = 10, total 162/140).
+    // Let's just use the total trick abnat from the round (teamAAbnat + teamBAbnat) which should sum to 162/140.
+    final totalTrickAbnat = teamAAbnat + teamBAbnat;
+
+    int aPts = 0;
+    int bPts = 0;
+
+    int basePts;
+    if (doubleStatus != DoubleStatus.none) {
+      basePts = _doubleBaseValue(doubleStatus, mode);
+    } else {
+      basePts = mode == GameMode.hakam ? 16 : 26;
+    }
+
+    final multiplier = _projectMultiplier(doubleStatus);
+    
+    aPts = winnerTeam == 'A' ? basePts : 0;
+    bPts = winnerTeam == 'B' ? basePts : 0;
+
+    // Projects with confirmed Qaid: Non-violating team gets THEIR projects PLUS violating team's projects (stolen)
+    final totalProjects = (teamAProjectScoreboard + teamBProjectScoreboard) * multiplier;
+    
+    if (winnerTeam == 'A') {
+      aPts += totalProjects;
+    } else {
+      bPts += totalProjects;
+    }
+
+    // Both teams keep their baloot (if any) - baloot is independent
+    if (balootTeam == 'A') aPts += balootPoints;
+    if (balootTeam == 'B') bPts += balootPoints;
+
+    return RoundScoreResult(
+      teamAPoints: aPts,
+      teamBPoints: bPts,
+      teamARawAbnat: isA ? totalTrickAbnat : 0,
+      teamBRawAbnat: isA ? 0 : totalTrickAbnat,
+      isKhams: false,
+      isKabout: false, // Technically treated like Kabout, but distinct reason
+      winningTeam: winnerTeam,
+      reason: 'qaydha',
+      isQaydha: true,
+      qaydhaCorrect: qaydhaResult.isCorrect,
+      qaydhaChallengerTeam: challengerTeam,
+      balootTeam: balootTeam,
+      balootPoints: balootPoints,
+    );
+  }
 
   RoundScoreResult _scoreKabout({
     required int teamAAbnat,
@@ -388,6 +495,8 @@ class ScoringEngine {
       isKabout: false,
       winningTeam: defenderTeam,
       reason: 'khams',
+      balootTeam: balootTeam,
+      balootPoints: balootPoints,
     );
   }
 
@@ -448,6 +557,8 @@ class ScoringEngine {
       isKabout: false,
       winningTeam: buyerTeam,
       reason: 'normal',
+      balootTeam: balootTeam,
+      balootPoints: balootPoints,
     );
   }
 

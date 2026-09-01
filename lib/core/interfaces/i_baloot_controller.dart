@@ -1,6 +1,7 @@
 import '../../data/models/card_model.dart';
 import '../../data/models/round_state_model.dart';
 import '../../features/game/domain/managers/bidding_manager.dart';
+import '../../features/game/domain/models/qaydha_models.dart';
 
 /// Abstract contract for the Baloot Game Engine.
 ///
@@ -36,15 +37,27 @@ abstract class IBalootController {
   void playCard(int seatIndex, CardModel card);
 
 
-  // ── Projects ──
+  // ── Projects & Ekka ──
 
   /// Declare a project during trick 1.
   void declareProject(int seatIndex, int projectIndex);
 
+  /// Check if a player can claim Ekka (must be their turn to lead).
+  bool canEkka(int seatIndex);
+
+  /// Claim Ekka for the current trick.
+  void claimEkka(int seatIndex);
+
   // ── State Queries ──
+
+  /// Apply Qaydha challenge outcome (penalize the accused team)
+  void applyQaydhaResult(QaydhaResult result);
 
   /// Get the current round state (for UI rendering and reconnection).
   RoundStateModel get roundState;
+
+  /// Which seat claimed Ekka in the current trick (if any)
+  int? get ekkaClaimSeat;
 
   /// Get a player's current hand.
   List<CardModel> getHand(int seatIndex);
