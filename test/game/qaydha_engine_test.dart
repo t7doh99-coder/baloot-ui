@@ -5,6 +5,7 @@ import 'package:baloot_game/data/models/round_state_model.dart';
 import 'package:baloot_game/features/game/domain/managers/turn_manager.dart';
 import 'package:baloot_game/features/game/domain/models/qaydha_models.dart';
 import 'package:baloot_game/features/game/domain/engines/qaydha_engine.dart';
+import 'package:baloot_game/features/game/domain/engines/scoring_engine.dart';
 
 void main() {
   group('QaydhaEngine — Kammelna Rules Verification', () {
@@ -321,6 +322,60 @@ void main() {
         );
 
         expect(result.isCorrect, isFalse); // King is now the true master!
+      });
+    });
+
+    group('6. Qaid Scoring & False Claim Penalty', () {
+      test('6.1 Incorrect challenge / Timeout → Challenger team gets 0, Defending team gets full round points', () {
+        final scoringEngine = ScoringEngine();
+        final falseQaydha = QaydhaResult(
+          challengerIndex: 0, // Team A challenged
+          violationType: QaydhaViolationType.qate,
+          isCorrect: false, // False claim or timeout!
+          trickIndex: 0,
+          accusedCard: const CardModel(suit: Suit.hearts, rank: Rank.seven),
+        );
+
+        final score = scoringEngine.calculateRoundScore(
+          teamAAbnat: 0,
+          teamBAbnat: 162,
+          mode: GameMode.hakam,
+          buyerTeam: 'A',
+          teamATricksCount: 0,
+          teamBTricksCount: 8,
+          qaydhaResult: falseQaydha,
+        );
+
+        // Team B (Defenders) should win the full round points (16 in Hakam)
+        expect(score.winningTeam, equals('B'));
+        expect(score.teamAPoints, equals(0));
+        expect(score.teamBPoints, equals(16));
+      });
+
+      test('6.2 Correct challenge → Challenger team gets full round points, Defending team gets 0', () {
+        final scoringEngine = ScoringEngine();
+        final correctQaydha = QaydhaResult(
+          challengerIndex: 0, // Team A challenged
+          violationType: QaydhaViolationType.qate,
+          isCorrect: true, // Proven cheating!
+          trickIndex: 0,
+          accusedCard: const CardModel(suit: Suit.hearts, rank: Rank.seven),
+        );
+
+        final score = scoringEngine.calculateRoundScore(
+          teamAAbnat: 162,
+          teamBAbnat: 0,
+          mode: GameMode.hakam,
+          buyerTeam: 'B',
+          teamATricksCount: 8,
+          teamBTricksCount: 0,
+          qaydhaResult: correctQaydha,
+        );
+
+        // Team A (Challengers) should win the full round points (16 in Hakam)
+        expect(score.winningTeam, equals('A'));
+        expect(score.teamAPoints, equals(16));
+        expect(score.teamBPoints, equals(0));
       });
     });
   });

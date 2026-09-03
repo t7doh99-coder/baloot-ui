@@ -14,6 +14,7 @@ import '../../domain/managers/bidding_manager.dart' show BidAction;
 import '../../../../data/models/card_model.dart' show GameMode;
 import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../game_provider.dart';
+import 'qaydha_types.dart' show QaydhaActionType;
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,
 /// gold ring timer, light action chips (reference layout).
@@ -46,6 +47,7 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     with TickerProviderStateMixin {
   Ticker? _ringTicker;
   bool _humanTurn = false;
+  bool _isQaidMenuOpen = false;
 
   @override
   void dispose() {
@@ -137,9 +139,14 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     final rawProgress     = game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
     final ringProgress    = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
 
+    if (!game.canClaimQaid || game.isQaydhaReviewVisible) {
+      _isQaidMenuOpen = false;
+    }
+
     return Padding(
       padding: EdgeInsets.zero,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           // Background layer: Shadows, Blur, and translucent Fill
           Positioned.fill(
@@ -230,20 +237,16 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
             Row(
               children: [
                 Expanded(
-                  child: (game.isFalseSawaWindowOpen || game.isFalseEkkaWindowOpen)
-                      ? _AkshifAlWaraqButton(
-                          onTap: () {
-                            if (game.isFalseSawaWindowOpen) {
-                              game.handleQaydhaMenuSelection(QaydhaActionType.sawa);
-                            } else {
-                              game.handleQaydhaMenuSelection(QaydhaActionType.ekka);
-                            }
-                          },
-                        )
-                      : _QaidButton(
-                          isActive: game.canClaimQaid,
-                          onTap: () => game.handleQaydhaMenuSelection(QaydhaActionType.reviewTricks),
-                        ),
+                  child: _QaidButton(
+                    isActive: game.canClaimQaid,
+                    onTap: () {
+                      if (game.canClaimQaid) {
+                        setState(() {
+                          _isQaidMenuOpen = !_isQaidMenuOpen;
+                        });
+                      }
+                    },
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -274,7 +277,100 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
           ],
         ),
       ),
+          // ── Qaid 3-Option Popup Menu ──
+          if (_isQaidMenuOpen && !game.isQaydhaReviewVisible)
+            Positioned(
+              bottom: 60,
+              left: 6,
+              width: 140,
+              child: _buildQaidPopupMenu(context, game, isAr),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQaidPopupMenu(BuildContext context, GameProvider game, bool isAr) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF231A0E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFC49028), width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x99000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. False Ekka
+          _buildQaidMenuItem(
+            label: isAr ? 'إكة خاطئة' : 'False Ekka',
+            isActive: game.isFalseEkkaWindowOpen,
+            onTap: () {
+              setState(() => _isQaidMenuOpen = false);
+              game.handleQaydhaMenuSelection(QaydhaActionType.wrongTrick);
+            },
+          ),
+          const SizedBox(height: 6),
+          // 2. Wrong Sawa
+          _buildQaidMenuItem(
+            label: isAr ? 'سوا خطأ' : 'Wrong Sawa',
+            isActive: game.isFalseSawaWindowOpen,
+            onTap: () {
+              setState(() => _isQaidMenuOpen = false);
+              game.handleQaydhaMenuSelection(QaydhaActionType.wrongSawa);
+            },
+          ),
+          const SizedBox(height: 6),
+          // 3. Reveal Cards
+          _buildQaidMenuItem(
+            label: isAr ? 'اكشف الورق' : 'Reveal Cards',
+            isActive: true,
+            onTap: () {
+              setState(() => _isQaidMenuOpen = false);
+              game.handleQaydhaMenuSelection(QaydhaActionType.reviewTricks);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQaidMenuItem({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: isActive ? onTap : null,
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2210),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? const Color(0x66C49028) : const Color(0x22C49028),
+            width: 1.0,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isActive ? Colors.white : const Color(0xFF7A6850),
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            fontFamily: GoogleFonts.readexPro().fontFamily,
+          ),
+        ),
       ),
     );
   }

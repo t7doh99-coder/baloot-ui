@@ -15,6 +15,7 @@ class QaydhaEngine {
     required Suit? trumpSuit,
     required DoubleStatus doubleStatus,
     int? proofCardIndex, // The specific card the challenger pointed out
+    CardModel? explicitProofCard,
   }) {
     if (trickIndex < 0 || trickIndex >= history.length) {
       throw ArgumentError('Invalid trick index');
@@ -39,16 +40,16 @@ class QaydhaEngine {
 
     switch (violationType) {
       case QaydhaViolationType.qate:
-        isCorrect = _checkQate(trick, accusedPlayIndex, handSnapshot, proofCardIndex);
+        isCorrect = _checkQate(trick, accusedPlayIndex, handSnapshot, proofCardIndex, explicitProofCard: explicitProofCard);
         break;
       case QaydhaViolationType.rubFiAlDubl:
         isCorrect = _checkRubFiAlDubl(trick, accusedPlayIndex, doubleStatus, trumpSuit);
         break;
       case QaydhaViolationType.maKabbarBiHakam:
-        isCorrect = _checkMaKabbarBiHakam(trick, accusedPlayIndex, handSnapshot, mode: gameMode, trumpSuit: trumpSuit, proofCardIndex: proofCardIndex);
+        isCorrect = _checkMaKabbarBiHakam(trick, accusedPlayIndex, handSnapshot, mode: gameMode, trumpSuit: trumpSuit, proofCardIndex: proofCardIndex, explicitProofCard: explicitProofCard);
         break;
       case QaydhaViolationType.maDaqBiHakam:
-        isCorrect = _checkMaDaqBiHakam(trick, accusedPlayIndex, handSnapshot, mode: gameMode, trumpSuit: trumpSuit, proofCardIndex: proofCardIndex);
+        isCorrect = _checkMaDaqBiHakam(trick, accusedPlayIndex, handSnapshot, mode: gameMode, trumpSuit: trumpSuit, proofCardIndex: proofCardIndex, explicitProofCard: explicitProofCard);
         break;
       case QaydhaViolationType.falseEkka:
         isCorrect = _checkFalseEkka(history, trickIndex, accusedPlayIndex, gameMode, trumpSuit);
@@ -65,8 +66,7 @@ class QaydhaEngine {
   }
 
   /// قاطع - Opponent played a different suit when they had cards of the led suit
-  /// قاطع - Opponent played a different suit when they had cards of the led suit
-  static bool _checkQate(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, int? proofCardIndex) {
+  static bool _checkQate(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, int? proofCardIndex, {CardModel? explicitProofCard}) {
     if (accusedPlayIndex == 0) return false; // Can't fail to follow suit if you led
     
     final ledSuit = trick.cards[0].card.suit;
@@ -75,13 +75,17 @@ class QaydhaEngine {
     // Did they play a different suit?
     if (playedCard.suit == ledSuit) return false;
     
+    if (explicitProofCard != null) {
+      return explicitProofCard.suit == ledSuit;
+    }
+
     // Check if the specifically selected proof card proves the violation
     if (proofCardIndex != null && proofCardIndex >= 0 && proofCardIndex < hand.length) {
       final proofCard = hand[proofCardIndex];
       return proofCard.suit == ledSuit;
     }
     
-    return false;
+    return hand.any((c) => c.suit == ledSuit);
   }
 
   /// ربع في الدبل - Opponent started a trick with a trump card when Double was active
@@ -96,7 +100,7 @@ class QaydhaEngine {
 
   /// ما كبر بحكم - Opponent had a HIGHER trump card but didn't play it
   /// ما كبر بحكم - Opponent had a HIGHER trump card but didn't play it
-  static bool _checkMaKabbarBiHakam(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, {required GameMode mode, required Suit? trumpSuit, required int? proofCardIndex}) {
+  static bool _checkMaKabbarBiHakam(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, {required GameMode mode, required Suit? trumpSuit, required int? proofCardIndex, CardModel? explicitProofCard}) {
     if (mode != GameMode.hakam || trumpSuit == null) return false;
     if (accusedPlayIndex == 0) return false;
     
@@ -126,38 +130,33 @@ class QaydhaEngine {
     final bool isPartnerWinning = highestTrumpOwner != null && (highestTrumpOwner % 2 == accusedSeat % 2);
     if (isPartnerWinning) return false;
     
-    // Get the selected proof card
-    if (proofCardIndex == null || proofCardIndex < 0 || proofCardIndex >= hand.length) return false;
-    final proofCard = hand[proofCardIndex];
-
     final highestBeforeStrength = highestTrumpBefore.getStrength(mode: mode, trumpSuit: trumpSuit);
 
-    // Did the player play a trump?
-    if (playedCard.suit == trumpSuit) {
-      final playedStrength = playedCard.getStrength(mode: mode, trumpSuit: trumpSuit);
-      
-      // They didn't over-trump the opponent. Does the proof card prove they had a higher one?
-      if (playedStrength < highestBeforeStrength) {
-        return proofCard.suit == trumpSuit && 
-               proofCard.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
+    bool checkCard(CardModel card) {
+      if (playedCard.suit == trumpSuit) {
+        final playedStrength = playedCard.getStrength(mode: mode, trumpSuit: trumpSuit);
+        if (playedStrength < highestBeforeStrength) {
+          return card.suit == trumpSuit && 
+                 card.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
+        }
+      } else {
+        final hasLedSuit = hand.any((c) => c.suit == ledSuit);
+        if (hasLedSuit) return false;
+        return card.suit == trumpSuit && 
+               card.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
       }
-    } else {
-      // They played a non-trump.
-      // Were they void in the led suit? (If they weren't void, Qate applies)
-      final hasLedSuit = hand.any((c) => c.suit == ledSuit);
-      if (hasLedSuit) return false;
-      
-      // They were void. The opponent is winning with a trump.
-      // Does the proof card prove they had a HIGHER trump and failed to play it?
-      return proofCard.suit == trumpSuit && 
-             proofCard.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
+      return false;
     }
-    
-    return false;
+
+    if (explicitProofCard != null) return checkCard(explicitProofCard);
+    if (proofCardIndex != null && proofCardIndex >= 0 && proofCardIndex < hand.length) {
+      return checkCard(hand[proofCardIndex]);
+    }
+    return hand.any(checkCard);
   }
 
   /// ما دق بحكم - Opponent didn't trump when they had no suit cards but did have trump cards
-  static bool _checkMaDaqBiHakam(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, {required GameMode mode, required Suit? trumpSuit, required int? proofCardIndex}) {
+  static bool _checkMaDaqBiHakam(TrickResult trick, int accusedPlayIndex, List<CardModel> hand, {required GameMode mode, required Suit? trumpSuit, required int? proofCardIndex, CardModel? explicitProofCard}) {
     if (mode != GameMode.hakam || trumpSuit == null) return false;
     if (accusedPlayIndex == 0) return false;
     
@@ -203,25 +202,21 @@ class QaydhaEngine {
 
     // Partner is not winning.
     // They are void in the led suit. 
-
-    if (proofCardIndex == null || proofCardIndex < 0 || proofCardIndex >= hand.length) return false;
-    final proofCard = hand[proofCardIndex];
-
-    // Did someone already cut with a trump?
-    if (currentWinningCard!.suit == trumpSuit) {
-      // Someone already cut. 
-      // If they only have weaker trumps, they are NOT forced to play them (they can discard off-suit).
-      // They are only forced to cut if they can OVER-TRUMP.
-      final highestBeforeStrength = currentWinningCard.getStrength(mode: mode, trumpSuit: trumpSuit);
-      
-      // Does the proof card prove they had a HIGHER trump?
-      return proofCard.suit == trumpSuit && 
-             proofCard.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
-    } else {
-      // No one has cut yet. Since they are void and opponent is winning, they MUST cut if they have ANY trump.
-      // Does the proof card prove they had ANY trump?
-      return proofCard.suit == trumpSuit;
+    bool checkCard(CardModel card) {
+      if (currentWinningCard!.suit == trumpSuit) {
+        final highestBeforeStrength = currentWinningCard.getStrength(mode: mode, trumpSuit: trumpSuit);
+        return card.suit == trumpSuit && 
+               card.getStrength(mode: mode, trumpSuit: trumpSuit) > highestBeforeStrength;
+      } else {
+        return card.suit == trumpSuit;
+      }
     }
+
+    if (explicitProofCard != null) return checkCard(explicitProofCard);
+    if (proofCardIndex != null && proofCardIndex >= 0 && proofCardIndex < hand.length) {
+      return checkCard(hand[proofCardIndex]);
+    }
+    return hand.any(checkCard);
   }
 
   /// إكة خاطئة - Opponent claimed Ekka but didn't have the highest remaining card in that suit

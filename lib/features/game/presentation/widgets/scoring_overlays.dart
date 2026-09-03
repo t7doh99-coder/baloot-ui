@@ -88,8 +88,6 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
     final total = game.gameScore;
     if (r == null) return const SizedBox.shrink();
 
-    final isUsWon = r.teamAPoints >= r.teamBPoints;
-
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.62),
@@ -199,7 +197,7 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
     );
   }
 
-  Widget _buildStatusBanner(bool isAr, dynamic r) {
+  Widget _buildStatusBanner(bool isAr, LastRoundResult r) {
     final buyerIsUs = r.buyerTeam == 'A';
     final weWon = r.winningTeam == 'A';
 
@@ -617,9 +615,6 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
     // so subtract it for the pure card-points display (Row 1).
     final teamAPureCards = (r.teamATrickAbnat as int) - teamAGround;
     final teamBPureCards = (r.teamBTrickAbnat as int) - teamBGround;
-    // Subtotal = pure cards + ground = original teamATrickAbnat (unchanged)
-    final teamATrickPts = r.teamATrickAbnat as int;
-    final teamBTrickPts = r.teamBTrickAbnat as int;
 
     return Container(
       decoration: const BoxDecoration(color: Color(0xFF0C0A06)),

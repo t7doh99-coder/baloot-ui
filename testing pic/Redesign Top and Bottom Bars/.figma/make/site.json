@@ -1,0 +1,10 @@
+{
+  "description": "Streamlines selecting violation types and submitting challenges with dynamic instructions, interactive buttons, and a countdown timer for competitive gameplay.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

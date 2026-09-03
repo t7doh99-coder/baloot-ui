@@ -1278,11 +1278,6 @@ class BalootGameController implements IBalootController {
     logger.log('--- QAYDHA CHALLENGE FIRED ---');
     logger.log('Is Correct: ${qaydhaResult.isCorrect}, Type: ${qaydhaResult.violationType.name}');
     
-    if (!qaydhaResult.isCorrect) {
-      logger.log('Qaydha challenge was incorrect. Game resumes normally.');
-      return;
-    }
-    
     _endRoundWithQaydha(qaydhaResult);
   }
 

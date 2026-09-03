@@ -91,6 +91,11 @@ class LastRoundResult {
   final List<DeclaredProject> teamAProjectsList;
   final List<DeclaredProject> teamBProjectsList;
 
+  // Qaydha fields
+  final bool isQaydha;
+  final bool qaydhaCorrect;
+  final String? qaydhaChallengerTeam;
+
   const LastRoundResult({
     required this.teamAPoints,
     required this.teamBPoints,
@@ -113,6 +118,9 @@ class LastRoundResult {
     this.playSawaClaimSeat,
     this.teamAProjectsList = const [],
     this.teamBProjectsList = const [],
+    this.isQaydha = false,
+    this.qaydhaCorrect = false,
+    this.qaydhaChallengerTeam,
   });
 }
 
@@ -1717,6 +1725,9 @@ class GameProvider extends ChangeNotifier {
       playSawaClaimSeat: _engine.lastPlaySawaClaimSeat,
       teamAProjectsList: d.teamAProjectsList,
       teamBProjectsList: d.teamBProjectsList,
+      isQaydha: d.isQaydha,
+      qaydhaCorrect: d.qaydhaCorrect,
+      qaydhaChallengerTeam: d.qaydhaChallengerTeam,
     );
 
     if (_engine.isGameOver) {
@@ -1842,11 +1853,22 @@ class GameProvider extends ChangeNotifier {
   int? _selectedQaydhaCardSeatIndex;
   int? get selectedQaydhaCardSeatIndex => _selectedQaydhaCardSeatIndex;
 
-  // Proof card: selected from player hand box (the card they SHOULD have played)
+  // Proof card: can be in hand OR in a trick (e.g. Kammelna trick 5 green card)
+  int? _selectedQaydhaProofTrickIndex;
+  int? get selectedQaydhaProofTrickIndex => _selectedQaydhaProofTrickIndex;
+
   int? _selectedQaydhaProofSeatIndex;
   int? get selectedQaydhaProofSeatIndex => _selectedQaydhaProofSeatIndex;
   int? _selectedQaydhaProofCardIndex;
   int? get selectedQaydhaProofCardIndex => _selectedQaydhaProofCardIndex;
+
+  List<CardModel> getHandForSeatSnapshot(int? trickIndex, int seatIndex) {
+    if (trickIndex != null && trickIndex < trickHistoryThisRound.length) {
+      final snapshot = trickHistoryThisRound[trickIndex].handsAtStartOfTrick?[seatIndex];
+      if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    }
+    return getHand(seatIndex);
+  }
 
   QaydhaResult? _qaydhaChallengeResult;
   QaydhaResult? get qaydhaChallengeResult => _qaydhaChallengeResult;
@@ -1870,6 +1892,7 @@ class GameProvider extends ChangeNotifier {
     _selectedQaydhaViolationIndex = action == QaydhaActionType.wrongTrick ? 4 : null;
     _selectedQaydhaTrickIndex = null;
     _selectedQaydhaCardSeatIndex = null;
+    _selectedQaydhaProofTrickIndex = null;
     _selectedQaydhaProofSeatIndex = null;
     _selectedQaydhaProofCardIndex = null;
     
@@ -1883,6 +1906,7 @@ class GameProvider extends ChangeNotifier {
     _isQaydhaReviewVisible = false;
     _currentQaydhaAction = null;
     _qaydhaChallengeResult = null;
+    _selectedQaydhaProofTrickIndex = null;
     _selectedQaydhaProofSeatIndex = null;
     _selectedQaydhaProofCardIndex = null;
     _autoPlaySuspended = false;
@@ -1897,28 +1921,49 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectQaydhaCard(int trickIndex, int seatIndex) {
+  void selectQaydhaCard(int trickIndex, int seatIndex, {int? cardIndexInTrick}) {
+    // 1. If tapping the currently selected accused card -> deselect accused card
     if (_selectedQaydhaTrickIndex == trickIndex && _selectedQaydhaCardSeatIndex == seatIndex) {
       _selectedQaydhaTrickIndex = null;
       _selectedQaydhaCardSeatIndex = null;
-    } else {
+      _selectedQaydhaProofTrickIndex = null;
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
+    } 
+    // 2. If tapping the currently selected proof card in trick -> deselect proof card
+    else if (_selectedQaydhaProofTrickIndex == trickIndex && _selectedQaydhaProofSeatIndex == seatIndex) {
+      _selectedQaydhaProofTrickIndex = null;
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
+    }
+    // 3. If no accused card is selected yet -> this becomes the Accused Card (RED)
+    else if (_selectedQaydhaTrickIndex == null) {
       _selectedQaydhaTrickIndex = trickIndex;
       _selectedQaydhaCardSeatIndex = seatIndex;
+      _selectedQaydhaProofTrickIndex = null;
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
     }
-    // Clear proof card when accused card changes
-    _selectedQaydhaProofSeatIndex = null;
-    _selectedQaydhaProofCardIndex = null;
+    // 4. An accused card is already selected -> this becomes the Proof Card in trick (GREEN)
+    else {
+      _selectedQaydhaProofTrickIndex = trickIndex;
+      _selectedQaydhaProofSeatIndex = seatIndex;
+      _selectedQaydhaProofCardIndex = cardIndexInTrick ?? 0;
+    }
     audioService.playCardSelect();
     notifyListeners();
   }
 
   void selectQaydhaProofCard(int seatIndex, int cardIndex) {
-    if (_selectedQaydhaProofSeatIndex == seatIndex &&
+    if (_selectedQaydhaProofTrickIndex == null &&
+        _selectedQaydhaProofSeatIndex == seatIndex &&
         _selectedQaydhaProofCardIndex == cardIndex) {
       // Deselect if tapped again
+      _selectedQaydhaProofTrickIndex = null;
       _selectedQaydhaProofSeatIndex = null;
       _selectedQaydhaProofCardIndex = null;
     } else {
+      _selectedQaydhaProofTrickIndex = null;
       _selectedQaydhaProofSeatIndex = seatIndex;
       _selectedQaydhaProofCardIndex = cardIndex;
     }
@@ -1946,6 +1991,22 @@ class GameProvider extends ChangeNotifier {
     int effectiveTrickIndex = _selectedQaydhaTrickIndex ?? 0;
     int effectiveSeatIndex = _selectedQaydhaCardSeatIndex ?? 1;
 
+    CardModel? explicitProofCard;
+    if (_selectedQaydhaProofTrickIndex != null &&
+        _selectedQaydhaProofTrickIndex! < trickHistoryThisRound.length) {
+      final trick = trickHistoryThisRound[_selectedQaydhaProofTrickIndex!];
+      final cardPlay = trick.cards.firstWhere(
+        (c) => c.playerIndex == _selectedQaydhaProofSeatIndex,
+        orElse: () => trick.cards[_selectedQaydhaProofCardIndex?.clamp(0, trick.cards.length - 1) ?? 0],
+      );
+      explicitProofCard = cardPlay.card;
+    } else if (_selectedQaydhaProofSeatIndex != null && _selectedQaydhaProofCardIndex != null) {
+      final hand = getHandForSeatSnapshot(effectiveTrickIndex, _selectedQaydhaProofSeatIndex!);
+      if (_selectedQaydhaProofCardIndex! < hand.length) {
+        explicitProofCard = hand[_selectedQaydhaProofCardIndex!];
+      }
+    }
+
     try {
       _qaydhaChallengeResult = QaydhaEngine.evaluateChallenge(
         history: trickHistoryThisRound,
@@ -1956,7 +2017,8 @@ class GameProvider extends ChangeNotifier {
         gameMode: _engine.roundState.activeMode ?? GameMode.hakam,
         trumpSuit: _engine.roundState.trumpSuit,
         doubleStatus: _engine.roundState.doubleStatus,
-        proofCardIndex: _selectedQaydhaProofCardIndex,
+        proofCardIndex: _selectedQaydhaProofTrickIndex == null ? _selectedQaydhaProofCardIndex : null,
+        explicitProofCard: explicitProofCard,
       );
       audioService.playGoldButton();
       notifyListeners();
@@ -1974,13 +2036,38 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  void submitFailedQaydhaOnTimeout() {
+    final vIdx = _selectedQaydhaViolationIndex ?? 0;
+    final violationType = QaydhaViolationType.values[vIdx.clamp(0, QaydhaViolationType.values.length - 1)];
+    int effectiveTrickIndex = _selectedQaydhaTrickIndex ?? 0;
+
+    _qaydhaChallengeResult = QaydhaResult(
+      challengerIndex: 0,
+      accusedCard: const CardModel(suit: Suit.spades, rank: Rank.seven),
+      trickIndex: effectiveTrickIndex,
+      violationType: violationType,
+      isCorrect: false,
+    );
+    audioService.playGoldButton();
+    notifyListeners();
+  }
+
   void closeQaydhaResult() {
     if (_qaydhaChallengeResult != null) {
-      if (_qaydhaChallengeResult!.isCorrect) {
-        _engine.applyQaydhaResult(_qaydhaChallengeResult!);
-      }
+      _engine.applyQaydhaResult(_qaydhaChallengeResult!);
     }
-    cancelQaydha();
+    _isQaydhaReviewVisible = false;
+    _currentQaydhaAction = null;
+    _qaydhaChallengeResult = null;
+    _selectedQaydhaProofTrickIndex = null;
+    _selectedQaydhaProofSeatIndex = null;
+    _selectedQaydhaProofCardIndex = null;
+    _autoPlaySuspended = false;
+    _audioService.playNormalButton();
+    notifyListeners();
+    if (_engine.gamePhase == GamePhase.playing) {
+      _scheduleNextAction();
+    }
   }
 
   bool get canEkka => _engine.canEkka(0) && !isSawaRevealPlaying;

@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+  font-family: 'Outfit', sans-serif;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px 2px #d4a84366, 0 0 28px 6px #d4a84322;
+  }
+  50% {
+    box-shadow: 0 0 22px 6px #d4a843aa, 0 0 48px 12px #d4a84344;
+  }
+}
+
+@keyframes green-pulse {
+  0%, 100% {
+    box-shadow: 0 0 10px 2px #4ade8055, 0 0 24px 4px #4ade8022;
+  }
+  50% {
+    box-shadow: 0 0 20px 6px #4ade8099, 0 0 40px 10px #4ade8033;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-label {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.glow-gold {
+  animation: glow-pulse 1.6s ease-in-out infinite;
+}
+
+.glow-green {
+  animation: green-pulse 1.6s ease-in-out infinite;
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease forwards;
+}
