@@ -7,6 +7,7 @@ import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../../../data/models/card_model.dart' show GameMode;
 import '../../../../data/models/round_state_model.dart' show DoubleStatus, DeclaredProject, ProjectType;
+import '../../domain/models/qaydha_models.dart' show QaydhaViolationType;
 import '../game_provider.dart';
 import '../../../../core/services/player_stats_service.dart';
 import '../../../../core/services/rank_calculator.dart';
@@ -204,24 +205,57 @@ class _RoundScoreOverlayState extends State<RoundScoreOverlay> with TickerProvid
     String message;
     Color color;
 
-    if (r.isKabout) {
+    if (r.reason == 'false_sawa_claim') {
+      if (weWon) {
+        message = isAr ? '🏆 سوا خطأ: فزنا — كبوت!!' : '🏆 False Sawa: We Win — KABOOT!!';
+        color = const Color(0xFF00E87A);
+      } else {
+        message = isAr ? '💔 سوا خطأ: خسرنا — كبوت!!' : '💔 False Sawa: We Lost — KABOOT!!';
+        color = const Color(0xFFFF3D3D);
+      }
+    } else if (r.reason == 'valid_sawa_claim') {
+      if (weWon) {
+        message = isAr ? '🏆 سوا صحيحة: فزنا — كبوت!!' : '🏆 Valid Sawa: We Win — KABOOT!!';
+        color = const Color(0xFF00E87A);
+      } else {
+        message = isAr ? '💔 سوا صحيحة: خسرنا — كبوت!!' : '💔 Valid Sawa: We Lost — KABOOT!!';
+        color = const Color(0xFFFF3D3D);
+      }
+    } else if (r.playSawaClaimSeat != null) {
+      if (weWon) {
+        message = isAr ? '🏆 سوا: فزنا 🎉' : '🏆 Sawa: We Win 🎉';
+        color = const Color(0xFF00E87A);
+      } else {
+        message = isAr ? 'سوا: فازوا 💔' : 'Sawa: They Win 💔';
+        color = const Color(0xFFFF3D3D);
+      }
+    } else if (r.isKabout) {
       message = isAr ? '🏆 كبوت!!' : '🏆 KABOOT!!';
       color = const Color(0xFFFFD700);
     } else if (r.isQaydha) {
+      final isFalseEkka = r.qaydhaViolationType == QaydhaViolationType.falseEkka;
       if (r.qaydhaCorrect) {
         if (weWon) {
-          message = isAr ? 'قيد صحيح: فزنا 🎉' : 'Correct Qaydha: We Win!';
+          message = isAr
+              ? (isFalseEkka ? 'أكة خاطئة: فزنا 🎉' : 'قيد صحيح: فزنا 🎉')
+              : (isFalseEkka ? 'False Akka: We Win 🎉' : 'Correct Qaydha: We Win!');
           color = const Color(0xFF00E87A);
         } else {
-          message = isAr ? 'قيد صحيح: خسرنا 💔' : 'Correct Qaydha: We Lost';
+          message = isAr
+              ? (isFalseEkka ? 'أكة خاطئة: خسرنا 💔' : 'قيد صحيح: خسرنا 💔')
+              : (isFalseEkka ? 'False Akka: We Lost 💔' : 'Correct Qaydha: We Lost');
           color = const Color(0xFFFF3D3D);
         }
       } else {
         if (weWon) {
-          message = isAr ? 'قيد خاطئ: فزنا 🎉' : 'Wrong Qaydha: We Win!';
+          message = isAr
+              ? (isFalseEkka ? 'أكة صحيحة: فزنا 🎉' : 'قيد خاطئ: فزنا 🎉')
+              : (isFalseEkka ? 'Valid Akka: We Win 🎉' : 'Wrong Qaydha: We Win!');
           color = const Color(0xFF00E87A);
         } else {
-          message = isAr ? 'قيد خاطئ: خسرنا 💔' : 'Wrong Qaydha: We Lost';
+          message = isAr
+              ? (isFalseEkka ? 'أكة صحيحة: خسرنا 💔' : 'قيد خاطئ: خسرنا 💔')
+              : (isFalseEkka ? 'Valid Akka: We Lost 💔' : 'Wrong Qaydha: We Lost');
           color = const Color(0xFFFF3D3D);
         }
       }

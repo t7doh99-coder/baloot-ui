@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../game_provider.dart';
+import '../../../../data/models/card_model.dart' show GameMode;
+import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../../domain/models/qaydha_models.dart';
-import 'qaydha_types.dart' show QaydhaActionType;
 import 'playing_card.dart';
+import 'qaydha_types.dart' show QaydhaActionType;
+import 'seat_orientation_indicator.dart';
 
 class QaydhaReviewOverlay extends StatefulWidget {
   const QaydhaReviewOverlay({super.key});
@@ -19,7 +22,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final isAr = context.watch<LocaleProvider>().isArabic;
-    final font = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+    final font = GoogleFonts.readexPro;
 
     // Show result screen if challenge was submitted and result is available
     final challengeResult = game.qaydhaChallengeResult;
@@ -88,6 +91,8 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
         return CustomPaint(size: const Size(20, 20), painter: _SuitSpadePainter(color));
       case 'club':
         return CustomPaint(size: const Size(20, 20), painter: _SuitClubPainter(color));
+      case 'star':
+        return Icon(Icons.workspace_premium, color: color, size: 20);
       default:
         return const SizedBox(width: 20, height: 20);
     }
@@ -125,7 +130,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
     final String instructionText = isReady
         ? (isAr ? 'جاهز — اضغط قيدها' : 'Ready — Press Challenge to submit')
         : isWaitingForProof
-            ? (isAr ? 'أختر ورقة الإثبات (الخضراء) من اليد أو الأكلات' : 'Choose the proof card (green) from hands or tricks')
+            ? (isAr ? 'أختر الورقة التي كشفت الغش' : 'Choose the card that revealed the cheating')
             : isWaitingForViolation
                 ? (isAr ? 'الآن أختر نوع القيد أعلاه' : 'Now choose the violation type above')
                 : (isAr ? 'أختر الورقة التي تم الغش بها' : 'Choose the card that was cheated with');
@@ -149,10 +154,11 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
             : const Color(0xFFF5A0A0);
 
     final List<Map<String, dynamic>> violations = [
-      {'id': 0, 'label': isAr ? 'قاطعة' : 'Cut', 'type': 'cut'},
+      {'id': 0, 'label': isAr ? 'قاطع' : 'Cut', 'type': 'cut'},
       {'id': 1, 'label': isAr ? 'ربع في الدبل' : 'Four in Double', 'type': 'diamond'},
       {'id': 2, 'label': isAr ? 'ما كبر بحكم' : "Didn't Over-Trump", 'type': 'spade'},
       {'id': 3, 'label': isAr ? 'ما دق بحكم' : "Didn't Trump", 'type': 'club'},
+      {'id': 4, 'label': isAr ? 'أكة خاطئة' : 'False Akka', 'type': 'star'},
     ];
 
     return Container(
@@ -227,52 +233,76 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: violations.map((v) {
-                final isSelected = selectedViolation == v['id'];
-                final iconColor = isSelected ? const Color(0xFFF0CA60) : const Color(0xFF6B4A2A);
+                final int vId = v['id'] as int;
+                final mode = game.roundState.activeMode;
+                final isSun = mode == GameMode.sun;
+                final isClosedDouble = game.doubleStatus != DoubleStatus.none && !game.isOpenPlay;
+
+                bool isAvailable = true;
+                if (vId == 1) {
+                  // Four in double is ONLY valid in Hakam Closed Double
+                  isAvailable = !isSun && isClosedDouble;
+                } else if (vId == 2 || vId == 3) {
+                  // Over-trump and Trump violations are ONLY valid in Hakam
+                  isAvailable = !isSun;
+                } else if (vId == 4) {
+                  // False Ekka is valid in Hakam
+                  isAvailable = !isSun;
+                }
+
+                final isSelected = isAvailable && selectedViolation == vId;
+                final iconColor = !isAvailable
+                    ? const Color(0xFF4A3520)
+                    : (isSelected ? const Color(0xFFF0CA60) : const Color(0xFF6B4A2A));
                 return Expanded(
-                  child: GestureDetector(
-                    onTap: () => game.setQaydhaViolationIndex(v['id'] as int),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 3),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isSelected
-                              ? [const Color(0xFF3D2800), const Color(0xFF2A1C00), const Color(0xFF1E1400)]
-                              : [const Color(0xFF2A1A08), const Color(0xFF1E1108)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFFD4A843) : const Color(0xFF3D2410),
-                          width: isSelected ? 2 : 1.5,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                                const BoxShadow(color: Color(0x44D4A843), blurRadius: 16, spreadRadius: 3),
-                                const BoxShadow(color: Color(0x55000000), blurRadius: 12, offset: Offset(0, 4)),
-                              ]
-                            : [
-                                const BoxShadow(color: Color(0x44000000), blurRadius: 8, offset: Offset(0, 2)),
-                                const BoxShadow(color: Color(0x08FFFFFF), blurRadius: 0, spreadRadius: 1, offset: Offset(0, 1)),
-                              ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildViolationIcon(v['type'] as String, iconColor),
-                          const SizedBox(height: 8),
-                          Text(
-                            v['label'] as String,
-                            textAlign: TextAlign.center,
-                            style: font(
-                              color: isSelected ? const Color(0xFFF0CA60) : const Color(0xFFA07850),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                            ).copyWith(height: 1.15),
+                  child: Opacity(
+                    opacity: isAvailable ? 1.0 : 0.38,
+                    child: GestureDetector(
+                      onTap: isAvailable ? () => game.setQaydhaViolationIndex(vId) : null,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: isSelected
+                                ? [const Color(0xFF3D2800), const Color(0xFF2A1C00), const Color(0xFF1E1400)]
+                                : [const Color(0xFF2A1A08), const Color(0xFF1E1108)],
                           ),
-                        ],
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFFD4A843) : const Color(0xFF3D2410),
+                            width: isSelected ? 2 : 1.5,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  const BoxShadow(color: Color(0x44D4A843), blurRadius: 16, spreadRadius: 3),
+                                  const BoxShadow(color: Color(0x55000000), blurRadius: 12, offset: Offset(0, 4)),
+                                ]
+                              : [
+                                  const BoxShadow(color: Color(0x44000000), blurRadius: 8, offset: Offset(0, 2)),
+                                  const BoxShadow(color: Color(0x08FFFFFF), blurRadius: 0, spreadRadius: 1, offset: Offset(0, 1)),
+                                ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildViolationIcon(v['type'] as String, iconColor),
+                            const SizedBox(height: 6),
+                            Text(
+                              v['label'] as String,
+                              textAlign: TextAlign.center,
+                              style: font(
+                                color: !isAvailable
+                                    ? const Color(0xFF5A4430)
+                                    : (isSelected ? const Color(0xFFF0CA60) : const Color(0xFFA07850)),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ).copyWith(height: 1.15),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -335,17 +365,28 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
       QaydhaResult result) {
     final isSuccess = result.isCorrect;
 
-    final violationLabels = isAr
-        ? ['قاطع', 'ربع في الدبل', 'ما كبر بحكم', 'ما دق بحكم', 'إكة خاطئة']
-        : [
-            'Cut',
-            'Four in Double',
-            'Did Not Over-Trump',
-            'Did Not Trump',
-            'False Ekka'
-          ];
-    final violationIdx = game.selectedQaydhaViolationIndex ?? 0;
-    final violationLabel = violationLabels[violationIdx.clamp(0, 4)];
+    final String violationLabel;
+    if (game.currentQaydhaAction == QaydhaActionType.wrongSawa) {
+      violationLabel = isAr ? 'سوا خطأ' : 'False Sawa';
+    } else {
+      switch (result.violationType) {
+        case QaydhaViolationType.qate:
+          violationLabel = isAr ? 'قاطع' : 'Cut';
+          break;
+        case QaydhaViolationType.rubFiAlDubl:
+          violationLabel = isAr ? 'ربع في الدبل' : 'Four in Double';
+          break;
+        case QaydhaViolationType.maKabbarBiHakam:
+          violationLabel = isAr ? 'ما كبر بحكم' : 'Did Not Over-Trump';
+          break;
+        case QaydhaViolationType.maDaqBiHakam:
+          violationLabel = isAr ? 'ما دق بحكم' : 'Did Not Trump';
+          break;
+        case QaydhaViolationType.falseEkka:
+          violationLabel = isAr ? 'أكة خاطئة' : 'False Akka';
+          break;
+      }
+    }
 
     return Container(
       width: double.infinity,
@@ -545,9 +586,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                   child: Transform.rotate(
                     angle: rot,
                     child: GestureDetector(
-                      onTap: (isResultMode ||
-                              game.currentQaydhaAction ==
-                                  QaydhaActionType.revealCards)
+                      onTap: isResultMode
                           ? null
                           : () => game.selectQaydhaCard(
                               trickIndex, cardPlay.playerIndex,
@@ -670,8 +709,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
           font,
       bool isAr,
       {bool isResultMode = false}) {
-    final hand = game.getHandForSeatSnapshot(
-        game.selectedQaydhaTrickIndex, seatIndex);
+    final hand = game.getHand(seatIndex);
     final playerName = game.playerName(seatIndex);
 
     return Container(
@@ -707,14 +745,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                     ),
                   ),
                 ),
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFD4AF37),
-                    shape: BoxShape.circle,
-                  ),
-                ),
+                SeatOrientationIndicator(seatIndex: seatIndex),
               ],
             ),
           ),
@@ -953,23 +984,27 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
             ),
           ),
 
-          // Timer (Right) — active in both Selection (60s) and Result mode (10s auto-close)
+          // Timer (Right) — active in both Selection (60s) and Result mode (6s auto-close)
           TweenAnimationBuilder<double>(
             key: ValueKey(isResultMode),
             tween: Tween(begin: 1.0, end: 0.0),
-            duration: Duration(seconds: isResultMode ? 10 : 60),
+            duration: Duration(seconds: isResultMode ? 6 : 60),
             onEnd: () {
               if (isResultMode) {
-                game.closeQaydhaResult();
-              } else if (canSubmit) {
-                game.submitQaydhaChallenge();
-              } else {
-                // Time ran out without valid proof -> challenger automatically loses round
-                game.submitFailedQaydhaOnTimeout();
+                if (game.qaydhaChallengeResult != null) {
+                  game.closeQaydhaResult();
+                }
+              } else if (game.isQaydhaReviewVisible) {
+                if (canSubmit) {
+                  game.submitQaydhaChallenge();
+                } else {
+                  // Time ran out without valid proof -> challenger automatically loses round
+                  game.submitFailedQaydhaOnTimeout();
+                }
               }
             },
             builder: (context, value, child) {
-              final secondsTotal = isResultMode ? 10 : 60;
+              final secondsTotal = isResultMode ? 6 : 60;
               final secondsLeft = (value * secondsTotal).ceil();
               final color = isResultMode
                   ? const Color(0xFFD4A843)

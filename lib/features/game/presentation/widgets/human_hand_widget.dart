@@ -73,9 +73,7 @@ class HumanHandWidget extends StatelessWidget {
               alignment: Alignment.bottomCenter,
               child: IgnorePointer(
                 ignoring: sawaReveal,
-                child: Opacity(
-                  opacity: sawaReveal ? 0.0 : 1.0,
-                  child: Transform.translate(
+                child: Transform.translate(
                     offset: Offset(0, -4 * scale),
                     child: _DesignerHandFan(
                       scale: scale,
@@ -113,9 +111,8 @@ class HumanHandWidget extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-      ],
-    );
+        ],
+      );
   }
 }
 

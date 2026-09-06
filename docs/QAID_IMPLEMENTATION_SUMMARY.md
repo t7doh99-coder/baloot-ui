@@ -1,90 +1,165 @@
 # Qaid, Ekka, and Sawa Implementation Summary (Professional Ruleset)
 
-This document outlines the complete implementation of the **Qaid (Challenge)**, **Ekka (اكة)**, and **Sawa (سوا)** mechanics in our game. We have intentionally chosen a **stricter, more professional ruleset** than competitors like Kammelna to ensure a highly competitive and fair gameplay experience.
+This document outlines the complete architecture and implementation details for **Qaid (قيدها / Challenge)**, **Ekka (إكة)**, and **Sawa (سوا)** mechanics in our Baloot game. We enforce a **strict, professional ruleset** inspired by competitive tournament play and apps like Kammelna, preventing frivolous challenges while rewarding tactical vigilance.
 
-## 1. System Overview & Professional Ruleset
+---
 
-Unlike casual apps, our game enforces strict accountability for all challenges to prevent spamming and guessing.
+## 1. System Overview & Core Philosophy
 
-### The "High Stakes" Philosophy
-- **Unified Penalty System**: In our game, **EVERY false challenge carries a Kabout penalty**. This applies to Qaid (Trick-Play), False Ekka, and False Sawa. If a player halts the game to make an accusation and they are wrong, their team is penalized. 
-- **Unified Review Interface**: We use a unified, deep-review overlay (`QaydhaReviewOverlay`) for all challenges, giving players 60 seconds to meticulously review trick history and remaining hands before committing to a high-stakes accusation.
+- **Unified Penalty Stakes**: Every false challenge or unsubstantiated accusation carries a full round loss penalty.
+- **Point of No Return**: Once cards are revealed via the review screen, hidden hands are compromised. Therefore, a challenge cannot be cancelled to simply resume play — the round must conclude with a win or loss verdict.
+- **Deep Historical & Hand Visibility**: Challenger has 60 seconds to inspect the full trick history and all 4 players' hands simultaneously in a unified scrollable view.
 
-### Bottom Bar Button Availability
-| Button | Who Sees It | When Visible |
-| --- | --- | --- |
-| **قيدها (Qaid)** | All 4 players | Trick play, ≥1 card played, no active Qaid |
-| **اكة (Ekka)** | Local player only | Only when leading AND haven't played lead yet |
-| **سوا (Sawa)** | All 4 players | Trick play, ≥1 card played |
-| **اكشف الورق (Reveal)** | All 4 players | Auto-triggered during Qaid review, Ekka dispute, or Sawa dispute |
+---
 
-## 2. Qaid (قيدها) — Trick-Play Challenge
+## 2. Bottom HUD: Qaid Button & Contextual 3-Option Popup
 
-Qaid is used to review and penalize illegal plays during a trick (e.g., cutting illegally, failing to trump).
+In the persistent bottom HUD (`HumanPlayerMajlisBar`), the **Qaid button** provides access to a vertical 3-option popup menu:
 
-### Execution Flow
-1. **Instant Freeze**: Server broadcasts `FREEZE_GAME` (≤100ms). No cards can be played.
-2. **Snapshot Sent**: Server captures and sends the current game state (all hands, trick history).
-3. **Overlay & Timer**: The Qaid overlay slides up on all screens. A **60-second** countdown timer starts.
-4. **Step 1 - Select Violation**: The challenger selects one of the 4 violation types.
-5. **Step 2 - Select Card**: The challenger taps a specific illegal card in the trick list (blue border). **Both type and card must be selected** to enable the "Challenge" button.
-6. **Verdict & Stakes (Point of No Return)**: 
-   - **RIGHT (صحيح)**: Confirmed violation. Round ends immediately. Challenger team wins all round points (Hakam=16pts, Sun=26pts × multiplier) + steals all declared projects. Opponents get 0.
-   - **WRONG (خطأ)**: False accusation penalty. Round ends immediately. Challenger team gets 0 points. Opposing team gets full round points (16 in Hakam, 26 in Sun × multiplier) + keeps all projects.
-   - **Timer Expiry (0s)**: If 60 seconds expire without submitting valid proof, it is automatically treated as a WRONG challenge. Challenger team receives the False Claim Penalty (0 points, opponents win round).
-   - **No "Cancel" to Resume Play**: Once cards are revealed, the game CANNOT simply resume because the secrecy of hidden cards was broken. The round MUST conclude with a win or loss.
+```
+┌─────────────────────────────────┐
+│  1. إكة خاطئة (False Ekka)      │  <- Contextual (Active for 6s after opponent's Akka)
+│  2. سوا خطأ (False Sawa)        │  <- Contextual (Active during opponent's Sawa reveal)
+│  3. اكشف الورق (Reveal Cards)    │  <- Always Available (Opens full Qaid review overlay)
+└─────────────────────────────────┘
+                ▲
+         [ قيدها (Qaid) ]
+```
 
-### Violation Types by Mode
-| Type | Sun | Hakam (Open Double) | Hakam (Closed Double) |
+### Option Availability Rules
+| Menu Option | Visual State | Trigger Condition / Window | Action |
 | --- | --- | --- | --- |
-| Cut (قاطعة) | Yes | Yes | Yes |
-| No Trump (ما دق بحكم) | No | Yes | Yes |
-| No Over-Trump (ما كبر بحكم) | No | Yes | Yes |
-| Four in Double (ربع في الدبل) | No | No | Yes |
+| **إكة خاطئة (False Ekka)** | Enabled / Dimmed (38%) | Active for **6 seconds** after an opponent bot announces "Akka" | Evaluates if a higher card in that suit remained unplayed |
+| **سوا خطأ (False Sawa)** | Enabled / Dimmed (38%) | Active during an opponent's Sawa reveal sequence | Evaluates if claimant held any non-master cards |
+| **اكشف الورق (Reveal Cards)** | Always Enabled | Available at any time during active trick play | Opens the full 60-second `QaydhaReviewOverlay` |
 
-## 3. Ekka (اكة) and False Ekka
+---
 
-Ekka is a claim that the player's lead card is the **highest remaining card of that suit** (cannot be beaten by any unplayed card of that suit). If valid, the player's partner is exempt from forced trump.
+## 3. Qaid Review Overlay Architecture & 2-Step Card Selection
 
-### Execution Flow
-1. Local player presses "اكة" (visible only to them) *before* playing their lead card.
-2. Server broadcasts the claim. A speech bubble appears over the player.
-3. Opponents can trigger the Review Overlay to challenge the Ekka claim.
-4. **FALSE (Claim was a lie)**: Ekka claimant's team gets a Kabout penalty.
-5. **TRUE (Claim was honest)**: The disputing challenger's team gets a Kabout penalty.
+The review screen (`QaydhaReviewOverlay`) is a single, continuous vertical scroll view designed to fit all screen sizes with seamless interaction:
 
-## 4. Sawa (سوا) and False Sawa
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Dynamic Instruction Pill (Red -> Yellow -> Green)        │
+│ 2. Violation Buttons (Cut, Four in Double, Over-Trump, etc) │
+├─────────────────────────────────────────────────────────────┤
+│ 3. Trick History Cards                                      │
+│    - Trick 1: [Card 1] [Card 2] [Card 3] [Card 4]           │
+│    - Trick 2: [Card 1] [Card 2] [Card 3] [Card 4]           │
+├─────────────────────────────────────────────────────────────┤
+│ 4. All 4 Players' Remaining Hands (2x2 Grid at bottom)      │
+│    Shows ONLY currently unplayed cards (الأوراق المتبقية)   │
+│    [Michael - Top]       [Jim - Right]                      │
+│    [Dwight - Left]        [Human - Bottom]                  │
+├─────────────────────────────────────────────────────────────┤
+│ 5. Fixed Bottom Action Bar                                  │
+│    [ Challenge / Close ]    [ Challenger Pill ]    [ Timer ]│
+└─────────────────────────────────────────────────────────────┘
+```
 
-Sawa is a claim that the player holds **only master cards** and is guaranteed to win all remaining tricks.
+> [!IMPORTANT]
+> **Remaining Cards Only (الأوراق المتبقية)**: Following official Baloot and Kammelna rules, the 2x2 player hand grid at the bottom **only displays the cards each player currently holds (unplayed cards)**. For example, if 4 tricks were already played, each player's box displays exactly 4 remaining cards (never the full 8 starting cards). Every card in the 32-card deck is visible on screen in exactly one place: either in a completed trick row or in a player's remaining hand.
 
-### Execution Flow
-1. Player presses "سوا". Game PAUSES for all 4 players.
-2. All 4 players' hands are revealed face-up automatically (اكشف الورق).
-3. Opponents can trigger the Review Overlay to dispute the Sawa.
-4. **Sawa is VALID**: Disputing challenger team gets Kabout penalty.
-5. **Sawa is INVALID**: Sawa claimant team gets Kabout penalty.
 
-## 5. UI Requirements (Qaid Review Screen & Kammelna Design)
-
-The Qaid review screen is a **single scrollable view**.
-- **Top Panel**: Dynamic instruction pill (Red ➔ Amber ➔ Green) + Violation type buttons (Cut, Four in Double, Didn't Over-Trump, Didn't Trump).
-- **Middle Body**: Trick history. Each trick shows 4 overlapping cards with full shadows and highlights.
-- **Bottom (Scroll End)**: **All 4 players' hands** arranged in a 2x2 grid (matching Kammelna `5.png`), permanently visible at the bottom of the scroll view.
-- **Fixed Bottom Bar**: Action button ("Challenge" / "Close") on the left, Challenger identity pill in the center, and circular countdown timer on the right.
-
-### Card Selection & Highlighting States (Kammelna Rules)
+### Card Highlighting & Selection Semantics (Kammelna Rules)
 1. **Accused Card (الورقة المغشوش بها - Cheating Card)**:
-   - Always highlighted in vibrant **RED** (`0xFFFF4D4F`) with red outline and glow.
-   - Selected from any trick played during the round.
-2. **Proof / Other Card (ورقة الإثبات - Evidence Card)**:
-   - Always highlighted in vibrant emerald **GREEN** (`0xFF4ADE80`) with green border, emerald tint, and lift animation.
-   - Can be selected from **any of the 4 players' hands** below OR from **another trick** played during the round (matching Kammelna `4.png` & `5.png`).
-3. **Challenge Readiness**:
-   - Both the Accused Card (Red) and the Proof Card (Green, for violations requiring proof) must be selected before the "Challenge" button enables in royal gold.
+   - **Color**: Translucent Red/Pink tint (`#FF4D4F`) over the card with glow and border.
+   - **Selection**: Must be selected from a completed trick where the illegal play occurred.
+   - **Deselection**: Tapping the Red card again deselects it and clears any selected proof card (full reset back to Step 1).
+2. **Proof Card (ورقة الإثبات - Evidence Card)**:
+   - **Color**: Translucent Green tint (`#4ADE80` / `#22C55E`) over the card with emerald glow.
+   - **Selection**: Can be selected either from another trick in history OR from any player's remaining unplayed hand at the bottom.
+   - **Deselection**: Tapping the Green card again deselects only the proof card (returning to Step 2).
+3. **The 3rd Card Tap Reset (Kammelna Cycle)**:
+   - When **both** Card 1 (Red) and Card 2 (Green) are already selected:
+   - Tapping any **3rd card in a trick** immediately **RESETS** the previous selection pair (clears the old Red and old Green) and designates this newly tapped card as the new **Red (Accused) card**!
+   - This prevents players from getting stuck when changing their accusation and provides a fast, seamless 1-tap reset.
+4. **Dynamic Instruction Banner Text (Matching Kammelna)**:
+   - **Step 1 (No Card Selected)**: `أختر الورقة التي تم الغش بها` ("Choose the card that was cheated with").
+   - **Step 2 (Accused Card Selected)**: `أختر الورقة التي كشفت الغش` ("Choose the card that revealed the cheating").
+   - **Step 3 (Both Cards Selected / Ready)**: `جاهز — اضغط قيدها` ("Ready — Press Challenge").
+5. **Action Button States**:
+   - **Disabled**: Dimmed with 35% opacity while card selection is incomplete.
+   - **Enabled**: Golden gradient (`#F0CA60` ➔ `#C49028`) with active haptics when valid combination is chosen.
 
-### Qaid 3-Option Popup Menu
-When tapping "Qaid" in the bottom HUD:
-- A vertical popup menu appears directly above the Qaid button:
-  1. **False Ekka (إكة خاطئة)**
-  2. **Wrong Sawa (سوا خطأ)**
-  3. **Reveal Cards (اكشف الورق)** ➔ Opens the full Review Overlay.
+---
+
+## 4. Violation Rules & Mode-Specific Availability Matrix
+
+Violations are dynamically checked against the current round's `GameMode` and `DoubleStatus`. Unavailable options are visually dimmed (38% opacity) and unclickable:
+
+| Violation ID | Type (English) | Type (Arabic) | Sun (صن) | Hakam Open Double | Hakam Closed Double | Proof Requirement |
+| :---: | :--- | :--- | :---: | :---: | :---: | :--- |
+| **0** | **Cut** | **قاطعة** | **Yes** | **Yes** | **Yes** | Proof card of lead suit showing accused held lead suit |
+| **1** | **Four in Double** | **ربع في الدبل** | *No (Dimmed)* | *No (Dimmed)* | **Yes** | Lead card was trump during closed double |
+| **2** | **Didn't Over-Trump** | **ما كبر بحكم** | *No (Dimmed)* | **Yes** | **Yes** | Proof card showing higher trump in hand |
+| **3** | **Didn't Trump** | **ما دق بحكم** | *No (Dimmed)* | **Yes** | **Yes** | Proof card showing trump held when void in lead |
+| **4** | **False Ekka** | **إكة خاطئة** | *No (Dimmed)* | **Yes** | **Yes** | Evaluates if unplayed card is stronger than lead card |
+
+### Violation Logic Rules
+1. **قاطعة (Cut / Illegal Off-Suit Play)**:
+   - Player failed to follow suit when they still held a card of the trick's lead suit.
+   - Mandatory in both Sun and Hakam.
+2. **ما دق بحكم (Didn't Trump)**:
+   - In Hakam, when void in the lead suit and no one has trumped yet, a player is legally required to trump.
+   - Discarding an off-suit card while holding a trump card is an immediate violation.
+3. **ما كبر بحكم (Didn't Over-Trump)**:
+   - In Hakam, if an opponent has already played trump, subsequent void players must over-trump (play a higher trump) if able.
+   - *Partner Exemption*: If player's teammate currently heads the trick with trump, player is exempt from forced over-trumping.
+4. **ربع في الدبل (Four in Double / Trump Lead in Closed Double)**:
+   - In Hakam with Closed Double (`doubleStatus != none && !isOpenPlay`), leading a trick with trump is prohibited unless player holds ONLY trump cards.
+
+---
+
+## 5. Verdict Evaluation & Scoring Engine
+
+Challenges are evaluated by `QaydhaEngine.evaluateChallenge()` and scored via `ScoringEngine`:
+
+### Point Allocation Table
+| Game Mode | Correct Challenge (فائز) | False Challenge / Timeout (خاسر) | Projects Handling |
+| --- | :---: | :---: | :--- |
+| **Sun (صن)** | Challenger gets **26 pts** (× Double multiplier) | Opponents get **26 pts** (× Double multiplier) | Winner steals all declared projects; Baloot remains immune |
+| **Hakam (حكم)** | Challenger gets **16 pts** (× Double multiplier) | Opponents get **16 pts** (× Double multiplier) | Winner steals all declared projects; Baloot remains immune |
+| **Gahwa (قهوة)** | Challenger wins entire match (152 pts) | Opponents win entire match (152 pts) | Instant game over |
+
+### Timer Durations
+- **Review / Selection Countdown**: **60 seconds**.
+- **Timeout Rule**: If 60 seconds expire without selecting valid proof and submitting, it is treated as an automatic failed challenge (forfeiture of round).
+- **Verdict Display Countdown**: **6 seconds** (or manual dismissal via "إغلاق / Close").
+
+---
+
+## 6. False Ekka & False Sawa Challenges
+
+### False Ekka (إكة خاطئة)
+- **Claim**: Player leads a card claiming it is the master of that suit (no unplayed card of that suit can beat it).
+- **Challenge Window**: Opponents have a **6-second window** after an Akka announcement to challenge.
+- **Evaluation**: `QaydhaEngine._checkFalseEkka` scans the trick history and remaining cards:
+  - If any unplayed card in that suit has higher rank (e.g. Ace or 10 in Sun) ➔ **False Ekka (Violation confirmed)**.
+  - If all higher cards were already played in previous tricks ➔ **Valid Ekka (Challenger penalized)**.
+
+### False Sawa (سوا خطأ)
+- **Claim**: Player claims to hold only winning master cards for all remaining tricks.
+- **Challenge Window**: Active while the Sawa reveal sequence displays all 4 players' hands.
+- **Evaluation**: Engine verifies whether any opposing player holds a card that could win a trick against the claimant's hand. If claimant cannot win every trick, Sawa is false.
+
+---
+
+## 7. Scoreboard & Next Round Transition Lifecycle
+
+To ensure zero freezing and rock-solid state management, the transition from Qaid to the new round follows an exact sequence:
+
+1. **Immediate Scoreboard Capture**:
+   - `closeQaydhaResult()` terminates review mode and invokes `_engine.applyQaydhaResult(result)`.
+   - `_captureLastRoundResult()` executes **synchronously**, immediately populating `game.lastRoundResult`.
+   - `RoundScoreOverlay` renders instantly on screen displaying the banner (`قيد صحيح: فزنا 🎉` or `قيد خاطئ: خسرنا 💔`) alongside complete round points and project breakdown.
+2. **Scoring Phase Timer Protection**:
+   - `_scheduleNextAction()` guards against cancelling timers during `GamePhase.scoring`, preventing race conditions where the transition timer could get dropped.
+3. **Automatic Round Reset (6-Second Window)**:
+   - Handled cleanly by `_dismissScoreboardAndStartNextRound()`:
+     - Dismisses `RoundScoreOverlay` (`_lastRoundResult = null`).
+     - Rotates dealer index clockwise: `_dealerIndex = (_dealerIndex + 1) % 4`.
+     - Invokes `_engine.startNewRound()`, dealing 5 initial cards to all players and resetting trick state.
+     - New dealer announces `'Awal'` via speech bubble.
+     - Transitions phase to `GamePhase.bidding` and resumes turn timers.

@@ -31,6 +31,7 @@ class RoundScoreResult {
   final bool isQaydha;
   final bool qaydhaCorrect;
   final String? qaydhaChallengerTeam;
+  final QaydhaViolationType? qaydhaViolationType;
 
   const RoundScoreResult({
     required this.teamAPoints,
@@ -56,6 +57,7 @@ class RoundScoreResult {
     this.isQaydha = false,
     this.qaydhaCorrect = false,
     this.qaydhaChallengerTeam,
+    this.qaydhaViolationType,
   });
 }
 
@@ -150,7 +152,7 @@ class ScoringEngine {
 
       // Rule 14.4 & Qaydha: Stolen projects in Khams or Qaydha.
       // Update breakdown Abnat to match the stolen points logic.
-      if (base.isKhams || (base.isQaydha && base.qaydhaCorrect)) {
+      if (base.isKhams || base.isQaydha) {
         // In Qaydha, the winner steals. In Khams, the Defenders steal.
         // Let's determine who stole.
         String stealer;
@@ -185,8 +187,8 @@ class ScoringEngine {
       return RoundScoreResult(
         teamAPoints: base.teamAPoints,
         teamBPoints: base.teamBPoints,
-        teamARawAbnat: trickAbnatA,
-        teamBRawAbnat: trickAbnatB,
+        teamARawAbnat: trickAbnatA + finalProjA,
+        teamBRawAbnat: trickAbnatB + finalProjB,
         isKhams: base.isKhams,
         isKabout: base.isKabout,
         winningTeam: base.winningTeam,
@@ -206,6 +208,7 @@ class ScoringEngine {
         isQaydha: base.isQaydha,
         qaydhaCorrect: base.qaydhaCorrect,
         qaydhaChallengerTeam: base.qaydhaChallengerTeam,
+        qaydhaViolationType: base.qaydhaViolationType,
       );
     }
 
@@ -362,6 +365,7 @@ class ScoringEngine {
       isQaydha: true,
       qaydhaCorrect: qaydhaResult.isCorrect,
       qaydhaChallengerTeam: challengerTeam,
+      qaydhaViolationType: qaydhaResult.violationType,
       balootTeam: balootTeam,
       balootPoints: balootPoints,
     );

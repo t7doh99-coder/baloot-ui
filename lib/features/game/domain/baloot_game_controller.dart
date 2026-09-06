@@ -120,6 +120,13 @@ class BalootGameController implements IBalootController {
   }
 
 
+  /// First seat on the defending (non-buyer) team.
+  /// Ensures human (seat 0) gets priority when on the defending side.
+  int _firstDefenderSeat(int buyerIndex) {
+    final buyerTeamIsA = buyerIndex % 2 == 0;
+    if (buyerTeamIsA) return 1; // Team B defends: seat 1
+    return 0; // Team A defends: seat 0 (human)
+  }
 
   /// The allowed bid actions for a given seat in the current bidding state.
   List<BidAction> allowedActions(int seatIndex) {
@@ -160,15 +167,11 @@ class BalootGameController implements IBalootController {
     if (tm == null) return false;
 
     final mode = _roundState.activeMode;
-    if (mode == null || mode == GameMode.sun) return false; // Akka rule ONLY applies in Hakam
+    if (mode == null) return false;
     final trump = _roundState.trumpSuit;
 
     // In Hakam, Akka only applies to non-trump suits
-    if (card.suit == trump) return false;
-
-    // Do NOT say "Akka" when throwing the Ace itself. The Ace is naturally the strongest.
-    // The Akka signal is only used for cards BELOW the Ace to inform the partner.
-    if (card.rank == Rank.ace) return false;
+    if (mode == GameMode.hakam && card.suit == trump) return false;
 
     // ── LEAD-ONLY CHECK ──
     // Akka only applies when the player LEADS the trick (plays first).
@@ -467,6 +470,16 @@ class BalootGameController implements IBalootController {
         );
       }
 
+      bool skipDouble = false;
+      if (bidResult.mode == GameMode.sun) {
+        final buyerTeamIsA = effectiveBuyerIndex % 2 == 0;
+        final buyerPts = buyerTeamIsA ? _teamAScore : _teamBScore;
+        final defPts = buyerTeamIsA ? _teamBScore : _teamAScore;
+        if (buyerPts <= 100 || defPts >= 100) {
+          skipDouble = true;
+        }
+      }
+
       _escalationDefenderSeat = null;
       _roundState = _roundState.copyWith(
         biddingPhase: BiddingPhase.completed,
@@ -474,14 +487,18 @@ class BalootGameController implements IBalootController {
         trumpSuit: bidResult.trumpSuit,
         buyerIndex: effectiveBuyerIndex,
         isAshkal: bidResult.isAshkal,
-        // Double-window turn order stays anchored to bidding seat order (Ashkal bidder,
-        // not teammate). Trick 1 lead is [_dealerIndex + 1] in [_startPlayPhase].
-        currentPlayerIndex: (bidResult.buyerIndex + 1) % 4,
-        isDoubleWindowOpen: true,
+        currentPlayerIndex: skipDouble ? (_dealerIndex + 1) % 4 : _firstDefenderSeat(effectiveBuyerIndex),
+        isDoubleWindowOpen: !skipDouble,
       );
 
-      _gamePhase = GamePhase.doubleWindow;
-      logger.log('Starting double window');
+      if (skipDouble) {
+        _gamePhase = GamePhase.playing;
+        logger.log('Sun mode double conditions not met (buyer <= 100 or defender >= 100). Skipping double window.');
+        _startPlayPhase();
+      } else {
+        _gamePhase = GamePhase.doubleWindow;
+        logger.log('Starting double window');
+      }
     }
   }
 
@@ -794,9 +811,9 @@ class BalootGameController implements IBalootController {
   /// when another Qaid is already in progress, and after the round ends.
   bool canClaimQaid(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
-    // Must have at least one COMPLETED trick in this round to challenge (accuse) a card.
-    final hasHistory = _turnManager!.trickHistory.isNotEmpty;
-    if (!hasHistory) return false;
+    // Qaid is available at any time once the first card of the round has been played.
+    final hasPlayStarted = _turnManager!.currentTrick.isNotEmpty || _turnManager!.trickHistory.isNotEmpty;
+    if (!hasPlayStarted) return false;
     return true;
   }
 
@@ -874,14 +891,18 @@ class BalootGameController implements IBalootController {
   bool canSawa(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
     
+    // In Kammelna & official Baloot rules, Sawa is strictly a late-game action:
+    // Only available when 4 cards or fewer remain in hand (i.e. Trick 5 or later)
+    if (_hands[seatIndex].length > 4) {
+      return false;
+    }
+
     // Only allow Sawa if it's the player's turn to lead a trick
     // (i.e. no cards have been played in the current trick yet)
     if (_turnManager!.currentPlayerIndex != seatIndex || _turnManager!.currentTrick.isNotEmpty) {
       return false;
     }
 
-    // Per HTML spec: Sawa is available anytime after the first card of the round
-    // has been played. There is no hand-size restriction.
     return true;
   }
 
@@ -1059,8 +1080,75 @@ class BalootGameController implements IBalootController {
       }
     } else {
       // The objection was incorrect -> The claimant's Sawa was actually valid.
-      // Award the points normally as if no objection happened.
-      claimSawa(claimantSeat);
+      // In competitive Baloot / Kammelna, false objection carries full round penalty against the challenger.
+      final winnerTeam = claimantSeat % 2 == 0 ? 'A' : 'B';
+      final mode = _roundState.activeMode ?? GameMode.sun;
+
+      int teamAProjectScoreboard = 0, teamBProjectScoreboard = 0;
+      for (final p in _activeDeclaredProjects) {
+        if (p.type == ProjectType.baloot) continue;
+        if (p.playerIndex % 2 == 0) {
+          if (winnerTeam == 'A') teamAProjectScoreboard += p.getScoreboardPoints(mode);
+        } else {
+          if (winnerTeam == 'B') teamBProjectScoreboard += p.getScoreboardPoints(mode);
+        }
+      }
+
+      int balootPts = 0;
+      String? balootTeam;
+      final balootProjects = _activeDeclaredProjects.where((p) => p.type == ProjectType.baloot);
+      if (balootProjects.isNotEmpty) {
+        final bTeam = balootProjects.first.playerIndex % 2 == 0 ? 'A' : 'B';
+        if (bTeam == winnerTeam) {
+          balootPts = 2;
+          balootTeam = bTeam;
+        }
+      }
+
+      final scoreResult = _scoringEngine.calculateViolationScore(
+        mode: mode,
+        winningTeam: winnerTeam,
+        doubleStatus: _roundState.doubleStatus,
+        teamAProjectScoreboard: teamAProjectScoreboard,
+        teamBProjectScoreboard: teamBProjectScoreboard,
+        balootPoints: balootPts,
+        balootTeam: balootTeam,
+      );
+
+      final finalScoreResult = RoundScoreResult(
+        teamAPoints: scoreResult.teamAPoints,
+        teamBPoints: scoreResult.teamBPoints,
+        teamARawAbnat: scoreResult.teamARawAbnat,
+        teamBRawAbnat: scoreResult.teamBRawAbnat,
+        isKhams: scoreResult.isKhams,
+        isKabout: scoreResult.isKabout,
+        winningTeam: scoreResult.winningTeam,
+        reason: 'valid_sawa_claim',
+        teamATrickAbnat: scoreResult.teamATrickAbnat,
+        teamBTrickAbnat: scoreResult.teamBTrickAbnat,
+        lastTrickBonusTeam: scoreResult.lastTrickBonusTeam,
+        teamAProjectAbnat: scoreResult.teamAProjectAbnat,
+        teamBProjectAbnat: scoreResult.teamBProjectAbnat,
+        mode: scoreResult.mode,
+        buyerTeam: scoreResult.buyerTeam,
+        doubleStatus: scoreResult.doubleStatus,
+        teamAProjectsList: scoreResult.teamAProjectsList,
+        teamBProjectsList: scoreResult.teamBProjectsList,
+      );
+
+      _lastRoundScoreResult = finalScoreResult;
+      _teamAScore += finalScoreResult.teamAPoints;
+      _teamBScore += finalScoreResult.teamBPoints;
+
+      logger.log('VALID SAWA CONFIRMED for Seat $claimantSeat. False objection penalty applied to challenger.');
+      logger.log('Score Added -> Team A: +${finalScoreResult.teamAPoints}, Team B: +${finalScoreResult.teamBPoints}');
+
+      if (_scoringEngine.isGameOver(_teamAScore, _teamBScore, _roundState.doubleStatus)) {
+        _gamePhase = GamePhase.gameOver;
+      } else {
+        _dealerIndex = (_dealerIndex + 1) % 4;
+        _gamePhase = GamePhase.scoring;
+      }
     }
   }
 
@@ -1271,7 +1359,7 @@ class BalootGameController implements IBalootController {
 
   // ── Qaydha Integration ──
   
-  /// Applies a Qaydha result, forcefully ending the round and calculating scores based on the challenge.
+  @override
   void applyQaydhaResult(QaydhaResult qaydhaResult) {
     if (_gamePhase != GamePhase.playing) return;
 
@@ -1284,8 +1372,8 @@ class BalootGameController implements IBalootController {
   void _endRoundWithQaydha(QaydhaResult qaydhaResult) {
     _gamePhase = GamePhase.scoring;
 
-    final mode = _roundState.activeMode!;
-    final buyerTeam = _roundState.isBuyerTeamA() ? 'A' : 'B';
+    final mode = _roundState.activeMode ?? GameMode.hakam;
+    final buyerTeam = _roundState.buyerIndex != null ? (_roundState.isBuyerTeamA() ? 'A' : 'B') : 'A';
 
     // 1. Calculate project Abnat (both teams keep their declared projects)
     int teamAProjectAbnat = 0;
@@ -1326,10 +1414,13 @@ class BalootGameController implements IBalootController {
     // Fake the Abnat so that one team gets the full pool and the other gets 0
     final isChallengerA = qaydhaResult.challengerIndex % 2 == 0;
     final winnerIsA = qaydhaResult.isCorrect ? isChallengerA : !isChallengerA;
+    final winnerTeam = winnerIsA ? 'A' : 'B';
     
     final scoreResult = _scoringEngine.calculateRoundScore(
       teamAAbnat: winnerIsA ? totalTrickPool : 0,
       teamBAbnat: winnerIsA ? 0 : totalTrickPool,
+      lastTrickBonusTeam: winnerTeam,
+      projectWinningTeam: winnerTeam,
       mode: mode,
       buyerTeam: buyerTeam,
       teamATricksCount: winnerIsA ? 8 : 0,
@@ -1364,7 +1455,10 @@ class BalootGameController implements IBalootController {
         _gamePhase = GamePhase.gameOver;
       } else {
         // tie - play one more round
+        _dealerIndex = (_dealerIndex + 1) % 4;
       }
+    } else {
+      _dealerIndex = (_dealerIndex + 1) % 4;
     }
   }
 

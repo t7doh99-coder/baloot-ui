@@ -64,7 +64,7 @@ void main() {
       expect(ctrl.gamePhase, GamePhase.doubleWindow);
       expect(ctrl.roundState.activeMode, GameMode.hakam);
 
-      ctrl.skipDoubleWindow();
+      if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
       expect(ctrl.gamePhase, GamePhase.playing);
 
       final lead = ctrl.roundState.currentPlayerIndex;
@@ -143,7 +143,7 @@ void main() {
         }
       }
 
-      ctrl.skipDoubleWindow();
+      if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
       expect(ctrl.gamePhase, GamePhase.playing);
 
       final lead = ctrl.roundState.currentPlayerIndex;
@@ -192,7 +192,7 @@ void main() {
           ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
         }
       }
-      ctrl.skipDoubleWindow();
+      if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
 
       final currentSeat = ctrl.roundState.currentPlayerIndex;
       // Try to play a card we definitely don't have
@@ -231,7 +231,7 @@ void main() {
           ctrl.placeBid(ctrl.roundState.currentPlayerIndex, BidAction.pass);
         }
       }
-      ctrl.skipDoubleWindow();
+      if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
 
       final currentSeat = ctrl.roundState.currentPlayerIndex;
       final wrongSeat = (currentSeat + 1) % 4;
@@ -320,7 +320,7 @@ void main() {
         }
 
         if (ctrl.gamePhase == GamePhase.doubleWindow) {
-          ctrl.skipDoubleWindow();
+          if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
         }
 
         // Play round with bot

@@ -62,6 +62,7 @@ class GameTableMajlisHud extends StatelessWidget {
             onSelected: (value) {
               if (value == 0) onBack();
               if (value == 1) onCycleWallpaper();
+              if (value == 5) game.toggleAutoAkka();
               if (value == 98) game.toggleGodMode();
               if (value == 99) {
                 Clipboard.setData(ClipboardData(text: game.gameLog));
@@ -131,6 +132,12 @@ class GameTableMajlisHud extends StatelessWidget {
                               buildItem(Icons.meeting_room_rounded, loc.leave, 0),
                               divider,
                               buildItem(Icons.wallpaper_rounded, loc.wallpaper, 1),
+                              divider,
+                              buildItem(
+                                game.autoAkkaEnabled ? Icons.bolt : Icons.bolt_outlined,
+                                '${loc.autoAkka}: ${game.autoAkkaEnabled ? (context.read<LocaleProvider>().isArabic ? 'مفعل' : 'ON') : (context.read<LocaleProvider>().isArabic ? 'معطل' : 'OFF')}',
+                                5,
+                              ),
                               divider,
                               buildItem(game.isGodModeEnabled ? Icons.visibility_off : Icons.visibility, game.isGodModeEnabled ? (context.read<LocaleProvider>().isArabic ? 'إخفاء الأوراق' : 'Hide All Cards') : (context.read<LocaleProvider>().isArabic ? 'كشف الأوراق' : 'Reveal All Cards'), 98),
                               divider,

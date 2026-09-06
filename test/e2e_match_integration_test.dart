@@ -206,7 +206,7 @@ void main() {
       game.placeBid(3, BidAction.pass);
       game.placeBid(0, BidAction.pass);
       game.placeBid(1, BidAction.confirmHakam);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       expect(game.gamePhase, GamePhase.playing);
       expect(game.roundState.trumpSuit, Suit.hearts);
@@ -219,7 +219,7 @@ void main() {
       final game = createGame();
       // P1 calls Sun. Since P1 is first bidder, no one can Qablak. Bidding ends instantly.
       game.placeBid(1, BidAction.sun);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       expect(game.gamePhase, GamePhase.playing);
       expect(game.roundState.activeMode, GameMode.sun);
@@ -244,7 +244,7 @@ void main() {
       final game = createGame(customHands: badHands, customRemainingDeck: remDeck);
       // P1 calls Sun. Ends instantly. (P1 is Team B)
       game.placeBid(1, BidAction.sun);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       // Team B (P1/P3) should lose horribly. Team A (P0/P2) takes all 26 points.
@@ -292,7 +292,7 @@ void main() {
       // Seat 1 steals Ashkal
       game.placeBid(1, BidAction.sun);
       
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       expect(game.gamePhase, GamePhase.playing);
       expect(game.roundState.activeMode, GameMode.sun);
@@ -304,7 +304,7 @@ void main() {
       
       // Seat 1 calls Ashkal illegally
       game.placeBid(1, BidAction.ashkal);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       expect(game.gamePhase, GamePhase.playing);
       expect(game.roundState.activeMode, GameMode.sun);
@@ -333,7 +333,7 @@ void main() {
       game.placeBid(3, BidAction.pass);
       game.placeBid(0, BidAction.pass);
       game.placeBid(1, BidAction.confirmHakam);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       // Team A sweeps Team B.
@@ -366,7 +366,7 @@ void main() {
       game.placeBid(3, BidAction.pass);
       game.placeBid(0, BidAction.pass);
       game.placeBid(1, BidAction.confirmHakam);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       // P1 has ALL 8 trumps. They will win Kabout (>=25 points).
@@ -384,7 +384,7 @@ void main() {
       game.placeBid(1, BidAction.confirmHakam);
       
       game.callDouble(0, DoubleStatus.doubled);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       // It's a Hakam Double win for A, or maybe A loses. Let's just check score magnitude.
@@ -402,7 +402,7 @@ void main() {
       
       game.callDouble(0, DoubleStatus.doubled);
       game.callDouble(1, DoubleStatus.tripled);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       expect(game.gameScore.teamA + game.gameScore.teamB, greaterThanOrEqualTo(48));
@@ -419,7 +419,7 @@ void main() {
       game.callDouble(0, DoubleStatus.doubled);
       game.callDouble(1, DoubleStatus.tripled);
       game.callDouble(0, DoubleStatus.four);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       expect(game.gameScore.teamA + game.gameScore.teamB, greaterThanOrEqualTo(64));
@@ -461,7 +461,7 @@ void main() {
       game.placeBid(3, BidAction.pass);
       game.placeBid(0, BidAction.pass);
       game.placeBid(1, BidAction.confirmHakam);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       // P1 will declare Baloot. Team A will get 2 extra points.
@@ -479,7 +479,7 @@ void main() {
       ];
       final game = createGame(customHands: hands);
       game.placeBid(1, BidAction.sun);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       
@@ -498,7 +498,7 @@ void main() {
       ];
       final game = createGame(customHands: hands);
       game.placeBid(1, BidAction.sun);
-      game.skipDoubleWindow();
+      if (game.gamePhase == GamePhase.doubleWindow) game.skipDoubleWindow();
       
       playOutGame(game);
       

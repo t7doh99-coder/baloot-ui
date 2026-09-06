@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
-import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/widgets/custom_player_avatar.dart';
-import '../../../../core/constants/app_assets.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
-import '../../domain/managers/bidding_manager.dart' show BidAction;
 import '../../../../data/models/card_model.dart' show GameMode;
 import '../../../../data/models/round_state_model.dart' show DoubleStatus;
 import '../game_provider.dart';
-import 'qaydha_types.dart' show QaydhaActionType;
 
 /// Majlis bottom HUD — charcoal bar, bronze status chip, nested name pill,
 /// gold ring timer, light action chips (reference layout).
@@ -47,7 +43,6 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     with TickerProviderStateMixin {
   Ticker? _ringTicker;
   bool _humanTurn = false;
-  bool _isQaidMenuOpen = false;
 
   @override
   void dispose() {
@@ -138,10 +133,6 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     final ringSecondsText = game.isHumanTurn ? '${secs ?? 0}' : '';
     final rawProgress     = game.isHumanTurn ? game.activeSeatTimerProgress : 0.0;
     final ringProgress    = rawProgress.isFinite ? rawProgress.clamp(0.0, 1.0) : 1.0;
-
-    if (!game.canClaimQaid || game.isQaydhaReviewVisible) {
-      _isQaidMenuOpen = false;
-    }
 
     return Padding(
       padding: EdgeInsets.zero,
@@ -239,11 +230,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 Expanded(
                   child: _QaidButton(
                     isActive: game.canClaimQaid,
+                    isOpen: game.isQaidMenuOpen,
                     onTap: () {
                       if (game.canClaimQaid) {
-                        setState(() {
-                          _isQaidMenuOpen = !_isQaidMenuOpen;
-                        });
+                        game.toggleQaidMenu();
                       }
                     },
                   ),
@@ -251,11 +241,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 const SizedBox(width: 8),
                 Expanded(
                   child: (game.phase == GamePhase.playing && 
-                          !game.canDeclareProjects && 
-                          game.roundState.activeMode == GameMode.hakam)
-                    ? _AutoAkkahButton(
-                        isActive: game.autoAkkahEnabled,
-                        onTap: () => game.toggleAutoAkkah(),
+                          !game.canDeclareProjects)
+                    ? _ManualAkkaButton(
+                        isActive: game.canEkka,
+                        onTap: () => game.claimAkka(),
                       )
                     : _ProjectButton(
                         isActive: game.canDeclareProjects,
@@ -277,102 +266,9 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
           ],
         ),
       ),
-          // ── Qaid 3-Option Popup Menu ──
-          if (_isQaidMenuOpen && !game.isQaydhaReviewVisible)
-            Positioned(
-              bottom: 60,
-              left: 6,
-              width: 140,
-              child: _buildQaidPopupMenu(context, game, isAr),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQaidPopupMenu(BuildContext context, GameProvider game, bool isAr) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF231A0E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFC49028), width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x99000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. False Ekka
-          _buildQaidMenuItem(
-            label: isAr ? 'إكة خاطئة' : 'False Ekka',
-            isActive: game.isFalseEkkaWindowOpen,
-            onTap: () {
-              setState(() => _isQaidMenuOpen = false);
-              game.handleQaydhaMenuSelection(QaydhaActionType.wrongTrick);
-            },
-          ),
-          const SizedBox(height: 6),
-          // 2. Wrong Sawa
-          _buildQaidMenuItem(
-            label: isAr ? 'سوا خطأ' : 'Wrong Sawa',
-            isActive: game.isFalseSawaWindowOpen,
-            onTap: () {
-              setState(() => _isQaidMenuOpen = false);
-              game.handleQaydhaMenuSelection(QaydhaActionType.wrongSawa);
-            },
-          ),
-          const SizedBox(height: 6),
-          // 3. Reveal Cards
-          _buildQaidMenuItem(
-            label: isAr ? 'اكشف الورق' : 'Reveal Cards',
-            isActive: true,
-            onTap: () {
-              setState(() => _isQaidMenuOpen = false);
-              game.handleQaydhaMenuSelection(QaydhaActionType.reviewTricks);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQaidMenuItem({
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: isActive ? onTap : null,
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFF2C2210),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? const Color(0x66C49028) : const Color(0x22C49028),
-            width: 1.0,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isActive ? Colors.white : const Color(0xFF7A6850),
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            fontFamily: GoogleFonts.readexPro().fontFamily,
-          ),
-        ),
-      ),
-    );
+    ],
+  ),
+);
   }
 }
 
@@ -474,17 +370,19 @@ class _BadgeText extends StatelessWidget {
         : primary;
 
     if (secondary == null) {
-      return Text(
-        combinedPrimary.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: _kGSandGold,
-          fontSize: 13.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: ar ? 0 : 0.15,
-          height: 1.2,
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          combinedPrimary.toUpperCase(),
+          maxLines: 1,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: _kGSandGold,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: ar ? 0 : 0.15,
+            height: 1.2,
+          ),
         ),
       );
     }
@@ -492,31 +390,35 @@ class _BadgeText extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          combinedPrimary.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _kGSandGold,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: ar ? 0 : 0.15,
-            height: 1.15,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            combinedPrimary.toUpperCase(),
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _kGSandGold,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: ar ? 0 : 0.15,
+              height: 1.15,
+            ),
           ),
         ),
         if (secondary != null)
-          Text(
-            secondary!.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: const Color(0xFFFFD700),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: ar ? 0 : 0.1,
-              height: 1.1,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              secondary!.toUpperCase(),
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: const Color(0xFFFFD700),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: ar ? 0 : 0.1,
+                height: 1.1,
+              ),
             ),
           ),
       ],
@@ -615,7 +517,7 @@ class _InfoBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: _kGBgCanvas.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(10),
@@ -741,9 +643,94 @@ class _SawaButton extends StatelessWidget {
 /// Per BALOOT_RULES.md §14.5: manual violation flagging.
 class _QaidButton extends StatelessWidget {
   final bool isActive;
+  final bool isOpen;
   final VoidCallback onTap;
 
   const _QaidButton({
+    required this.isActive,
+    this.isOpen = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    const gold = Color(0xFFD4AF37);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isActive ? () {
+          context.read<GameProvider>().audioService.playGoldButton();
+          onTap();
+        } : null,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 42,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: isOpen
+                  ? const Color(0xFFC49028).withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (isActive || isOpen) ? gold : Colors.white.withValues(alpha: 0.1),
+                width: isOpen ? 2.0 : 1.5,
+              ),
+              boxShadow: (isActive || isOpen)
+                  ? [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                        blurStyle: BlurStyle.inner,
+                      ),
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                        blurStyle: BlurStyle.inner,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Center(
+              child: Text(
+                loc.qaid,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: GoogleFonts.readexPro().fontFamily,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualAkkaButton extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _ManualAkkaButton({
     required this.isActive,
     required this.onTap,
   });
@@ -802,94 +789,13 @@ class _QaidButton extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                loc.qaid,
+                loc.localizeBubble('Akka'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: FontWeight.w900,
-                  fontFamily: GoogleFonts.readexPro().fontFamily,
-                  height: 1.1,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AutoAkkahButton extends StatelessWidget {
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _AutoAkkahButton({
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = GameL10n.of(context);
-    const gold = Color(0xFFD4AF37);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          context.read<GameProvider>().audioService.playGoldButton();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: 42,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isActive ? gold : Colors.white.withValues(alpha: 0.1),
-                width: 1.5,
-              ),
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        offset: const Offset(0, 1),
-                        blurRadius: 2,
-                        blurStyle: BlurStyle.inner,
-                      ),
-                      BoxShadow(
-                        color: gold.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      )
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        offset: const Offset(0, 1),
-                        blurRadius: 2,
-                        blurStyle: BlurStyle.inner,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Center(
-              child: Text(
-                loc.autoAkkah,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isActive ? gold : Colors.white.withValues(alpha: 0.3),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: GameL10n.of(context).isArabic ? GoogleFonts.readexPro().fontFamily : null,
+                  fontFamily: loc.isArabic ? GoogleFonts.readexPro().fontFamily : null,
                   height: 1.1,
                 ),
               ),

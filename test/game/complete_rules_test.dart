@@ -176,7 +176,7 @@ void main() {
       _bidHakam(ctrl);
 
       expect(ctrl.gamePhase, GamePhase.doubleWindow);
-      ctrl.skipDoubleWindow();
+      if (ctrl.gamePhase == GamePhase.doubleWindow) ctrl.skipDoubleWindow();
       expect(ctrl.gamePhase, GamePhase.playing);
     });
   });

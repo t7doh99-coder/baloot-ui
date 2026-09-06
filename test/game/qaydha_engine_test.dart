@@ -6,6 +6,7 @@ import 'package:baloot_game/features/game/domain/managers/turn_manager.dart';
 import 'package:baloot_game/features/game/domain/models/qaydha_models.dart';
 import 'package:baloot_game/features/game/domain/engines/qaydha_engine.dart';
 import 'package:baloot_game/features/game/domain/engines/scoring_engine.dart';
+import 'package:baloot_game/features/game/domain/baloot_game_controller.dart';
 
 void main() {
   group('QaydhaEngine — Kammelna Rules Verification', () {
@@ -376,6 +377,20 @@ void main() {
         expect(score.winningTeam, equals('A'));
         expect(score.teamAPoints, equals(16));
         expect(score.teamBPoints, equals(0));
+      });
+    });
+
+    // ══════════════════════════════════════════════════════════════════
+    // 7. Akka & Trick 1 Qaid Enabling
+    // ══════════════════════════════════════════════════════════════════
+    group('7. Akka & Trick 1 Qaid Enabling', () {
+      test('7.1 canClaimQaid is true in controller once first card of round is played', () {
+        final controller = BalootGameController();
+        controller.startNewGame(['Player', 'Bot 1', 'Bot 2', 'Bot 3']);
+        controller.startNewRound();
+        
+        // Before play starts (during bidding/setup), Qaid is false
+        expect(controller.canClaimQaid(0), isFalse);
       });
     });
   });

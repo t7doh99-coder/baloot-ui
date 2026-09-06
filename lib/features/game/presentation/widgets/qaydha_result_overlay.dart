@@ -13,7 +13,7 @@ class QaydhaResultOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
     final isAr = context.watch<LocaleProvider>().isArabic;
-    final font = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+    final font = GoogleFonts.readexPro;
 
     final result = game.qaydhaChallengeResult;
     if (result == null) return const SizedBox.shrink();

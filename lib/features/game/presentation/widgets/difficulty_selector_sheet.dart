@@ -34,7 +34,7 @@ class _DifficultySelectorSheetState extends State<DifficultySelectorSheet> {
   @override
   Widget build(BuildContext context) {
     final isAr = context.watch<LocaleProvider>().isArabic;
-    final titleFont = isAr ? GoogleFonts.cairo : GoogleFonts.readexPro;
+    final titleFont = GoogleFonts.readexPro;
 
     return Container(
       decoration: const BoxDecoration(
@@ -190,8 +190,8 @@ class _DiffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleFont = isAr ? GoogleFonts.cairo : GoogleFonts.readexPro;
-    final bodyFont = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+    final titleFont = GoogleFonts.readexPro;
+    final bodyFont = GoogleFonts.readexPro;
 
     return GestureDetector(
       onTap: () {

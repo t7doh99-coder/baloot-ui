@@ -95,6 +95,7 @@ class LastRoundResult {
   final bool isQaydha;
   final bool qaydhaCorrect;
   final String? qaydhaChallengerTeam;
+  final QaydhaViolationType? qaydhaViolationType;
 
   const LastRoundResult({
     required this.teamAPoints,
@@ -121,6 +122,7 @@ class LastRoundResult {
     this.isQaydha = false,
     this.qaydhaCorrect = false,
     this.qaydhaChallengerTeam,
+    this.qaydhaViolationType,
   });
 }
 
@@ -380,13 +382,15 @@ class GameProvider extends ChangeNotifier {
 
   bool _hasRound2PendingBid = false;
 
-  /// Whether Auto-Akkah is enabled by the user (default true)
+  /// Whether Auto-Akka is enabled by the user (default true)
   bool _autoAkkahEnabled = true;
   bool get autoAkkahEnabled => _autoAkkahEnabled;
+  bool get autoAkkaEnabled => _autoAkkahEnabled;
   void toggleAutoAkkah() {
     _autoAkkahEnabled = !_autoAkkahEnabled;
     notifyListeners();
   }
+  void toggleAutoAkka() => toggleAutoAkkah();
 
   bool get hasRound2PendingBid =>
       phase == GamePhase.notStarted ? false : _engine.hasRound2PendingBid;
@@ -549,7 +553,14 @@ class GameProvider extends ChangeNotifier {
   String? get qaidClaimMessage => _qaidClaimMessage;
 
   /// Whether the human player can currently claim Qaid (Standard manual flag).
-  bool get canClaimQaid => _engine.canClaimQaid(0);
+  bool get canClaimQaid {
+    if (_isFalseEkkaWindowOpen) return true;
+    if (isSawaRevealPlaying) {
+      final claimant = _sawaRevealClaimSeat ?? 0;
+      return claimant % 2 != 0; // Opponent claimed Sawa -> Human can claim Qaid!
+    }
+    return _engine.canClaimQaid(0);
+  }
 
   /// Clear the Qaid notification (called after UI shows it).
   void clearQaidViolation() {
@@ -717,6 +728,17 @@ class GameProvider extends ChangeNotifier {
     _roundCancelled = false;
     _isMatchOverOverlayReady = false;
     _clearSawaRevealState();
+    _akkaPronouncedSeatsThisRound.clear();
+    _lastAwalDealerSeat = null;
+
+    // Reset Qaydha state
+    _isQaydhaReviewVisible = false;
+    _currentQaydhaAction = null;
+    _qaydhaChallengeResult = null;
+    _selectedQaydhaViolationIndex = null;
+    _selectedQaydhaProofTrickIndex = null;
+    _selectedQaydhaProofSeatIndex = null;
+    _selectedQaydhaProofCardIndex = null;
 
     // Schedule dealing→bidding BEFORE notifyListeners. On low-end phones a
     // heavy listener rebuild can throw; if we notified first, the dealing
@@ -744,9 +766,7 @@ class GameProvider extends ChangeNotifier {
         if (_engine.gamePhase == GamePhase.bidding) {
           // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
           final dealerSeat = _engine.roundState.dealerIndex;
-          Timer(const Duration(milliseconds: 400), () {
-            _showBubble(dealerSeat, 'Awal');
-          });
+          _announceDealerAwal(dealerSeat);
         }
         notifyListeners();
       } catch (e, st) {
@@ -765,9 +785,7 @@ class GameProvider extends ChangeNotifier {
         if (_engine.gamePhase == GamePhase.bidding) {
           // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
           final dealerSeat = _engine.roundState.dealerIndex;
-          Timer(const Duration(milliseconds: 400), () {
-            _showBubble(dealerSeat, 'Awal');
-          });
+          _announceDealerAwal(dealerSeat);
         }
         notifyListeners();
       } catch (e, st) {
@@ -964,7 +982,10 @@ class GameProvider extends ChangeNotifier {
       } else if (trickBefore == 1) {
         // Announce user's manually declared projects (if any) when they play their first card
         _announceProjects(0);
-      } else if (_autoAkkahEnabled && _engine.isAkka(card)) {
+      } else if (_autoAkkahEnabled &&
+                 !_akkaPronouncedSeatsThisRound.contains(0) &&
+                 _engine.isAkka(card)) {
+        _akkaPronouncedSeatsThisRound.add(0);
         // Standard "أكة" — auto-detect strongest remaining card of suit
         _showBubble(0, 'Akka');
       }
@@ -1009,8 +1030,12 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Generic Sawa claim — badge + all hands revealed [~5s], then round score.
-  static const int _sawaRevealDurationMs = 5000;
+  /// Standard-style Sawa: all hands revealed with 7s countdown, then round score.
+  static const int _sawaRevealDurationSeconds = 7;
+  int _sawaCountdownSeconds = 7;
+  int get sawaCountdownSeconds => _sawaCountdownSeconds;
+  Timer? _sawaCountdownTimer;
+  Timer? _botSawaObjectionTimer;
 
   void humanClaimSawa() {
     if (phase != GamePhase.playing || !canSawa) return;
@@ -1028,28 +1053,59 @@ class GameProvider extends ChangeNotifier {
       (s) => List<CardModel>.from(_engine.getHand(s)),
     );
     _sawaRevealClaimSeat = seat;
+    _sawaCountdownSeconds = _sawaRevealDurationSeconds;
+    if (seat % 2 != 0) {
+      _isFalseSawaWindowOpen = true;
+    }
     
-    // Check if the claim is false (Khataa). If so, bots will object!
     final isSawaValid = _engine.isSawaMathematicallyValid(seat);
-    if (!isSawaValid) {
-      // Find an opponent to object
-      final opponentSeat = (seat + 1) % 4; // Right opponent
-      Timer(const Duration(milliseconds: 1500), () {
-        _showBubble(opponentSeat, 'Qaid'); // Qaid translates to Object (إعتراض)
+
+    // 1. If human claimed invalid Sawa, opponent bot objects after 2.5s
+    if (!isSawaValid && seat % 2 == 0) {
+      final opponentSeat = (seat + 1) % 4;
+      _botSawaObjectionTimer = Timer(const Duration(milliseconds: 2500), () {
+        if (!isSawaRevealPlaying) return;
+        _showBubble(opponentSeat, 'Qaid');
+        _finalizeSawaReveal(seat, isObjectionCorrect: true);
       });
     }
 
+    // 2. If opponent claimed invalid Sawa and human doesn't object by 5.5s, partner bot objects
+    if (!isSawaValid && seat % 2 != 0) {
+      _botSawaObjectionTimer = Timer(const Duration(milliseconds: 5500), () {
+        if (!isSawaRevealPlaying) return;
+        _showBubble(2, 'Qaid');
+        _finalizeSawaReveal(seat, isObjectionCorrect: true);
+      });
+    }
+
+    // 3. Periodic countdown timer (1s ticks)
+    _sawaCountdownTimer?.cancel();
+    _sawaCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_sawaCountdownSeconds > 1) {
+        _sawaCountdownSeconds--;
+        notifyListeners();
+      } else {
+        timer.cancel();
+      }
+    });
+
     notifyListeners();
 
+    // 4. Expiration after 7 seconds: if no one objected, Sawa succeeds naturally!
     _sawaRevealTimer = Timer(
-      const Duration(milliseconds: _sawaRevealDurationMs),
-      () => _finalizeSawaReveal(seat, isObjectionCorrect: !isSawaValid),
+      const Duration(seconds: _sawaRevealDurationSeconds),
+      () => _finalizeNaturalSawa(seat),
     );
   }
 
-  void _finalizeSawaReveal(int seat, {required bool isObjectionCorrect}) {
+  void _finalizeNaturalSawa(int seat) {
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
+    _sawaCountdownTimer?.cancel();
+    _sawaCountdownTimer = null;
+    _botSawaObjectionTimer?.cancel();
+    _botSawaObjectionTimer = null;
 
     try {
       if (phase != GamePhase.playing) {
@@ -1059,24 +1115,72 @@ class GameProvider extends ChangeNotifier {
       }
       _sawaRevealHands = null;
       _sawaRevealClaimSeat = null;
+      _isFalseSawaWindowOpen = false;
 
       _sawaSkipTablePauseBeforeScoreboard = true;
-      _engine.resolveSawaObjection(seat, isObjectionCorrect);
-      if (seat == 0) HapticFeedback.heavyImpact();
+      _engine.claimSawa(seat);
       _afterEngineAction();
     } catch (e) {
-      debugPrint('[GameProvider] SawaReveal error: $e');
+      debugPrint('[GameProvider] NaturalSawa error: $e');
       _sawaSkipTablePauseBeforeScoreboard = false;
       _clearSawaRevealState();
       notifyListeners();
     }
   }
 
+  void _finalizeSawaObjection(int seat, {required bool isObjectionCorrect, bool isHumanChallenger = false}) {
+    _sawaRevealTimer?.cancel();
+    _sawaRevealTimer = null;
+    _sawaCountdownTimer?.cancel();
+    _sawaCountdownTimer = null;
+    _botSawaObjectionTimer?.cancel();
+    _botSawaObjectionTimer = null;
+
+    try {
+      if (phase != GamePhase.playing) {
+        _clearSawaRevealState();
+        notifyListeners();
+        return;
+      }
+      _sawaRevealHands = null;
+      _sawaRevealClaimSeat = null;
+      _isFalseSawaWindowOpen = false;
+
+      if (isHumanChallenger) {
+        HapticFeedback.heavyImpact();
+        if (isObjectionCorrect) {
+          _audioService.playGoldButton();
+        } else {
+          _audioService.playNormalButton();
+        }
+      }
+
+      _sawaSkipTablePauseBeforeScoreboard = true;
+      _engine.resolveSawaObjection(seat, isObjectionCorrect);
+      _afterEngineAction();
+    } catch (e) {
+      debugPrint('[GameProvider] SawaObjection error: $e');
+      _sawaSkipTablePauseBeforeScoreboard = false;
+      _clearSawaRevealState();
+      notifyListeners();
+    }
+  }
+
+  void _finalizeSawaReveal(int seat, {required bool isObjectionCorrect}) {
+    _finalizeSawaObjection(seat, isObjectionCorrect: isObjectionCorrect, isHumanChallenger: false);
+  }
+
   void _clearSawaRevealState() {
     _sawaRevealTimer?.cancel();
     _sawaRevealTimer = null;
+    _sawaCountdownTimer?.cancel();
+    _sawaCountdownTimer = null;
+    _botSawaObjectionTimer?.cancel();
+    _botSawaObjectionTimer = null;
     _sawaRevealHands = null;
     _sawaRevealClaimSeat = null;
+    _isFalseSawaWindowOpen = false;
+    _sawaCountdownSeconds = _sawaRevealDurationSeconds;
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1174,45 +1278,34 @@ class GameProvider extends ChangeNotifier {
     if (roundJustScored) {
       _prevCompletedTricks = 0;
       _roundJustEnded = true;
-      // After normal trick 8: 3s table pause then scoreboard. After Sawa reveal we already
-      // held ~5s of animation — show scoreboard immediately.
+      // After normal trick 8: 3s table pause then scoreboard. After Sawa/Qaydha reveal we already
+      // held an animation/review window — show scoreboard immediately.
       final quick = _sawaSkipTablePauseBeforeScoreboard;
       _sawaSkipTablePauseBeforeScoreboard = false;
       HapticFeedback.heavyImpact();
-      _botTimer = Timer(
-        Duration(milliseconds: quick ? 0 : 3000),
-        () {
-        _captureLastRoundResult(); // shows scoreboard overlay
-        notifyListeners();
-        // Auto-dismiss scoreboard and start next round after 6 seconds
+      if (quick) {
+        _captureLastRoundResult(); // shows scoreboard overlay immediately
         _botTimer = Timer(const Duration(milliseconds: 6000), () {
-          _roundJustEnded = false;
-          _lastRoundResult = null;
-          
-          if (_engine.isGameOver) {
-            _isMatchOverOverlayReady = true;
-          } else if (_engine.gamePhase == GamePhase.scoring) {
-            _engine.startNewRound();
-            _prevPhase = _engine.gamePhase;
-            _prevBiddingPhase = _engine.roundState.biddingPhase;
-            // Clear all lingering bubbles (e.g. Akka from last trick)
-            // so they don't bleed into the new bidding phase.
-            _clearAllBubbles();
-            if (_engine.gamePhase == GamePhase.bidding) {
-              // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
-              final dealerSeat = _engine.roundState.dealerIndex;
-              Timer(const Duration(milliseconds: 400), () {
-                _showBubble(dealerSeat, 'Awal');
-              });
-            }
-          }
-          notifyListeners();
-          _scheduleNextAction();
+          _dismissScoreboardAndStartNextRound();
         });
-      },
-      );
+      } else {
+        _botTimer = Timer(
+          const Duration(milliseconds: 3000),
+          () {
+            _captureLastRoundResult(); // shows scoreboard overlay
+            notifyListeners();
+            _botTimer = Timer(const Duration(milliseconds: 6000), () {
+              _dismissScoreboardAndStartNextRound();
+            });
+          },
+        );
+      }
     } else {
       _lastRoundResult = null; // clear stale result from previous round
+    }
+
+    if (_prevPhase != GamePhase.playing && newPhase == GamePhase.playing) {
+      _akkaPronouncedSeatsThisRound.clear();
     }
 
     _prevPhase = newPhase;
@@ -1254,9 +1347,7 @@ class GameProvider extends ChangeNotifier {
     if (_engine.gamePhase == GamePhase.bidding) {
       // Kammelna rule: The DEALER announces 'Awal' when a new round starts.
       final dealerSeat = _engine.roundState.dealerIndex;
-      Timer(const Duration(milliseconds: 400), () {
-        _showBubble(dealerSeat, 'Awal');
-      });
+      _announceDealerAwal(dealerSeat);
     }
     notifyListeners();
     _scheduleNextAction();
@@ -1273,9 +1364,7 @@ class GameProvider extends ChangeNotifier {
       if (_engine.gamePhase == GamePhase.bidding) {
         // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
         final dealerSeat = _engine.roundState.dealerIndex;
-        Timer(const Duration(milliseconds: 400), () {
-          _showBubble(dealerSeat, 'Awal');
-        });
+        _announceDealerAwal(dealerSeat);
       }
       notifyListeners();
       _scheduleNextAction();
@@ -1297,13 +1386,53 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  void _dismissScoreboardAndStartNextRound() {
+    _roundJustEnded = false;
+    _lastRoundResult = null;
+    _qaydhaChallengeResult = null; // Clear any stale qaydha result
+    _isQaydhaReviewVisible = false;
+    _currentQaydhaAction = null;
+    _falseEkkaWindowTimer?.cancel();
+    _isFalseEkkaWindowOpen = false;
+    _lastAkkaSeat = null;
+    _lastAkkaCard = null;
+    _falseSawaWindowTimer?.cancel();
+    _isFalseSawaWindowOpen = false;
+    _akkaPronouncedSeatsThisRound.clear();
+    _lastAwalDealerSeat = null;
+    
+    if (_engine.isGameOver) {
+      _isMatchOverOverlayReady = true;
+    } else if (_engine.gamePhase == GamePhase.scoring) {
+      _engine.startNewRound();
+      _prevPhase = _engine.gamePhase;
+      _prevBiddingPhase = _engine.roundState.biddingPhase;
+      // Clear all lingering bubbles (e.g. Akka from last trick)
+      // so they don't bleed into the new bidding phase.
+      _clearAllBubbles();
+      if (_engine.gamePhase == GamePhase.bidding) {
+        // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
+        final dealerSeat = _engine.roundState.dealerIndex;
+        _announceDealerAwal(dealerSeat);
+      }
+    }
+    notifyListeners();
+    _scheduleNextAction();
+  }
+
   void _scheduleNextAction() {
     if (_engine.isGameOver) return;
     if (_autoPlaySuspended) return;
 
-    _cancelTimers();
-
     final p = _engine.gamePhase;
+
+    if (p == GamePhase.scoring) {
+      // Scoreboard is displayed via roundJustScored / Qaydha logic. We just wait here.
+      // The timer will dismiss it and call startNewRound.
+      return;
+    }
+
+    _cancelTimers();
 
     if (p == GamePhase.dealing) {
       // Very first deal at game start — advance quickly after short animation.
@@ -1312,12 +1441,6 @@ class GameProvider extends ChangeNotifier {
       _botTimer = Timer(const Duration(milliseconds: 1200), () {
         _advanceFromDealing();
       });
-      return;
-    }
-
-    if (p == GamePhase.scoring) {
-      // Scoreboard is displayed via roundJustScored logic. We just wait here.
-      // The roundJustScored timer will dismiss it and call startNewRound.
       return;
     }
 
@@ -1406,7 +1529,19 @@ class GameProvider extends ChangeNotifier {
     final hasPendingBidBefore = _engine.hasRound2PendingBid;
 
     try {
-      // In-play Sawa (hand reveal / end round): human only — bots never auto-claim.
+      // In-play Sawa (hand reveal / end round)
+      if (phaseBefore == GamePhase.playing && _engine.canSawa(seat)) {
+        final isValidSawa = _engine.isSawaMathematicallyValid(seat);
+        if (isValidSawa) {
+          final botClaimsSawa = (_lastDifficulty == BotDifficulty.hard && _rng.nextDouble() < 0.85) ||
+                                (_rng.nextDouble() < 0.50);
+          if (botClaimsSawa) {
+            _showBubble(seat, 'Sawa');
+            _startSawaReveal(seat);
+            return;
+          }
+        }
+      }
 
       final declaredBefore = roundState.declaredProjects.length;
       final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
@@ -1429,8 +1564,14 @@ class GameProvider extends ChangeNotifier {
           // Standard "أكة" — auto-detect strongest remaining card of suit
           // Find the card this bot just played (last card in current trick or last trick)
           final lastCard = _engine.lastPlayedCardBySeat(seat);
-          if (lastCard != null && _engine.isAkka(lastCard)) {
+          if (lastCard != null &&
+              !_akkaPronouncedSeatsThisRound.contains(seat) &&
+              _engine.isAkka(lastCard)) {
+            _akkaPronouncedSeatsThisRound.add(seat);
             _showBubble(seat, 'Akka');
+            if (seat % 2 != 0) {
+              _openFalseEkkaWindow(seat, lastCard);
+            }
           } else {
             _checkBotExpressions(seat, event: 'turn');
           }
@@ -1728,6 +1869,7 @@ class GameProvider extends ChangeNotifier {
       isQaydha: d.isQaydha,
       qaydhaCorrect: d.qaydhaCorrect,
       qaydhaChallengerTeam: d.qaydhaChallengerTeam,
+      qaydhaViolationType: d.qaydhaViolationType ?? _qaydhaChallengeResult?.violationType,
     );
 
     if (_engine.isGameOver) {
@@ -1863,27 +2005,158 @@ class GameProvider extends ChangeNotifier {
   int? get selectedQaydhaProofCardIndex => _selectedQaydhaProofCardIndex;
 
   List<CardModel> getHandForSeatSnapshot(int? trickIndex, int seatIndex) {
-    if (trickIndex != null && trickIndex < trickHistoryThisRound.length) {
-      final snapshot = trickHistoryThisRound[trickIndex].handsAtStartOfTrick?[seatIndex];
-      if (snapshot != null && snapshot.isNotEmpty) return snapshot;
-    }
     return getHand(seatIndex);
   }
 
   QaydhaResult? _qaydhaChallengeResult;
   QaydhaResult? get qaydhaChallengeResult => _qaydhaChallengeResult;
 
-  // ── Contextual Challenge Windows (7-second timer) ──
+  // ── Contextual Challenge Windows (8-second timer) ──
   Timer? _falseEkkaWindowTimer;
   bool _isFalseEkkaWindowOpen = false;
   bool get isFalseEkkaWindowOpen => _isFalseEkkaWindowOpen;
+  int? _lastAkkaSeat;
+  CardModel? _lastAkkaCard;
+  final Set<int> _akkaPronouncedSeatsThisRound = {};
+  int? _lastAwalDealerSeat;
+
+  void _announceDealerAwal(int dealerSeat) {
+    if (_lastAwalDealerSeat == dealerSeat) return;
+    _lastAwalDealerSeat = dealerSeat;
+    Timer(const Duration(milliseconds: 400), () {
+      _showBubble(dealerSeat, 'Awal');
+    });
+  }
+
+  void _openFalseEkkaWindow(int seat, CardModel card) {
+    _lastAkkaSeat = seat;
+    _lastAkkaCard = card;
+    _falseEkkaWindowTimer?.cancel();
+    _isFalseEkkaWindowOpen = true;
+    notifyListeners();
+    _falseEkkaWindowTimer = Timer(const Duration(seconds: 8), () {
+      _isFalseEkkaWindowOpen = false;
+      notifyListeners();
+    });
+  }
 
   Timer? _falseSawaWindowTimer;
   bool _isFalseSawaWindowOpen = false;
   bool get isFalseSawaWindowOpen => _isFalseSawaWindowOpen;
 
+  bool _isQaidMenuOpen = false;
+  bool get isQaidMenuOpen => _isQaidMenuOpen;
+
+  void toggleQaidMenu() {
+    if (!canClaimQaid || isQaydhaReviewVisible) {
+      _isQaidMenuOpen = false;
+    } else {
+      _isQaidMenuOpen = !_isQaidMenuOpen;
+    }
+    notifyListeners();
+  }
+
+  void closeQaidMenu() {
+    if (_isQaidMenuOpen) {
+      _isQaidMenuOpen = false;
+      notifyListeners();
+    }
+  }
+
   void handleQaydhaMenuSelection(QaydhaActionType action) {
+    _isQaidMenuOpen = false;
+    notifyListeners();
+    if (action == QaydhaActionType.wrongTrick) {
+      _handleFalseEkkaChallenge();
+      return;
+    }
+    if (action == QaydhaActionType.wrongSawa) {
+      if (isSawaRevealPlaying || _isFalseSawaWindowOpen) {
+        final claimant = _sawaRevealClaimSeat ?? 1;
+        final isValid = _engine.isSawaMathematicallyValid(claimant);
+        _finalizeSawaObjection(claimant, isObjectionCorrect: !isValid, isHumanChallenger: true);
+      }
+      return;
+    }
     startQaydha(action);
+  }
+
+  void _handleFalseEkkaChallenge() {
+    _currentQaydhaAction = QaydhaActionType.wrongTrick;
+    _selectedQaydhaViolationIndex = 4;
+    final akkaCard = _lastAkkaCard ??
+        (_engine.roundState.currentTrick.isNotEmpty
+            ? _engine.roundState.currentTrick.first.card
+            : (_engine.lastTrickResult?.cards.isNotEmpty == true
+                ? _engine.lastTrickResult!.cards.first.card
+                : null));
+
+    if (akkaCard == null) return;
+
+    final mode = _engine.roundState.activeMode ?? GameMode.hakam;
+    final trumpSuit = _engine.roundState.trumpSuit;
+    final suit = akkaCard.suit;
+    final playedStrength = akkaCard.getStrength(mode: mode, trumpSuit: trumpSuit);
+
+    // Collect all cards of this suit played in previous completed tricks
+    final Set<Rank> playedRanks = {};
+    for (final trick in trickHistoryThisRound) {
+      for (final play in trick.cards) {
+        if (play.card.suit == suit) {
+          playedRanks.add(play.card.rank);
+        }
+      }
+    }
+
+    // Is there any rank of this suit that hasn't been played yet and is stronger than akkaCard?
+    bool hasHigherUnplayedCard = false;
+    for (final rank in Rank.values) {
+      if (!playedRanks.contains(rank)) {
+        final hypothetical = CardModel(suit: suit, rank: rank);
+        if (hypothetical == akkaCard) continue;
+        final strength = hypothetical.getStrength(mode: mode, trumpSuit: trumpSuit);
+        if (strength > playedStrength) {
+          hasHigherUnplayedCard = true;
+          break;
+        }
+      }
+    }
+
+    // If higher unplayed card exists, the Akka was FALSE -> Challenge is CORRECT!
+    // If no higher unplayed card exists, the Akka was VALID -> Challenge is INCORRECT!
+    final isCorrect = hasHigherUnplayedCard;
+
+    final result = QaydhaResult(
+      challengerIndex: 0,
+      accusedCard: akkaCard,
+      trickIndex: trickHistoryThisRound.length,
+      violationType: QaydhaViolationType.falseEkka,
+      isCorrect: isCorrect,
+    );
+
+    _falseEkkaWindowTimer?.cancel();
+    _isFalseEkkaWindowOpen = false;
+
+    if (isCorrect) {
+      _audioService.playGoldButton();
+    } else {
+      _audioService.playNormalButton();
+    }
+
+    _cancelTimers();
+    _engine.applyQaydhaResult(result);
+    _roundJustEnded = true;
+    // NOTE: Do NOT set _qaydhaChallengeResult here — this is the auto-fire path.
+    // Setting it would make QaydhaReviewOverlay render on top of the RoundScoreOverlay,
+    // hiding the scoreboard entirely. The auto-fire path goes straight to the scoreboard.
+    _qaydhaChallengeResult = null;
+    _captureLastRoundResult();
+    _prevPhase = _engine.gamePhase;
+    notifyListeners();
+
+    _botTimer = Timer(const Duration(milliseconds: 6000), () {
+      _dismissScoreboardAndStartNextRound();
+    });
   }
 
   void startQaydha(QaydhaActionType action) {
@@ -1906,6 +2179,7 @@ class GameProvider extends ChangeNotifier {
     _isQaydhaReviewVisible = false;
     _currentQaydhaAction = null;
     _qaydhaChallengeResult = null;
+    _selectedQaydhaViolationIndex = null;
     _selectedQaydhaProofTrickIndex = null;
     _selectedQaydhaProofSeatIndex = null;
     _selectedQaydhaProofCardIndex = null;
@@ -1922,7 +2196,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void selectQaydhaCard(int trickIndex, int seatIndex, {int? cardIndexInTrick}) {
-    // 1. If tapping the currently selected accused card -> deselect accused card
+    // 1. If tapping the currently selected accused card -> deselect accused card & reset proof card
     if (_selectedQaydhaTrickIndex == trickIndex && _selectedQaydhaCardSeatIndex == seatIndex) {
       _selectedQaydhaTrickIndex = null;
       _selectedQaydhaCardSeatIndex = null;
@@ -1931,7 +2205,8 @@ class GameProvider extends ChangeNotifier {
       _selectedQaydhaProofCardIndex = null;
     } 
     // 2. If tapping the currently selected proof card in trick -> deselect proof card
-    else if (_selectedQaydhaProofTrickIndex == trickIndex && _selectedQaydhaProofSeatIndex == seatIndex) {
+    else if (_selectedQaydhaProofTrickIndex == trickIndex &&
+             (_selectedQaydhaProofSeatIndex == seatIndex || _selectedQaydhaProofCardIndex == cardIndexInTrick)) {
       _selectedQaydhaProofTrickIndex = null;
       _selectedQaydhaProofSeatIndex = null;
       _selectedQaydhaProofCardIndex = null;
@@ -1944,17 +2219,32 @@ class GameProvider extends ChangeNotifier {
       _selectedQaydhaProofSeatIndex = null;
       _selectedQaydhaProofCardIndex = null;
     }
-    // 4. An accused card is already selected -> this becomes the Proof Card in trick (GREEN)
-    else {
+    // 4. An accused card is selected, but NO proof card is selected yet -> this becomes Proof Card (GREEN)
+    else if (_selectedQaydhaProofTrickIndex == null &&
+             _selectedQaydhaProofSeatIndex == null &&
+             _selectedQaydhaProofCardIndex == null) {
       _selectedQaydhaProofTrickIndex = trickIndex;
       _selectedQaydhaProofSeatIndex = seatIndex;
       _selectedQaydhaProofCardIndex = cardIndexInTrick ?? 0;
+    }
+    // 5. BOTH cards were already selected (Red + Green)! 
+    // Tapping a 3rd card RESETS both previous cards and starts fresh with this 3rd card as the new Accused Card (RED)
+    else {
+      _selectedQaydhaProofTrickIndex = null;
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
+      _selectedQaydhaTrickIndex = trickIndex;
+      _selectedQaydhaCardSeatIndex = seatIndex;
     }
     audioService.playCardSelect();
     notifyListeners();
   }
 
   void selectQaydhaProofCard(int seatIndex, int cardIndex) {
+    if (_selectedQaydhaTrickIndex == null) {
+      // Must select accused card from a trick first
+      return;
+    }
     if (_selectedQaydhaProofTrickIndex == null &&
         _selectedQaydhaProofSeatIndex == seatIndex &&
         _selectedQaydhaProofCardIndex == cardIndex) {
@@ -1973,8 +2263,10 @@ class GameProvider extends ChangeNotifier {
 
   void submitQaydhaChallenge() {
     if (_currentQaydhaAction == QaydhaActionType.wrongSawa) {
-      if (isSawaRevealPlaying) {
-        _finalizeSawaReveal(0, isObjectionCorrect: true);
+      if (isSawaRevealPlaying || _isFalseSawaWindowOpen) {
+        final claimant = _sawaRevealClaimSeat ?? 1;
+        final isValid = _engine.isSawaMathematicallyValid(claimant);
+        _finalizeSawaObjection(claimant, isObjectionCorrect: !isValid, isHumanChallenger: true);
       }
       cancelQaydha();
       return;
@@ -2001,7 +2293,7 @@ class GameProvider extends ChangeNotifier {
       );
       explicitProofCard = cardPlay.card;
     } else if (_selectedQaydhaProofSeatIndex != null && _selectedQaydhaProofCardIndex != null) {
-      final hand = getHandForSeatSnapshot(effectiveTrickIndex, _selectedQaydhaProofSeatIndex!);
+      final hand = getHand(_selectedQaydhaProofSeatIndex!);
       if (_selectedQaydhaProofCardIndex! < hand.length) {
         explicitProofCard = hand[_selectedQaydhaProofCardIndex!];
       }
@@ -2053,31 +2345,48 @@ class GameProvider extends ChangeNotifier {
   }
 
   void closeQaydhaResult() {
-    if (_qaydhaChallengeResult != null) {
-      _engine.applyQaydhaResult(_qaydhaChallengeResult!);
-    }
+    final result = _qaydhaChallengeResult;
     _isQaydhaReviewVisible = false;
     _currentQaydhaAction = null;
     _qaydhaChallengeResult = null;
+    _selectedQaydhaViolationIndex = null;
     _selectedQaydhaProofTrickIndex = null;
     _selectedQaydhaProofSeatIndex = null;
     _selectedQaydhaProofCardIndex = null;
     _autoPlaySuspended = false;
     _audioService.playNormalButton();
-    notifyListeners();
-    if (_engine.gamePhase == GamePhase.playing) {
-      _scheduleNextAction();
+
+    if (result != null) {
+      _cancelTimers();
+      _engine.applyQaydhaResult(result);
+      _roundJustEnded = true;
+      _captureLastRoundResult();
+      _prevPhase = _engine.gamePhase;
+      notifyListeners();
+
+      // Auto-dismiss scoreboard and start next round after 6 seconds
+      _botTimer = Timer(const Duration(milliseconds: 6000), () {
+        _dismissScoreboardAndStartNextRound();
+      });
+    } else {
+      notifyListeners();
+      if (_engine.gamePhase == GamePhase.playing) {
+        _scheduleNextAction();
+      }
     }
   }
 
   bool get canEkka => _engine.canEkka(0) && !isSawaRevealPlaying;
+  bool get canAkka => canEkka;
   
   void claimEkka() {
     if (!canEkka) return;
-    _showBubble(0, 'Ekka');
+    _akkaPronouncedSeatsThisRound.add(0);
+    _showBubble(0, 'Akka');
     HapticFeedback.heavyImpact();
     _engine.claimEkka(0);
   }
+  void claimAkka() => claimEkka();
   void setMockQaydhaTricks(List<dynamic> tricks) {}
   void forceShowQaydhaReview() {
     _isQaydhaReviewVisible = true;
@@ -2127,6 +2436,12 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
   //  CLEANUP
   // ══════════════════════════════════════════════════════════════════
+
+  @visibleForTesting
+  void openFalseEkkaWindowForTest(int seat, CardModel card) => _openFalseEkkaWindow(seat, card);
+
+  @visibleForTesting
+  void startSawaRevealForTest(int seat) => _startSawaReveal(seat);
 
   @override
   void dispose() {

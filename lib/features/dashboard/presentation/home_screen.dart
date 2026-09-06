@@ -21,10 +21,8 @@ import '../../../data/models/card_model.dart';
 import '../../../data/models/bot_difficulty.dart';
 import 'game_mode_result_screen.dart';
 import 'widgets/premium_subscription_popup.dart';
-import 'navigation_shell.dart';
 import 'alerts_screen.dart';
 import 'player_profile_screen.dart';
-import 'qaydha_test_screen.dart';
 import 'widgets/animated_flame_icon.dart';
 import 'package:baloot_game/core/painters/diamond_painter.dart';
 import '../../../data/models/rank_tier.dart';
@@ -62,6 +60,331 @@ Future<T?> _pushSlideUp<T>(BuildContext context, Widget screen) {
     ),
   );
 }
+
+void _showPrivacyDialog(BuildContext context, bool isArabic) {
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      final font = isArabic ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF2C2210), Color(0xFF1E1608)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFC49028), width: 1.5),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x77000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF3D2E15),
+                    border: Border.all(color: const Color(0xFFD4A843), width: 1.5),
+                  ),
+                  child: const Icon(
+                    Icons.shield_rounded,
+                    color: Color(0xFFF0CA60),
+                    size: 32,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isArabic ? 'سياسة الخصوصية' : 'Privacy Policy',
+                textAlign: TextAlign.center,
+                style: font(
+                  color: const Color(0xFFF0CA60),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161005),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x33C49028)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPrivacyPoint(
+                      icon: Icons.lock_outline_rounded,
+                      title: isArabic ? 'حماية البيانات' : 'Data Protection',
+                      body: isArabic
+                          ? 'نلتزم بحماية خصوصيتك وبياناتك ومستواك بالكامل داخل اللعبة.'
+                          : 'We are committed to protecting your personal gameplay data and privacy.',
+                      font: font,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPrivacyPoint(
+                      icon: Icons.security_rounded,
+                      title: isArabic ? 'عدم مشاركة المعلومات' : 'No Data Sharing',
+                      body: isArabic
+                          ? 'لا نقوم ببيع أو مشاركة أي بيانات شخصية مع أي جهات خارجية أو معلنين.'
+                          : 'We do not sell or share any personal data with third parties or advertisers.',
+                      font: font,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPrivacyPoint(
+                      icon: Icons.tune_rounded,
+                      title: isArabic ? 'إدارة الخصوصية' : 'Privacy Controls',
+                      body: isArabic
+                          ? 'يمكنك إدارة إعدادات حسابك وتفضيلات الصوت واللعب دائماً من شاشة الإعدادات.'
+                          : 'You can manage your account and gameplay settings at any time in Settings.',
+                      font: font,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFD4A843), Color(0xFFA86C04)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFF0CA60), width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x44D4A843),
+                        blurRadius: 10,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      isArabic ? 'إغلاق' : 'Close',
+                      style: font(
+                        color: const Color(0xFF1A0F03),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildPrivacyPoint({
+  required IconData icon,
+  required String title,
+  required String body,
+  required TextStyle Function({Color? color, double? fontSize, FontWeight? fontWeight}) font,
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, color: const Color(0xFFD4A843), size: 18),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: font(
+                color: const Color(0xFFF8EDD8),
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              body,
+              style: font(
+                color: const Color(0xFFA08868),
+                fontSize: 11,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+void _showLogoutConfirmationDialog(BuildContext context, bool isArabic) {
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      final font = isArabic ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF2C2210), Color(0xFF1E1608)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFC49028), width: 1.5),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x77000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF3B1B1B),
+                  border: Border.all(color: const Color(0xFFE53935), width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: Color(0xFFE53935),
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                isArabic ? 'تسجيل الخروج' : 'Log Out',
+                style: font(
+                  color: const Color(0xFFF0CA60),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isArabic
+                    ? 'هل أنت متأكد أنك تريد تسجيل الخروج؟'
+                    : 'Are you sure you want to log out?',
+                textAlign: TextAlign.center,
+                style: font(
+                  color: const Color(0xFFE0D0B8),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1608),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0x66C49028)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            isArabic ? 'إلغاء' : 'Cancel',
+                            style: font(
+                              color: const Color(0xFFA08868),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isArabic ? 'تم تسجيل الخروج بنجاح' : 'Logged out successfully',
+                              style: font(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                            backgroundColor: const Color(0xFF2C2210),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFEF9A9A), width: 1),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x44B71C1C),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            isArabic ? 'تسجيل الخروج' : 'Log Out',
+                            style: font(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 
 
 class _T3GameMode {
@@ -617,12 +940,12 @@ class _T1TopBar extends StatelessWidget {
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: isArabic ? 'الخصوصية' : 'Privacy', onTap: () {
                               Navigator.pop(dialogContext);
-                              _pushSlideUp(context, const NavigationShell());
+                              _showPrivacyDialog(context, isArabic);
                             }),
                             _divider(),
                             _crMenuItem(context: dialogContext, icon: Icons.logout_rounded, label: isArabic ? 'تسجيل الخروج' : 'Log Out', onTap: () {
                               Navigator.pop(dialogContext);
-                              _pushSlideUp(context, const QaydhaTestScreen());
+                              _showLogoutConfirmationDialog(context, isArabic);
                             }),
                           ],
                         ),

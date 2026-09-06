@@ -25,7 +25,7 @@ class GameL10n {
   /// Round 1 pass — apps often use بس (Standard-style).
   String get pass => _ar ? 'بس' : 'Pass';
   /// Round 2 only — Jawaker/Standard often use ولا instead of باس.
-  String get passRound2 => _ar ? 'ولا' : 'Pass';
+  String get passRound2 => _ar ? 'ولا' : 'Wala';
   String get hakam => _ar ? 'حكم' : 'Hakam';
   /// Round 2: choose a new trump (not buyer-card suit). Same action as suit-picker Hakam.
   String get secondHakam => _ar ? 'حكم ثاني' : 'Second Hakam';
@@ -71,7 +71,8 @@ class GameL10n {
   String get noProjectsFound => _ar ? 'لا توجد مشاريع في يدك' : 'No projects found in your hand';
   String get skip => _ar ? 'تخطي' : 'Skip';
   String get declared => _ar ? 'معلنة' : 'Declared';
-  String get autoAkkah => _ar ? 'تأكيك تلقائي' : 'Auto Akkah';
+  String get autoAkka => _ar ? 'أكة تلقائية' : 'Auto Akka';
+  String get autoAkkah => autoAkka;
   String get abnat => _ar ? 'أبناط' : 'Abnat';
   String get gameLogCopied => _ar ? 'تم نسخ السجل!' : 'Game log copied to clipboard!';
   String get copyGameLog => _ar ? 'نسخ سجل اللعب' : 'Copy Game Log';
@@ -186,7 +187,8 @@ class GameL10n {
   /// Localize speech-bubble text produced by [GameProvider] (English tokens).
   String localizeBubble(String en) {
     if (!_ar) {
-      if (en == 'PassR2') return 'Pass';
+      if (en == 'PassR2') return 'Wala';
+      if (en == 'Ekka') return 'Akka';
       // Disabled for now per user request:
       // if (en == 'Celebrate') return '🎉 Nice!';
       // if (en == 'Oops') return '😅 Oops!';
@@ -230,6 +232,7 @@ class GameL10n {
       '400' => 'أربعمية',
       'Baloot' => 'بلوت',
       'Akka' => 'أكة',
+      'Ekka' => 'أكة',
       // Disabled for now per user request:
       // 'Celebrate' => '🎉 كفو!',
       // 'Oops' => '😅 أوف!',

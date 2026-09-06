@@ -22,6 +22,7 @@ import 'widgets/scoring_overlays.dart';
 import 'widgets/trick_area_widget.dart';
 import 'widgets/last_trick_mini_widget.dart';
 import 'widgets/qaydha_review_overlay.dart';
+import 'widgets/qaid_popup_menu_widget.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
 import 'widgets/game_table_majlis_hud.dart';
@@ -128,8 +129,8 @@ class _GameTableScreenState extends State<GameTableScreen> {
 
   void _confirmLeave(BuildContext context, GameProvider game) {
     final isAr = context.read<LocaleProvider>().isArabic;
-    final titleFont = isAr ? GoogleFonts.cairo : GoogleFonts.readexPro;
-    final bodyFont = isAr ? GoogleFonts.tajawal : GoogleFonts.readexPro;
+    final titleFont = GoogleFonts.readexPro;
+    final bodyFont = GoogleFonts.readexPro;
 
     showDialog<void>(
       context: context,
@@ -302,17 +303,12 @@ class _GameTableScreenState extends State<GameTableScreen> {
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
-    final sawaBottom = game.isSawaRevealPlaying
-        ? game.sawaRevealCardsForSeat(0)
+    final humanProjectCards = (game.showProjectReveal && game.projectRevealSeat == 0)
+        ? game.winningTeamBestProjectsForReveal
+            .where((p) => p.playerIndex == 0)
+            .expand((p) => p.cards)
+            .toList()
         : const <CardModel>[];
-    final humanProjectCards = sawaBottom.isNotEmpty
-        ? sawaBottom
-        : (game.showProjectReveal && game.projectRevealSeat == 0
-            ? game.winningTeamBestProjectsForReveal
-                .where((p) => p.playerIndex == 0)
-                .expand((p) => p.cards)
-                .toList()
-            : const <CardModel>[]);
 
     return PopScope(
       canPop: _allowPop,
@@ -398,6 +394,26 @@ class _GameTableScreenState extends State<GameTableScreen> {
                         bottom: 0,
                         child: _HumanDashboardWidget(game: game),
                       ),
+
+                      // 5) Qaid 3-Option Popup Menu
+                      // Positioned above the Qaid button, covering the left cards (8♥, 10♠, 9♦).
+                      // Fully intercepts all gestures so tapping options never selects cards underneath.
+                      if (game.isQaidMenuOpen && !game.isQaydhaReviewVisible) ...[
+                        // Fullscreen barrier: tapping outside dismisses Qaid menu without selecting cards
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => game.closeQaidMenu(),
+                            child: const ColoredBox(color: Colors.transparent),
+                          ),
+                        ),
+                        Positioned(
+                          left: 14 * layoutScale,
+                          bottom: GameTableLayout.handStackBottom(layoutScale) + 6 * layoutScale,
+                          width: 165 * layoutScale,
+                          child: const QaidPopupMenuWidget(),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -420,6 +436,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
               right: 0,
               child: Center(child: _DoubleBadge(status: game.doubleStatus)),
             ),
+
           if (game.lastRoundResult != null)
             const RoundScoreOverlay()
           else if (game.showGameOverOverlay)
@@ -895,14 +912,22 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final dealer    = widget.game.dealerIndex;
       final sane      = (dealer + 3) % 4;
       final canAshkal = (0 == dealer || 0 == sane);
-      // Ashkal is illegal on an Ace buyer card — hide the button to prevent confusion.
-      // (The engine still handles it as a penalty if somehow triggered, but the button
-      // simply should not appear, matching Kammelna behaviour.)
       final buyerIsAce = widget.game.buyerCard?.rank == Rank.ace;
+      final hasActiveHakam = gp.hasActiveHakamBid;
+
+      // When an opponent has bid Hakam in Round 1 (matching Kammelna & client video):
+      // The defending player has: [صن] (Sun), [دبل] (Double), and [بس] (Pass / Bas)
+      if (hasActiveHakam && !canAshkal) {
+        return [
+          _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
+          _GameBtn(label: loc.doubleWord, onTap: () => _openDoublePicker(DoubleStatus.doubled)),
+          _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
+        ];
+      }
 
       return [
         _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        if (!gp.hasActiveHakamBid || dealer == 0 || sane == 0)
+        if (!hasActiveHakam || dealer == 0 || sane == 0)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (canAshkal && !buyerIsAce)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
@@ -952,23 +977,23 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     ];
   }
 
+  void _openDoublePicker(DoubleStatus d) {
+    setState(() {
+      _pendingDouble = d;
+      _activePicker  = _DashboardPicker.doublePlay;
+    });
+  }
+
   // ── Double/pass action buttons ─────────────────────────────────────────
   List<Widget> _doubleButtons(BuildContext ctx, GameL10n loc) {
     final gp     = ctx.read<GameProvider>();
     final status = widget.game.doubleStatus;
     final mode   = widget.game.roundState.activeMode ?? GameMode.hakam;
 
-    void openDoublePicker(DoubleStatus d) {
-      setState(() {
-        _pendingDouble = d;
-        _activePicker  = _DashboardPicker.doublePlay;
-      });
-    }
-
     if (gp.isHumanBuyer) {
       if (status == DoubleStatus.doubled && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.triple, onTap: () => openDoublePicker(DoubleStatus.tripled)),
+          _GameBtn(label: loc.triple, onTap: () => _openDoublePicker(DoubleStatus.tripled)),
           _GameBtn(label: loc.pass,   onTap: () => gp.humanSkipDouble()),
         ];
       }
@@ -989,20 +1014,20 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       }
       if (status != DoubleStatus.none) return [];
       return [
-        _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+        _GameBtn(label: loc.doubleWord, onTap: () => _openDoublePicker(DoubleStatus.doubled)),
         _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
       ];
     }
 
     if (status == DoubleStatus.none) {
       return [
-        _GameBtn(label: loc.doubleWord, onTap: () => openDoublePicker(DoubleStatus.doubled)),
+        _GameBtn(label: loc.doubleWord, onTap: () => _openDoublePicker(DoubleStatus.doubled)),
         _GameBtn(label: loc.pass,       onTap: () => gp.humanSkipDouble()),
       ];
     }
     if (status == DoubleStatus.tripled) {
       return [
-        _GameBtn(label: loc.four, onTap: () => openDoublePicker(DoubleStatus.four)),
+        _GameBtn(label: loc.four, onTap: () => _openDoublePicker(DoubleStatus.four)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
       ];
     }
@@ -1036,10 +1061,16 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     final gp = ctx.read<GameProvider>();
     return [
        _GameBtn(label: loc.closed, onTap: () {
+         if (gp.phase == GamePhase.bidding) {
+           gp.humanBid(BidAction.pass);
+         }
          gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: false);
          setState(() => _activePicker = _DashboardPicker.none);
        }),
        _GameBtn(label: loc.open, onTap: () {
+         if (gp.phase == GamePhase.bidding) {
+           gp.humanBid(BidAction.pass);
+         }
          gp.humanDouble(_pendingDouble ?? DoubleStatus.doubled, isOpenPlay: true);
          setState(() => _activePicker = _DashboardPicker.none);
        }),
