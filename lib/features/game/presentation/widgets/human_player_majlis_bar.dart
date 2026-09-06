@@ -124,10 +124,10 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
     final game   = context.watch<GameProvider>();
     _syncRingTicker(humanTurn: game.isHumanTurn);
 
-    final name       = game.playerName(0);
+    final isAr       = context.read<LocaleProvider>().isArabic;
+    final name       = game.playerName(0, isArabic: isAr);
     final badge      = _badgeParts(game, loc);
     final secs       = game.turnTimerSeconds;
-    final isAr       = context.read<LocaleProvider>().isArabic;
 
     final bool ringActive = game.isHumanTurn;
     final ringSecondsText = game.isHumanTurn ? '${secs ?? 0}' : '';
@@ -242,10 +242,15 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 Expanded(
                   child: (game.phase == GamePhase.playing && 
                           !game.canDeclareProjects)
-                    ? _ManualAkkaButton(
-                        isActive: game.canEkka,
-                        onTap: () => game.claimAkka(),
-                      )
+                    ? (game.isAkkaAutoSetting
+                        ? _AutoAkkaButton(
+                            isActive: game.autoAkkaEnabled,
+                            onTap: () => game.toggleAutoAkka(),
+                          )
+                        : _ManualAkkaButton(
+                            isActive: game.canEkka,
+                            onTap: () => game.claimAkka(),
+                          ))
                     : _ProjectButton(
                         isActive: game.canDeclareProjects,
                         isExpanded: widget.isProjectExpanded,
@@ -799,6 +804,91 @@ class _ManualAkkaButton extends StatelessWidget {
                   height: 1.1,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoAkkaButton extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _AutoAkkaButton({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = GameL10n.of(context);
+    final isArabic = loc.isArabic;
+    const gold = Color(0xFFD4AF37);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          context.read<GameProvider>().audioService.playNormalButton();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 42,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: isActive ? gold.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isActive ? gold : Colors.white.withValues(alpha: 0.15),
+                width: 1.5,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                        blurStyle: BlurStyle.inner,
+                      ),
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      loc.autoAkka,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: isActive ? gold : Colors.white.withValues(alpha: 0.4),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: isArabic ? GoogleFonts.readexPro().fontFamily : null,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

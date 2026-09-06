@@ -6,6 +6,7 @@ import 'package:baloot_game/features/game/domain/managers/turn_manager.dart';
 import 'package:baloot_game/features/game/domain/models/qaydha_models.dart';
 import 'package:baloot_game/features/game/domain/engines/qaydha_engine.dart';
 import 'package:baloot_game/features/game/domain/engines/scoring_engine.dart';
+import 'package:baloot_game/features/game/domain/managers/bidding_manager.dart';
 import 'package:baloot_game/features/game/domain/baloot_game_controller.dart';
 
 void main() {
@@ -384,13 +385,37 @@ void main() {
     // 7. Akka & Trick 1 Qaid Enabling
     // ══════════════════════════════════════════════════════════════════
     group('7. Akka & Trick 1 Qaid Enabling', () {
-      test('7.1 canClaimQaid is true in controller once first card of round is played', () {
+      test('7.1 canClaimQaid is enabled in controller once Trick 1 completes', () {
         final controller = BalootGameController();
         controller.startNewGame(['Player', 'Bot 1', 'Bot 2', 'Bot 3']);
         controller.startNewRound();
         
         // Before play starts (during bidding/setup), Qaid is false
         expect(controller.canClaimQaid(0), isFalse);
+
+        // Pass Round 1 with Sun bid
+        final firstBidder = controller.roundState.currentPlayerIndex;
+        controller.placeBid(firstBidder, BidAction.sun);
+        if (controller.gamePhase == GamePhase.doubleWindow) controller.skipDoubleWindow();
+
+        // During Trick 1, before 4 cards are played: Qaid is false
+        expect(controller.canClaimQaid(0), isFalse);
+
+        // Play 4 cards to complete Trick 1
+        for (int i = 0; i < 4; i++) {
+          final curPlayer = controller.roundState.currentPlayerIndex;
+          final hand = controller.getHand(curPlayer);
+          final trick = controller.roundState.currentTrick;
+          final leadSuit = trick.isEmpty ? null : trick.first.card.suit;
+          final card = hand.firstWhere(
+            (c) => leadSuit == null || c.suit == leadSuit,
+            orElse: () => hand.first,
+          );
+          controller.playCard(curPlayer, card);
+        }
+
+        // Once Trick 1 has completed, Qaid is enabled!
+        expect(controller.canClaimQaid(0), isTrue);
       });
     });
   });

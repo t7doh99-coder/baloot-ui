@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/errors/game_exceptions.dart' show PlayViolationException;
 import '../../../core/services/game_audio_service.dart';
@@ -38,6 +39,9 @@ import 'widgets/qaydha_types.dart' show QaydhaActionType;
 //   • Human player = seat 0 (bottom); bots = seats 1, 2, 3
 //   • Exposes convenience getters so widgets stay thin
 // ══════════════════════════════════════════════════════════════════
+
+/// Akka announcement mode: Manual (tap button) vs Auto (automatic announcement)
+enum AkkaMode { manual, auto }
 
 /// A speech bubble message shown near a player avatar.
 class PlayerBubble {
@@ -222,6 +226,8 @@ class GameProvider extends ChangeNotifier {
       : _engine = BalootGameController(random: random ?? Random()),
         _rng = random ?? Random() {
     _initStats();
+    _loadAkkaMode();
+    _loadInitialLocale();
   }
 
   // ── Player Stats ──
@@ -382,10 +388,52 @@ class GameProvider extends ChangeNotifier {
 
   bool _hasRound2PendingBid = false;
 
-  /// Whether Auto-Akka is enabled by the user (default true)
+  // ── Akka Announcement Mode (Manual vs Auto) ──
+  AkkaMode _akkaMode = AkkaMode.auto;
+  AkkaMode get akkaMode => _akkaMode;
+  bool get isAkkaAutoSetting => _akkaMode == AkkaMode.auto;
+
+  /// Whether Auto-Akka is enabled by the user (default true in auto mode)
   bool _autoAkkahEnabled = true;
   bool get autoAkkahEnabled => _autoAkkahEnabled;
   bool get autoAkkaEnabled => _autoAkkahEnabled;
+
+  Future<void> _loadAkkaMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final modeStr = prefs.getString('pref_akka_mode');
+      if (modeStr == 'manual') {
+        _akkaMode = AkkaMode.manual;
+        _autoAkkahEnabled = false;
+        notifyListeners();
+      } else if (modeStr == 'auto') {
+        _akkaMode = AkkaMode.auto;
+        _autoAkkahEnabled = true;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setAkkaMode(AkkaMode mode) async {
+    _akkaMode = mode;
+    _autoAkkahEnabled = (mode == AkkaMode.auto);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pref_akka_mode', mode == AkkaMode.manual ? 'manual' : 'auto');
+    } catch (_) {}
+  }
+
+  Future<void> _loadInitialLocale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final code = prefs.getString('selected_locale');
+      if (code != null) {
+        _audioService.setLanguage(code);
+      }
+    } catch (_) {}
+  }
+
   void toggleAutoAkkah() {
     _autoAkkahEnabled = !_autoAkkahEnabled;
     notifyListeners();
@@ -660,9 +708,15 @@ class GameProvider extends ChangeNotifier {
   int get lastHumanThrowHandCount => _lastHumanThrowHandCount;
 
   /// Player names.
-  String playerName(int seat) {
-    if (seat == 0) return _playerStats.playerName;
-    if (_audioService.langCode != 'ar') {
+  String playerName(int seat, {bool? isArabic}) {
+    final ar = isArabic ?? (_audioService.langCode == 'ar');
+    if (seat == 0) {
+      if (_playerStats.playerName == 'Player' || _playerStats.playerName == 'You' || _playerStats.playerName.isEmpty) {
+        return ar ? 'أنت' : 'You';
+      }
+      return _playerStats.playerName;
+    }
+    if (!ar) {
       return _playerNames[seat % _playerNames.length]; // 'You', 'Jim', 'Michael', 'Dwight'
     }
     try {
@@ -729,6 +783,7 @@ class GameProvider extends ChangeNotifier {
     _isMatchOverOverlayReady = false;
     _clearSawaRevealState();
     _akkaPronouncedSeatsThisRound.clear();
+    _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
 
     // Reset Qaydha state
@@ -972,22 +1027,45 @@ class GameProvider extends ChangeNotifier {
     try {
       final trickBefore = trickNumber;
       final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
+      
+      final isAutoAkkaCandidate = _autoAkkahEnabled &&
+          !_akkaPronouncedSeatsThisRound.contains(0) &&
+          _engine.canEkka(0) &&
+          _engine.isAkka(card);
+
+      if (isAutoAkkaCandidate) {
+        _akkaPronouncedSeatsThisRound.add(0);
+        _engine.claimEkka(0);
+      }
+
       _engine.playCard(0, card);
       _selectedCard = null;
       HapticFeedback.mediumImpact();
+
       // Announce Baloot if the 2nd K-Q trump card just triggered auto-declaration
       final balootAfter = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
       if (balootAfter > balootBefore) {
         _showBubble(0, 'Baloot');
-      } else if (trickBefore == 1) {
-        // Announce user's manually declared projects (if any) when they play their first card
-        _announceProjects(0);
-      } else if (_autoAkkahEnabled &&
-                 !_akkaPronouncedSeatsThisRound.contains(0) &&
-                 _engine.isAkka(card)) {
-        _akkaPronouncedSeatsThisRound.add(0);
-        // Standard "أكة" — auto-detect strongest remaining card of suit
-        _showBubble(0, 'Akka');
+      } else {
+        bool hasProjects = false;
+        if (trickBefore == 1) {
+          final projects = roundState.declaredProjects
+              .where((p) => p.playerIndex == 0 && p.type != ProjectType.baloot)
+              .toList();
+          if (projects.isNotEmpty) {
+            hasProjects = true;
+            _announceProjects(0);
+          }
+        }
+        if (isAutoAkkaCandidate) {
+          if (hasProjects) {
+            Timer(const Duration(milliseconds: 1200), () {
+              _showBubble(0, 'Akka');
+            });
+          } else {
+            _showBubble(0, 'Akka');
+          }
+        }
       }
       _afterEngineAction();
     } on PlayViolationException catch (e) {
@@ -1399,6 +1477,7 @@ class GameProvider extends ChangeNotifier {
     _falseSawaWindowTimer?.cancel();
     _isFalseSawaWindowOpen = false;
     _akkaPronouncedSeatsThisRound.clear();
+    _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
     
     if (_engine.isGameOver) {
@@ -1527,6 +1606,7 @@ class GameProvider extends ChangeNotifier {
     final bpBefore = roundState.biddingPhase;
     final dealerBefore = roundState.dealerIndex;
     final hasPendingBidBefore = _engine.hasRound2PendingBid;
+    final doubleStatusBefore = roundState.doubleStatus;
 
     try {
       // In-play Sawa (hand reveal / end round)
@@ -1553,7 +1633,7 @@ class GameProvider extends ChangeNotifier {
       if (phaseBefore == GamePhase.bidding) {
         _inferBotBidBubble(seat, bpBefore, hasPendingBidBefore);
       } else if (phaseBefore == GamePhase.doubleWindow) {
-        _inferBotDoubleBubble(seat);
+        _inferBotDoubleBubble(seat, doubleStatusBefore);
       } else if (phaseBefore == GamePhase.playing) {
         // Baloot declaration takes priority over regular project announcements
         if (balootAfter > balootBefore) {
@@ -1630,7 +1710,7 @@ class GameProvider extends ChangeNotifier {
         } else {
           final suit = _engine.activeRound2PendingTrump;
           // Mimic 2-step human UI: "Hukam Sani" -> 0.7s -> Suit
-          _showBubble(seat, 'Hukam Sani');
+          _showBubble(seat, 'Hakam Sani');
           Timer(const Duration(milliseconds: 700), () {
             _showBubble(seat, _suitNameText(suit));
           });
@@ -1652,13 +1732,11 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Infer what the bot did in the double window.
-  void _inferBotDoubleBubble(int seat) {
-    final ds = _engine.roundState.doubleStatus;
-    if (ds != DoubleStatus.none) {
-      _showBubble(seat, _doubleLabel(ds));
+  void _inferBotDoubleBubble(int seat, DoubleStatus doubleStatusBefore) {
+    final rs = _engine.roundState;
+    if (rs.doubleStatus != doubleStatusBefore && rs.doubleCallerIndex == seat) {
+      _showBubble(seat, _doubleLabel(rs.doubleStatus));
     }
-    // Note: If the bot passes (DoubleStatus.none), we do NOT show a "Pass" bubble.
-    // This ensures a clean, silent transition to gameplay without lingering "Bas" bubbles.
   }
 
   void _startTurnTimer() {
@@ -2436,6 +2514,9 @@ class GameProvider extends ChangeNotifier {
   // ══════════════════════════════════════════════════════════════════
   //  CLEANUP
   // ══════════════════════════════════════════════════════════════════
+
+  @visibleForTesting
+  BalootGameController get engine => _engine;
 
   @visibleForTesting
   void openFalseEkkaWindowForTest(int seat, CardModel card) => _openFalseEkkaWindow(seat, card);

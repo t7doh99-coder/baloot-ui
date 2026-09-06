@@ -61,7 +61,8 @@ class PlayerSeatWidget extends StatelessWidget {
     final isActive  = game.currentPlayerIndex == seat;
     final isDealer  = game.dealerIndex == seat;
     final isBuyer   = game.buyerIndex  == seat;
-    final name      = game.playerName(seat);
+    final isAr      = context.watch<LocaleProvider>().isArabic;
+    final name      = game.playerName(seat, isArabic: isAr);
     final cardCount = game.handSize(seat);
     final bubble    = game.bubbles[seat];
 

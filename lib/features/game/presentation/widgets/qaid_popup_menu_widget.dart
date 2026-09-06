@@ -98,8 +98,10 @@ class QaidPopupMenuWidget extends StatelessWidget {
             _buildMenuItem(
               context: context,
               label: isAr ? 'اكشف الورق' : 'Reveal Cards',
-              isActive: true,
-              inactiveHint: '',
+              isActive: game.canClaimQaid,
+              inactiveHint: isAr
+                  ? 'متاح فقط بعد انتهاء الأكلة الأولى'
+                  : 'Active only after the first trick has been played!',
               onTap: () {
                 game.closeQaidMenu();
                 game.handleQaydhaMenuSelection(QaydhaActionType.reviewTricks);

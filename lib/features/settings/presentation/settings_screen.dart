@@ -113,6 +113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: Icons.sports_esports_rounded,
                           child: Column(
                             children: [
+                              _buildAkkaSelectorRow(),
                               _buildToggleRow(icon: Icons.style_rounded, label: widget.isArabic ? 'تظليل الورق' : 'Card Shading', subtitle: widget.isArabic ? 'تظليل الأوراق غير متاح في اللعب المحدود' : 'Shading cards unavailable in limited play', value: _cardShading, onChanged: (v) => setState(() => _cardShading = v)),
                               _buildToggleRow(icon: Icons.swap_horiz_rounded, label: widget.isArabic ? 'تأكيد التبديل' : 'Swap Confirmation', subtitle: widget.isArabic ? 'إظهار قائمة التأكيد عند التبديل' : 'Show confirmation menu when playing Swap', value: _swapConfirmation, onChanged: (v) => setState(() => _swapConfirmation = v)),
                               _buildToggleRow(icon: Icons.shopping_cart_checkout_rounded, label: widget.isArabic ? 'تفعيل الشراء المسبق' : 'Select Pre-Buy', subtitle: widget.isArabic ? 'السماح بالشراء المسبق' : 'Allow pre-buying', value: _preBuy, onChanged: (v) => setState(() => _preBuy = v)),
@@ -373,6 +374,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }),
           ),
         ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  AKKA ANNOUNCEMENT SELECTOR (Manual vs Auto)
+  // ════════════════════════════════════════════════════════════════
+  Widget _buildAkkaSelectorRow() {
+    final gameProvider = context.watch<GameProvider>();
+    final isAuto = gameProvider.isAkkaAutoSetting;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kBgCanvas,
+              border: Border.all(color: _kSandBorder),
+            ),
+            child: const Icon(Icons.bolt_rounded, size: 18, color: _kTextSec),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.isArabic ? 'إعلان الإكّة' : 'Akka Announcement',
+                  style: GoogleFonts.cairo(color: _kTextPrim, fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.isArabic
+                      ? 'إعلان الإكّة باللعبة تلقائياً أو يدوياً عبر زر'
+                      : 'Announce Akka automatically or manually via button',
+                  style: GoogleFonts.readexPro(color: _kTextMuted, fontSize: 11, height: 1.2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Segmented Selector
+          Container(
+            height: 36,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: _kBgCanvas,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kSandBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildAkkaSegment(
+                  label: widget.isArabic ? 'تلقائي' : 'Auto',
+                  isSelected: isAuto,
+                  onTap: () => gameProvider.setAkkaMode(AkkaMode.auto),
+                ),
+                const SizedBox(width: 4),
+                _buildAkkaSegment(
+                  label: widget.isArabic ? 'يدوي' : 'Manual',
+                  isSelected: !isAuto,
+                  onTap: () => gameProvider.setAkkaMode(AkkaMode.manual),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAkkaSegment({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? _kSandGold : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          boxShadow: isSelected
+              ? const [BoxShadow(color: Color(0x66C49028), blurRadius: 6, offset: Offset(0, 1))]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.cairo(
+              color: isSelected ? _kBgCanvas : _kTextSec,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }

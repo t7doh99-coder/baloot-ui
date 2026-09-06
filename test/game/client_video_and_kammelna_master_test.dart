@@ -612,6 +612,14 @@ void main() {
       provider.audioService.setMuted(true);
       provider.startGame();
 
+      // Put engine into playing phase
+      provider.engine.startNewRound();
+      final firstBidder = provider.engine.roundState.currentPlayerIndex;
+      provider.engine.placeBid(firstBidder, BidAction.sun);
+      if (provider.engine.gamePhase == GamePhase.doubleWindow) {
+        provider.engine.skipDoubleWindow();
+      }
+
       // Simulate opponent Seat 1 leading King of Spades (Ace of Spades unplayed)
       const akkaCard = CardModel(suit: Suit.spades, rank: Rank.king);
       provider.openFalseEkkaWindowForTest(1, akkaCard);
@@ -621,18 +629,13 @@ void main() {
       // Challenger presses "False Ekka"
       provider.handleQaydhaMenuSelection(QaydhaActionType.wrongTrick);
 
-      // Must resolve instantly: overlay not open, result populated, window closed
+      // Must resolve instantly: overlay not open, window closed, scoreboard captured
       expect(provider.isQaydhaReviewVisible, isFalse);
       expect(provider.isFalseEkkaWindowOpen, isFalse);
-      expect(provider.qaydhaChallengeResult, isNotNull);
-      expect(provider.qaydhaChallengeResult!.isCorrect, isTrue); // Ace was unplayed -> Akka was false!
-      expect(provider.qaydhaChallengeResult!.violationType, equals(QaydhaViolationType.falseEkka));
-      expect(provider.currentQaydhaAction, equals(QaydhaActionType.wrongTrick));
-      expect(provider.selectedQaydhaViolationIndex, equals(4));
-
-      provider.closeQaydhaResult();
-      expect(provider.selectedQaydhaViolationIndex, isNull);
-      expect(provider.currentQaydhaAction, isNull);
+      expect(provider.lastRoundResult, isNotNull);
+      expect(provider.lastRoundResult!.isQaydha, isTrue);
+      expect(provider.lastRoundResult!.qaydhaCorrect, isTrue); // Ace was unplayed -> Akka was false!
+      expect(provider.lastRoundResult!.qaydhaViolationType, equals(QaydhaViolationType.falseEkka));
     });
 
     test('24. testFalseEkka_AceLead_DetectedAsAkka: Leading an Ace is recognized as Akka in Hakam and Sun', () {

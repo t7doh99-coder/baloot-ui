@@ -993,13 +993,13 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     if (gp.isHumanBuyer) {
       if (status == DoubleStatus.doubled && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.triple, onTap: () => _openDoublePicker(DoubleStatus.tripled)),
+          _GameBtn(label: loc.triple, onTap: () => gp.humanDouble(DoubleStatus.tripled, isOpenPlay: widget.game.isOpenPlay)),
           _GameBtn(label: loc.pass,   onTap: () => gp.humanSkipDouble()),
         ];
       }
       if (status == DoubleStatus.four && mode == GameMode.hakam) {
         return [
-          _GameBtn(label: loc.gahwa, onTap: () => gp.humanDouble(DoubleStatus.gahwa)),
+          _GameBtn(label: loc.gahwa, onTap: () => gp.humanDouble(DoubleStatus.gahwa, isOpenPlay: widget.game.isOpenPlay)),
           _GameBtn(label: loc.pass,  onTap: () => gp.humanSkipDouble()),
         ];
       }
@@ -1027,7 +1027,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     }
     if (status == DoubleStatus.tripled) {
       return [
-        _GameBtn(label: loc.four, onTap: () => _openDoublePicker(DoubleStatus.four)),
+        _GameBtn(label: loc.four, onTap: () => gp.humanDouble(DoubleStatus.four, isOpenPlay: widget.game.isOpenPlay)),
         _GameBtn(label: loc.pass, onTap: () => gp.humanSkipDouble()),
       ];
     }

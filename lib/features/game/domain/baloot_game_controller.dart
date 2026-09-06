@@ -47,6 +47,17 @@ class BalootGameController implements IBalootController {
   
   @visibleForTesting
   void setDealerIndexForTest(int index) => _dealerIndex = index;
+
+  @visibleForTesting
+  void setScoresForTest(int teamA, int teamB) {
+    _teamAScore = teamA;
+    _teamBScore = teamB;
+  }
+
+  @visibleForTesting
+  void setHandForTest(int seatIndex, List<CardModel> hand) {
+    _hands[seatIndex] = List<CardModel>.from(hand);
+  }
   int _targetScore = 152; // Default: Jawaker standard (152)
   GamePhase _gamePhase = GamePhase.notStarted;
 
@@ -178,25 +189,28 @@ class BalootGameController implements IBalootController {
     // After playCard(), either:
     //   a) Trick still in progress → card is in currentTrick
     //   b) Trick just completed → card is in trickHistory.last
+    // Before playCard(), if currentTrick is empty, this is candidate lead card.
     bool isLeadCard = false;
+    int historyCount = tm.trickHistory.length;
     if (tm.currentTrick.isNotEmpty) {
       // Trick in progress — was this card the first one?
       isLeadCard = tm.currentTrick.first.card == card;
-    } else if (tm.trickHistory.isNotEmpty) {
+      historyCount = tm.trickHistory.length;
+    } else if (tm.trickHistory.isNotEmpty &&
+               tm.trickHistory.last.cards.isNotEmpty &&
+               tm.trickHistory.last.cards.first.card == card) {
       // Trick just completed — was this card the lead?
-      final lastTrick = tm.trickHistory.last;
-      if (lastTrick.cards.isNotEmpty) {
-        isLeadCard = lastTrick.cards.first.card == card;
-      }
+      isLeadCard = true;
+      historyCount = tm.trickHistory.length - 1;
+    } else {
+      // Before playCard() — candidate lead card for upcoming trick
+      isLeadCard = true;
+      historyCount = tm.trickHistory.length;
     }
     if (!isLeadCard) return false;
 
     // Collect all cards of the SAME suit that have been played in PREVIOUS tricks
     final playedOfSuit = <CardModel>{};
-    // Only check completed tricks BEFORE the current one
-    final historyCount = tm.currentTrick.isNotEmpty
-        ? tm.trickHistory.length        // trick still going — all history is "before"
-        : tm.trickHistory.length - 1;   // trick just completed — exclude it
     for (int i = 0; i < historyCount; i++) {
       for (final play in tm.trickHistory[i].cards) {
         if (play.card.suit == card.suit) {
@@ -560,11 +574,15 @@ class BalootGameController implements IBalootController {
       }
     }
 
+    // Only the initial Double selects Open/Closed; subsequent escalations inherit it.
+    final bool effectiveIsOpenPlay =
+        (level == DoubleStatus.doubled) ? isOpenPlay : _roundState.isOpenPlay;
+
     if (level == DoubleStatus.gahwa) {
       // Gahwa = highest level, instantly closes double window and starts the round
       _roundState = _roundState.copyWith(
         doubleStatus: level,
-        isOpenPlay: isOpenPlay,
+        isOpenPlay: effectiveIsOpenPlay,
         isDoubleWindowOpen: false,
       );
       _gamePhase = GamePhase.playing;
@@ -589,7 +607,7 @@ class BalootGameController implements IBalootController {
     _roundState = _roundState.copyWith(
       doubleStatus: level,
       doubleCallerIndex: seatIndex,
-      isOpenPlay: isOpenPlay,
+      isOpenPlay: effectiveIsOpenPlay,
       currentPlayerIndex: nextSeat,
     );
     logger.log('[DoubleDebug] callDouble: seat=$seatIndex level=$level → roundState.doubleStatus=${_roundState.doubleStatus}');
@@ -811,9 +829,9 @@ class BalootGameController implements IBalootController {
   /// when another Qaid is already in progress, and after the round ends.
   bool canClaimQaid(int seatIndex) {
     if (_gamePhase != GamePhase.playing || _turnManager == null) return false;
-    // Qaid is available at any time once the first card of the round has been played.
-    final hasPlayStarted = _turnManager!.currentTrick.isNotEmpty || _turnManager!.trickHistory.isNotEmpty;
-    if (!hasPlayStarted) return false;
+    // Qaid is only available once at least Trick 1 has completed
+    // so there is at least one trick in history to review and challenge.
+    if (_turnManager!.trickHistory.isEmpty) return false;
     return true;
   }
 

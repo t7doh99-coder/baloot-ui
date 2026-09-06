@@ -71,8 +71,14 @@ class GameL10n {
   String get noProjectsFound => _ar ? 'لا توجد مشاريع في يدك' : 'No projects found in your hand';
   String get skip => _ar ? 'تخطي' : 'Skip';
   String get declared => _ar ? 'معلنة' : 'Declared';
-  String get autoAkka => _ar ? 'أكة تلقائية' : 'Auto Akka';
+  String get autoAkka => _ar ? 'إكّة تلقائية' : 'Auto Akka';
   String get autoAkkah => autoAkka;
+  String get akkaMode => _ar ? 'إعلان الإكّة' : 'Akka Announcement';
+  String get manual => _ar ? 'يدوي' : 'Manual';
+  String get auto => _ar ? 'تلقائي' : 'Auto';
+  String get akka => _ar ? 'إكّة' : 'Akka';
+  String get enabled => _ar ? 'مفعل' : 'ON';
+  String get disabled => _ar ? 'معطل' : 'OFF';
   String get abnat => _ar ? 'أبناط' : 'Abnat';
   String get gameLogCopied => _ar ? 'تم نسخ السجل!' : 'Game log copied to clipboard!';
   String get copyGameLog => _ar ? 'نسخ سجل اللعب' : 'Copy Game Log';
@@ -211,7 +217,7 @@ class GameL10n {
       'Hakam' => 'حكم',
       'Thani' => 'ثاني',
       'Sun' => 'صن',
-      'Qabalk' => 'قبلك',
+      'Qablak' => 'قبلك',
       'Sawa' => 'سوا',
       'Awal' => 'أول',
       'Kasho' => 'كاشو',

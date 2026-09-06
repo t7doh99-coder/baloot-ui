@@ -155,10 +155,10 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
 
     final List<Map<String, dynamic>> violations = [
       {'id': 0, 'label': isAr ? 'قاطع' : 'Cut', 'type': 'cut'},
-      {'id': 1, 'label': isAr ? 'ربع في الدبل' : 'Four in Double', 'type': 'diamond'},
-      {'id': 2, 'label': isAr ? 'ما كبر بحكم' : "Didn't Over-Trump", 'type': 'spade'},
-      {'id': 3, 'label': isAr ? 'ما دق بحكم' : "Didn't Trump", 'type': 'club'},
-      {'id': 4, 'label': isAr ? 'أكة خاطئة' : 'False Akka', 'type': 'star'},
+      {'id': 1, 'label': isAr ? 'ربع في\nالدبل' : 'Four in\nDouble', 'type': 'diamond'},
+      {'id': 2, 'label': isAr ? 'ما كبر\nبحكم' : "Didn't\nOver-Trump", 'type': 'spade'},
+      {'id': 3, 'label': isAr ? 'ما دق\nبحكم' : "Didn't\nTrump", 'type': 'club'},
+      {'id': 4, 'label': isAr ? 'أكة\nخاطئة' : 'False\nAkka', 'type': 'star'},
     ];
 
     return Container(
@@ -181,13 +181,13 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
       ),
       child: Column(
         children: [
-          // Centered "Select" and "Violation Type" heading
+          // Centered unified "Select Violation Type" heading
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 40,
-                height: 1,
+                width: 36,
+                height: 1.5,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.transparent, Color(0xFFD4A843)],
@@ -196,13 +196,22 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
               ),
               const SizedBox(width: 12),
               Text(
-                isAr ? 'أختر' : 'SELECT',
-                style: font(color: const Color(0x99D4A843), fontSize: 12, fontWeight: FontWeight.bold).copyWith(letterSpacing: 2),
+                isAr ? 'اختر نوع القيد' : 'Select Violation Type',
+                style: font(
+                  color: const Color(0xFFD4A843),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ).copyWith(
+                  shadows: const [
+                    Shadow(color: Color(0x66D4A843), blurRadius: 18),
+                    Shadow(color: Color(0x99000000), blurRadius: 4, offset: Offset(0, 2)),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Container(
-                width: 40,
-                height: 1,
+                width: 36,
+                height: 1.5,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Color(0xFFD4A843), Colors.transparent],
@@ -210,21 +219,6 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isAr ? 'نوع القيد' : 'Violation Type',
-            style: font(
-              color: const Color(0xFFD4A843),
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ).copyWith(
-              letterSpacing: 1,
-              shadows: [
-                const Shadow(color: Color(0x66D4A843), blurRadius: 20),
-                const Shadow(color: Color(0x99000000), blurRadius: 4, offset: Offset(0, 2)),
-              ],
-            ),
           ),
           const SizedBox(height: 16),
 
@@ -246,8 +240,8 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                   // Over-trump and Trump violations are ONLY valid in Hakam
                   isAvailable = !isSun;
                 } else if (vId == 4) {
-                  // False Ekka is valid in Hakam
-                  isAvailable = !isSun;
+                  // False Ekka is valid in both Hakam and Sun modes
+                  isAvailable = true;
                 }
 
                 final isSelected = isAvailable && selectedViolation == vId;
@@ -297,8 +291,8 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                                 color: !isAvailable
                                     ? const Color(0xFF5A4430)
                                     : (isSelected ? const Color(0xFFF0CA60) : const Color(0xFFA07850)),
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w900,
                               ).copyWith(height: 1.15),
                             ),
                           ],
@@ -710,7 +704,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
       bool isAr,
       {bool isResultMode = false}) {
     final hand = game.getHand(seatIndex);
-    final playerName = game.playerName(seatIndex);
+    final playerName = game.playerName(seatIndex, isArabic: isAr);
 
     return Container(
       decoration: BoxDecoration(
@@ -977,7 +971,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  game.playerName(0),
+                  game.playerName(0, isArabic: isAr),
                   style: font(color: const Color(0xFFF5E6C8), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ],
