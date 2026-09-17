@@ -85,18 +85,24 @@ class PlayingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(
-          0,
-          (selected && !suppressSelectionOffset) ? -12 : 0,
-          0,
-        ),
-        child: _buildCardShell(context),
+    final cardContent = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      transform: Matrix4.translationValues(
+        0,
+        (selected && !suppressSelectionOffset) ? -12 : 0,
+        0,
       ),
+      child: _buildCardShell(context),
+    );
+
+    if (onTap == null) {
+      return cardContent;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: cardContent,
     );
   }
 

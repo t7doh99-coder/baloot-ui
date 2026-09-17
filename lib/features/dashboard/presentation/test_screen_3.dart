@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
@@ -8,6 +8,7 @@ import 'package:baloot_game/core/painters/diamond_painter.dart';
 
 import 'package:provider/provider.dart';
 import 'package:baloot_game/core/l10n/locale_provider.dart';
+import 'matchup_versus_screen.dart';
 
 // ------------------------------------------------------------------
 //  TEST SCREEN 3 � Blue Clash-Royale-style Home Screen
@@ -650,8 +651,12 @@ class _QuickMenuButton extends StatelessWidget {
                             _crMenuItem(context: dialogContext, icon: Icons.settings_rounded, label: context.read<LocaleProvider>().isArabic ? '?????????' : 'Settings', onTap: () {}),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.language_rounded, label: 'Language', onTap: () {}),
-                            _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: context.read<LocaleProvider>().isArabic ? '???????? ??????' : 'Help & Support', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: context.read<LocaleProvider>().isArabic ? 'المساعدة والدعم' : 'Help & Support', onTap: () {
+                              Navigator.pop(dialogContext);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const MatchupVersusScreen()),
+                              );
+                            }),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: context.read<LocaleProvider>().isArabic ? '????????' : 'Privacy', onTap: () {}),
                             _divider(),

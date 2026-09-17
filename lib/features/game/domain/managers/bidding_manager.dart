@@ -42,6 +42,8 @@ class BiddingManager {
   int? _hakamConfirmBuyer;
   /// null → Round 1 Hakam (trump = buyer card suit); non-null → R2 Second Hakam trump.
   Suit? _hakamConfirmTrumpOverride;
+  /// True if we are in confirmation phase due to a Second Hakam in Round 2.
+  bool _isRound2Confirmation = false;
 
   /// Round 2: after Sun or Second Hakam, others Pass or Sawa (Jawaker/Kamelna §4.4).
   int? _round2PendingBuyer;
@@ -70,6 +72,7 @@ class BiddingManager {
   int get currentBidder => _currentBidder;
   int get passCount => _passCount;
   bool get isFinished => _isFinished;
+  bool get isRound2Confirmation => _isRound2Confirmation;
   BidResult? get result => _result;
 
   /// Whether someone has already bid Hakam in Round 1.
@@ -191,7 +194,7 @@ class BiddingManager {
       case BiddingPhase.round2:
         _handleRound2(seatIndex, action, secondHakamSuit);
       case BiddingPhase.hakamConfirmation:
-        _handleHakamConfirmation(seatIndex, action);
+        _handleHakamConfirmation(seatIndex, action, secondHakamSuit);
       case BiddingPhase.qablakIntervention:
         _handleQablakIntervention(seatIndex, action);
       case BiddingPhase.completed:
@@ -291,6 +294,7 @@ class BiddingManager {
             // (Jawaker/Kamelna/Visca rule: buyer gets a final choice.)
             _hakamConfirmBuyer = _round1HakamBidder;
             _hakamConfirmTrumpOverride = null;
+            _isRound2Confirmation = false;
             _phase = BiddingPhase.hakamConfirmation;
             _currentBidder = _round1HakamBidder!;
           } else {
@@ -343,7 +347,7 @@ class BiddingManager {
   /// Hakam Confirmation — buyer chooses: confirm Hakam OR switch to Sun.
   /// Round 1: after others pass a Hakam on buyer card suit.
   /// Round 2: after others pass a Second Hakam (Visca / Jawaker / Kammelna).
-  void _handleHakamConfirmation(int seatIndex, BidAction action) {
+  void _handleHakamConfirmation(int seatIndex, BidAction action, Suit? secondHakamSuit) {
     final buyer = _hakamConfirmBuyer;
     if (buyer == null) {
       throw const InvalidMoveException('Hakam confirmation state is invalid.');
@@ -357,7 +361,15 @@ class BiddingManager {
 
     switch (action) {
       case BidAction.confirmHakam:
-        final trump = _hakamConfirmTrumpOverride ?? buyerCard.suit;
+        final trump = secondHakamSuit ?? _hakamConfirmTrumpOverride ?? buyerCard.suit;
+        
+        if (_isRound2Confirmation && trump == buyerCard.suit) {
+          throw InvalidBidException(
+            playerIndex: seatIndex,
+            message: 'Second Hakam suit must differ from buyer card suit (${buyerCard.suit}).',
+          );
+        }
+
         _result = BidResult(
           mode: GameMode.hakam,
           buyerIndex: seatIndex,
@@ -421,13 +433,7 @@ class BiddingManager {
             );
           }
         }
-        if (secondHakamSuit == null) {
-          throw InvalidBidException(
-            playerIndex: seatIndex,
-            message: 'Must specify a suit for Second Hakam.',
-          );
-        }
-        if (secondHakamSuit == buyerCard.suit) {
+        if (secondHakamSuit != null && secondHakamSuit == buyerCard.suit) {
           throw InvalidBidException(
             playerIndex: seatIndex,
             message:
@@ -471,6 +477,7 @@ class BiddingManager {
             if (_round2PendingMode == GameMode.hakam) {
               _hakamConfirmBuyer = _round2PendingBuyer;
               _hakamConfirmTrumpOverride = _round2PendingTrump;
+              _isRound2Confirmation = true;
               _round2PendingBuyer = null;
               _round2PendingMode = null;
               _round2PendingTrump = null;

@@ -106,9 +106,9 @@ class GameAudioService {
     if (file == null) {
       // Handle "Hakam" or "Hakam Sani" fallback keys
       String key = bubbleKey;
-      if (key.startsWith('Hakam Sani ') && key.length > 11) {
+      if (key.startsWith('Hakam Sani')) {
         key = 'Hakam Sani';
-      } else if (key.startsWith('Hakam ') && key.length > 6) {
+      } else if (key.startsWith('Hakam') && key != 'Hakam Sani') {
         key = 'Hakam';
       }
 

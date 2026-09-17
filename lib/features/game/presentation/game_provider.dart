@@ -19,7 +19,7 @@ import '../../../data/models/player_model.dart';
 import '../../../data/models/player_stats.dart';
 import '../../../data/models/rank_tier.dart';
 import '../../../data/models/round_state_model.dart';
-import '../domain/baloot_game_controller.dart' show GamePhase, BalootGameController;
+import '../domain/baloot_game_controller.dart' show GamePhase, BalootGameController, BotCheatMode;
 import '../domain/engines/qaydha_engine.dart';
 import '../domain/models/qaydha_models.dart';
 import '../domain/engines/project_detector.dart';
@@ -222,6 +222,11 @@ class GameProvider extends ChangeNotifier {
   // ── God Mode (for debugging bots) ──
   bool _isGodModeEnabled = false;
 
+  // ── Card Restrictions (Smart Assistant) ──
+  // ON  (default): Illegal cards are dimmed & blocked. Current safe behavior.
+  // OFF (free play): All cards playable. Violations land on table for Qaid testing.
+  bool _cardRestrictionsEnabled = true;
+
   GameProvider({Random? random})
       : _engine = BalootGameController(random: random ?? Random()),
         _rng = random ?? Random() {
@@ -272,6 +277,17 @@ class GameProvider extends ChangeNotifier {
   void toggleGodMode() {
     _isGodModeEnabled = !_isGodModeEnabled;
     notifyListeners();
+  }
+
+  bool get cardRestrictionsEnabled => _cardRestrictionsEnabled;
+
+  void toggleCardRestrictions() {
+    _cardRestrictionsEnabled = !_cardRestrictionsEnabled;
+    notifyListeners();
+  }
+
+  void forceBotQaidMistake() {
+    notifyListeners(); // Obsolete, keeping for compatibility if referenced in UI
   }
 
   /// Safe accessor — returns a dummy empty RoundStateModel before game starts.
@@ -498,6 +514,8 @@ class GameProvider extends ChangeNotifier {
   /// Result of the last completed round.
   LastRoundResult? get lastRoundResult => _lastRoundResult;
 
+  bool get isRound2Confirmation => _engine.isRound2Confirmation;
+
   /// Last completed trick (4 cards by seat) for the top-right mini panel.
   /// Persists after a round ends until a new trick is played in the next round.
   /// Null before the first trick of the session → show red card backs.
@@ -580,7 +598,13 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Legally playable cards for the human player (seat 0).
-  List<CardModel> get validCards => _engine.getValidCards(0);
+  /// When card restrictions are OFF, returns all cards so nothing is dimmed.
+  List<CardModel> get validCards {
+    if (!_cardRestrictionsEnabled) {
+      return playerHand;
+    }
+    return _engine.getValidCards(0);
+  }
 
   /// Last completed trick (same as engine history tail).
   TrickResult? get lastTrickResult =>
@@ -818,7 +842,7 @@ class GameProvider extends ChangeNotifier {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
         _prevBiddingPhase = _engine.roundState.biddingPhase;
-        if (_engine.gamePhase == GamePhase.bidding) {
+        if (_engine.gamePhase == GamePhase.bidding && !_autoPlaySuspended) {
           // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
           final dealerSeat = _engine.roundState.dealerIndex;
           _announceDealerAwal(dealerSeat);
@@ -837,7 +861,7 @@ class GameProvider extends ChangeNotifier {
         _engine.startNewRound();
         _prevPhase = _engine.gamePhase;
         _prevBiddingPhase = _engine.roundState.biddingPhase;
-        if (_engine.gamePhase == GamePhase.bidding) {
+        if (_engine.gamePhase == GamePhase.bidding && !_autoPlaySuspended) {
           // Kammelna rule: The DEALER announces 'Awal' when bidding starts.
           final dealerSeat = _engine.roundState.dealerIndex;
           _announceDealerAwal(dealerSeat);
@@ -860,7 +884,8 @@ class GameProvider extends ChangeNotifier {
     _autoPlaySuspended = false;
 
     if (_engine.gamePhase == GamePhase.bidding) {
-      // Dealer does not speak when bidding starts
+      final dealerSeat = _engine.roundState.dealerIndex;
+      _announceDealerAwal(dealerSeat);
     }
     _scheduleNextAction();
   }
@@ -1038,7 +1063,7 @@ class GameProvider extends ChangeNotifier {
         _engine.claimEkka(0);
       }
 
-      _engine.playCard(0, card);
+      _engine.playCard(0, card, skipValidation: !_cardRestrictionsEnabled);
       _selectedCard = null;
       HapticFeedback.mediumImpact();
 
@@ -1108,9 +1133,9 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Standard-style Sawa: all hands revealed with 7s countdown, then round score.
-  static const int _sawaRevealDurationSeconds = 7;
-  int _sawaCountdownSeconds = 7;
+  /// Standard-style Sawa: all hands revealed with 12s countdown, then round score.
+  static const int _sawaRevealDurationSeconds = 12;
+  int _sawaCountdownSeconds = 12;
   int get sawaCountdownSeconds => _sawaCountdownSeconds;
   Timer? _sawaCountdownTimer;
   Timer? _botSawaObjectionTimer;
@@ -1125,6 +1150,7 @@ class GameProvider extends ChangeNotifier {
   void _startSawaReveal(int seat) {
     if (_sawaRevealHands != null) return;
     _cancelTimers();
+    clearSelection();
 
     _sawaRevealHands = List.generate(
       4,
@@ -1144,16 +1170,25 @@ class GameProvider extends ChangeNotifier {
       _botSawaObjectionTimer = Timer(const Duration(milliseconds: 2500), () {
         if (!isSawaRevealPlaying) return;
         _showBubble(opponentSeat, 'Qaid');
-        _finalizeSawaReveal(seat, isObjectionCorrect: true);
+        // Wait another 3s so the user can see the Qaid bubble and their own cards before the scoreboard
+        Timer(const Duration(milliseconds: 3000), () {
+          if (isSawaRevealPlaying) {
+            _finalizeSawaReveal(seat, isObjectionCorrect: true);
+          }
+        });
       });
     }
 
-    // 2. If opponent claimed invalid Sawa and human doesn't object by 5.5s, partner bot objects
+    // 2. If opponent claimed invalid Sawa and human doesn't object by 7.5s, partner bot objects
     if (!isSawaValid && seat % 2 != 0) {
-      _botSawaObjectionTimer = Timer(const Duration(milliseconds: 5500), () {
+      _botSawaObjectionTimer = Timer(const Duration(milliseconds: 7500), () {
         if (!isSawaRevealPlaying) return;
         _showBubble(2, 'Qaid');
-        _finalizeSawaReveal(seat, isObjectionCorrect: true);
+        Timer(const Duration(milliseconds: 3000), () {
+          if (isSawaRevealPlaying) {
+            _finalizeSawaReveal(seat, isObjectionCorrect: true);
+          }
+        });
       });
     }
 
@@ -1476,6 +1511,7 @@ class GameProvider extends ChangeNotifier {
     _lastAkkaCard = null;
     _falseSawaWindowTimer?.cancel();
     _isFalseSawaWindowOpen = false;
+    _clearSawaRevealState();
     _akkaPronouncedSeatsThisRound.clear();
     _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
@@ -1612,9 +1648,10 @@ class GameProvider extends ChangeNotifier {
       // In-play Sawa (hand reveal / end round)
       if (phaseBefore == GamePhase.playing && _engine.canSawa(seat)) {
         final isValidSawa = _engine.isSawaMathematicallyValid(seat);
-        if (isValidSawa) {
+        if (isValidSawa || _engine.activeCheatMode == BotCheatMode.falseSawa) {
           final botClaimsSawa = (_lastDifficulty == BotDifficulty.hard && _rng.nextDouble() < 0.85) ||
-                                (_rng.nextDouble() < 0.50);
+                                (_rng.nextDouble() < 0.50) ||
+                                _engine.activeCheatMode == BotCheatMode.falseSawa;
           if (botClaimsSawa) {
             _showBubble(seat, 'Sawa');
             _startSawaReveal(seat);
@@ -1622,6 +1659,7 @@ class GameProvider extends ChangeNotifier {
           }
         }
       }
+
 
       final declaredBefore = roundState.declaredProjects.length;
       final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
@@ -1685,8 +1723,10 @@ class GameProvider extends ChangeNotifier {
         _showBubble(seat, 'Pass');
       }
     } else if (bpBefore == BiddingPhase.hakamConfirmation) {
-      // The pending buyer is confirming their bid after everyone else passed.
-      // This is a silent action in Kammelna (they already announced it during Round 2).
+      // If confirming Round 2 Second Hakam, reveal the chosen trump suit now
+      if (_engine.isRound2Confirmation && rs.activeMode == GameMode.hakam && rs.trumpSuit != null) {
+        _showBubble(seat, _suitNameText(rs.trumpSuit));
+      }
       return;
     } else if (bpBefore == BiddingPhase.round1) {
       // Round 1: check if this bot just bid Hakam, Sun, or passed.
@@ -1708,23 +1748,16 @@ class GameProvider extends ChangeNotifier {
         if (pendingMode == GameMode.sun) {
           _showBubble(seat, 'Sun');
         } else {
-          final suit = _engine.activeRound2PendingTrump;
-          // Mimic 2-step human UI: "Hukam Sani" -> 0.7s -> Suit
+          // Kammelna rule: Announce "Hakam Sani", do NOT reveal suit until confirmation!
           _showBubble(seat, 'Hakam Sani');
-          Timer(const Duration(milliseconds: 700), () {
-            _showBubble(seat, _suitNameText(suit));
-          });
         }
       } else if (rs.activeMode == GameMode.sun && rs.buyerIndex == seat) {
          _showBubble(seat, 'Sun');
       } else if (rs.isAshkal && rs.buyerIndex == seat) {
          _showBubble(seat, 'Ashkal');
       } else {
-        if (hasPendingBidBefore) {
-          _showBubble(seat, 'Pass');
-        } else {
-          _showBubble(seat, 'PassR2');
-        }
+        // In Round 2, a pass is always "Wala" (mapped to 'PassR2')
+        _showBubble(seat, 'PassR2');
       }
     } else {
       _showBubble(seat, 'Pass');
@@ -2007,17 +2040,18 @@ class GameProvider extends ChangeNotifier {
     switch (action) {
       case BidAction.hakam:        return 'Hakam';
       case BidAction.sun:          return 'Sun';
-      case BidAction.secondHakam:  return _suitNameText(secondHakamSuit);
+      case BidAction.secondHakam:  
+        if (secondHakamSuit == null) return 'Hakam Sani';
+        return _suitNameText(secondHakamSuit);
       case BidAction.ashkal:       return 'Ashkal';
       case BidAction.qablak:       return 'Qablak';
       case BidAction.pass:
         if (_engine.roundState.biddingPhase == BiddingPhase.round2) {
-          if (!_engine.hasRound2PendingBid) {
-            return 'PassR2';
-          }
+          return 'PassR2';
         }
         return 'Pass';
       case BidAction.confirmHakam: 
+        if (secondHakamSuit != null) return _suitNameText(secondHakamSuit);
         return null;
       case BidAction.kasho:
         return 'Kasho';
@@ -2524,9 +2558,52 @@ class GameProvider extends ChangeNotifier {
   @visibleForTesting
   void startSawaRevealForTest(int seat) => _startSawaReveal(seat);
 
+  @visibleForTesting
+  void cancelTimersForTesting() => _cancelTimers();
+
+  @visibleForTesting
+  void clearAllBubblesForTesting() {
+    _bubbles.clear();
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void scheduleNextActionForTesting() => _scheduleNextAction();
+
+  bool get isHakamMode => _engine.roundState.activeMode == GameMode.hakam;
+
+  void continueSawaEarly() {
+    if (_sawaRevealClaimSeat != null) {
+      _finalizeNaturalSawa(_sawaRevealClaimSeat!);
+    }
+  }
+
+  /// Sets up an instant test scenario for Round 2 Second Hokom:
+  /// Human's turn in Round 2 bidding, with buyer card available.
+  void setupSecondHakamTestScenario() {
+    _cancelTimers();
+    _engine.startNewGame(['You', 'Fahad', 'Salman', 'Talal']);
+    _engine.startNewRound();
+    // Pass Round 1 for all 4 players
+    final dealer = _engine.roundState.dealerIndex;
+    final firstBidder = (dealer + 1) % 4;
+    for (int i = 0; i < 4; i++) {
+      final seat = (firstBidder + i) % 4;
+      _engine.placeBid(seat, BidAction.pass);
+    }
+    // Now in Round 2. Advance to seat 0 (human) if not already seat 0.
+    while (_engine.roundState.currentPlayerIndex != 0) {
+      _engine.placeBid(_engine.roundState.currentPlayerIndex, BidAction.pass);
+    }
+    _bubbles.clear();
+    notifyListeners();
+    _scheduleNextAction();
+  }
+
   @override
   void dispose() {
     _cancelTimers();
+    _clearSawaRevealState();
     for (final t in _bubbleTimers.values) {
       t.cancel();
     }

@@ -84,7 +84,8 @@ class PlayerSeatWidget extends StatelessWidget {
                 .toList()
             : const <CardModel>[]);
 
-    final cardCountFan = sawaRevealHere ? 0 : cardCount;
+    // In Kammelna, face-down card backs remain visible behind avatar during Sawa.
+    final cardCountFan = cardCount;
 
     if (orientation == SeatOrientation.left ||
         orientation == SeatOrientation.right) {
@@ -99,6 +100,7 @@ class PlayerSeatWidget extends StatelessWidget {
         bubble: bubble,
         orientation: orientation,
         projectCards: projectCards,
+        isSawaReveal: sawaRevealHere,
       );
     }
 
@@ -112,6 +114,7 @@ class PlayerSeatWidget extends StatelessWidget {
       teamColor: teamColor,
       bubble: bubble,
       projectCards: projectCards,
+      isSawaReveal: sawaRevealHere,
     );
   }
 }
@@ -130,6 +133,7 @@ class _TopSeat extends StatelessWidget {
   final Color teamColor;
   final PlayerBubble? bubble;
   final List<CardModel> projectCards;
+  final bool isSawaReveal;
 
   const _TopSeat({
     required this.seat,
@@ -141,6 +145,7 @@ class _TopSeat extends StatelessWidget {
     required this.teamColor,
     required this.bubble,
     this.projectCards = const [],
+    this.isSawaReveal = false,
   });
 
   @override
@@ -169,10 +174,11 @@ class _TopSeat extends StatelessWidget {
             children: [
               if (projectCards.isNotEmpty)
                 Positioned(
-                  top: 32 * scale, // Adjusted for 40% hidden look
+                  top: 32 * scale,
                   child: ProjectCardFanRadial(
                     cards: projectCards,
                     orientation: SeatOrientation.top,
+                    isSawaReveal: isSawaReveal,
                   ),
                 ),
               _SeatPlayerInfoBox(
@@ -224,6 +230,7 @@ class _SideSeat extends StatelessWidget {
   final Color teamColor;
   final PlayerBubble? bubble;
   final List<CardModel> projectCards;
+  final bool isSawaReveal;
 
   const _SideSeat({
     required this.seat,
@@ -236,6 +243,7 @@ class _SideSeat extends StatelessWidget {
     required this.bubble,
     required this.orientation,
     this.projectCards = const [],
+    this.isSawaReveal = false,
   });
 
   final SeatOrientation orientation;
@@ -261,10 +269,11 @@ class _SideSeat extends StatelessWidget {
             children: [
               if (projectCards.isNotEmpty)
                 Positioned(
-                  top: 32 * scale, // Adjusted for 40% hidden look
+                  top: 32 * scale,
                   child: ProjectCardFanRadial(
                     cards: projectCards,
                     orientation: orientation,
+                    isSawaReveal: isSawaReveal,
                   ),
                 ),
               _SeatPlayerInfoBox(
@@ -531,19 +540,31 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       ),
     );
 
-    final pillBadge = hasFooter
-        ? Container(
-            width: 68,
-            height: 22,
+    // Sawa badge gets its own pulsing treatment; all others are static.
+    final Widget? pillBadge;
+    if (!hasFooter) {
+      pillBadge = null;
+    } else {
+      final staticBadge = Container(
+            width: showSawaDrawer ? 76 : 68,
+            height: showSawaDrawer ? 26 : 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: footerBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _kGSandGold.withValues(alpha: 0.85),
-                width: 1.1,
+                color: showSawaDrawer
+                    ? const Color(0xFF81C784).withValues(alpha: 0.95)
+                    : _kGSandGold.withValues(alpha: 0.85),
+                width: showSawaDrawer ? 1.5 : 1.1,
               ),
               boxShadow: [
+                if (showSawaDrawer)
+                  BoxShadow(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.55),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.6),
                   blurRadius: 6,
@@ -556,13 +577,16 @@ class _SeatPlayerInfoBox extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: footerTextColor,
-                fontSize: 11.0,
-                fontWeight: FontWeight.w700,
+                fontSize: showSawaDrawer ? 13.0 : 11.0,
+                fontWeight: FontWeight.w800,
                 fontFamily: GoogleFonts.readexPro().fontFamily,
               ),
             ),
-          )
-        : null;
+          );
+      pillBadge = showSawaDrawer
+          ? _PulsingSawaBadge(child: staticBadge)
+          : staticBadge;
+    }
 
     final secondaryPillBadge = secondaryFooterLabel != null
         ? Container(
@@ -1464,20 +1488,28 @@ class SpeechBubbleOverlay extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  PROJECT CARDS RADIAL FAN
+//  PROJECT CARDS / SAWA REVEAL RADIAL FAN
 // ══════════════════════════════════════════════════════════════════
 
 class ProjectCardFanRadial extends StatefulWidget {
   final List<CardModel> cards;
   final SeatOrientation orientation;
+  /// When true, applies the premium Sawa reveal treatment:
+  /// larger cards, elastic pop-in, and a gold/green glow border.
+  final bool isSawaReveal;
 
-  const ProjectCardFanRadial({required this.cards, required this.orientation});
+  const ProjectCardFanRadial({
+    required this.cards,
+    required this.orientation,
+    this.isSawaReveal = false,
+  });
 
   @override
   State<ProjectCardFanRadial> createState() => _ProjectCardFanRadialState();
 }
 
-class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with SingleTickerProviderStateMixin {
+class _ProjectCardFanRadialState extends State<ProjectCardFanRadial>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   Timer? _hideTimer;
 
@@ -1486,7 +1518,8 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      // Sawa reveal gets a slightly longer, more dramatic animation
+      duration: Duration(milliseconds: widget.isSawaReveal ? 950 : 800),
     );
     _controller.forward();
     _startHideTimer();
@@ -1494,7 +1527,12 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
 
   void _startHideTimer() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 10), () {
+    // Sawa reveal stays up for the full 7s countdown;
+    // project reveals auto-hide after 10s.
+    final dur = widget.isSawaReveal
+        ? const Duration(seconds: 8)
+        : const Duration(seconds: 10);
+    _hideTimer = Timer(dur, () {
       if (mounted) _controller.reverse();
     });
   }
@@ -1522,74 +1560,93 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
     final scale = GameTableLayout.scale(context);
     final int n = widget.cards.length;
     final bool isRight = widget.orientation == SeatOrientation.right;
-    final bool isLeft = widget.orientation == SeatOrientation.left;
-    final bool isTop = widget.orientation == SeatOrientation.top;
+    final bool isLeft  = widget.orientation == SeatOrientation.left;
+    final bool isTop   = widget.orientation == SeatOrientation.top;
+    final bool isBottom = widget.orientation == SeatOrientation.bottom;
+    final bool sawa    = widget.isSawaReveal;
 
-    // Wide fan angle depending on how many cards are revealed
-    final totalSweep = (n - 1) * 20.0;
+    // Always use medium size for Project/Sawa reveals so they float nicely without overlapping the hand
+    final CardSize pcSize = CardSize.medium;
+
+    // ── Fan geometry ──────────────────────────────────────────────
+    // Wider spread for sawa so all cards are legible.
+    final double angleStep = sawa ? 22.0 : 20.0;
+    final totalSweep = (n - 1) * angleStep;
     final startAngle = -totalSweep / 2;
-    final sweepRadius = 65.0 * scale; // Distance from avatar center
-    final pcSize = widget.orientation == SeatOrientation.bottom
-        ? CardSize.medium
-        : CardSize.small;
+
+    // Standard radius for all projects (including sawa) so they stay close to the avatar
+    final double sweepRadius = 65.0 * scale;
 
     return SizedBox(
-      width: 1, // acts as a center anchor point for Stack
+      width: 1,
       height: 1,
       child: Stack(
         clipBehavior: Clip.none,
-        alignment: Alignment.center, // This ensures non-positioned wrappers anchor to center
+        alignment: Alignment.center,
         children: List.generate(n, (i) {
-          // Calculate destination angle and offset
-          final currentAngleDegrees = startAngle + (i * 20.0);
+          final currentAngleDegrees = startAngle + (i * angleStep);
           double angleRad = currentAngleDegrees * pi / 180;
           double destX = 0;
           double destY = 0;
 
           if (isRight) {
-             final finalAngle = pi + angleRad;
-             destX = cos(finalAngle) * sweepRadius;
-             destY = sin(finalAngle) * sweepRadius;
-             angleRad = finalAngle - pi/2;
+            final finalAngle = pi + angleRad;
+            destX = cos(finalAngle) * sweepRadius;
+            destY = sin(finalAngle) * sweepRadius + 5.0 * scale;
+            angleRad = finalAngle - pi / 2;
           } else if (isLeft) {
-             final finalAngle = 0.0 + angleRad;
-             destX = cos(finalAngle) * sweepRadius;
-             destY = sin(finalAngle) * sweepRadius;
-             angleRad = finalAngle - pi/2;
+            final finalAngle = 0.0 + angleRad;
+            destX = cos(finalAngle) * sweepRadius;
+            destY = sin(finalAngle) * sweepRadius + 5.0 * scale;
+            angleRad = finalAngle - pi / 2;
           } else if (isTop) {
-             // Sweep DOWNWARDS (towards table center)
-             final finalAngle = pi/2 + angleRad; 
-             destX = cos(finalAngle) * sweepRadius;
-             destY = sin(finalAngle) * sweepRadius;
-             angleRad = finalAngle - pi/2;
+            final finalAngle = pi / 2 + angleRad;
+            destX = cos(finalAngle) * sweepRadius;
+            destY = sin(finalAngle) * sweepRadius;
+            angleRad = finalAngle - pi / 2;
           } else {
-             // Sweep UPWARDS (towards table center) for Bottom Seat
-             final finalAngle = -pi/2 + angleRad; 
-             destX = cos(finalAngle) * sweepRadius;
-             destY = sin(finalAngle) * sweepRadius;
-             angleRad = finalAngle - pi/2;
+            // Bottom seat — sweep UPWARDS towards table center
+            final finalAngle = -pi / 2 + angleRad;
+            destX = cos(finalAngle) * sweepRadius;
+            destY = sin(finalAngle) * sweepRadius;
+            // finalAngle + pi/2 gives currentAngleDegrees * pi/180 -> UPRIGHT and legible!
+            angleRad = finalAngle + pi / 2;
           }
 
-          // Create a staggered animation curve for this specific card
-          final double delay = (i * 0.1).clamp(0.0, 0.5);
+          // Staggered entry: tighter delays for sawa (all cards pop out faster)
+          final double delay = sawa
+              ? (i * 0.07).clamp(0.0, 0.45)
+              : (i * 0.1).clamp(0.0, 0.5);
           final Animation<double> cardAnim = CurvedAnimation(
             parent: _controller,
             curve: Interval(
               delay,
-              (delay + 0.5).clamp(0.0, 1.0),
-              curve: Curves.easeOutBack,
+              (delay + (sawa ? 0.55 : 0.5)).clamp(0.0, 1.0),
+              // Sawa: elasticOut for a dramatic pop-bounce;
+              // Project: easeOutBack (existing feel).
+              curve: sawa ? Curves.elasticOut : Curves.easeOutBack,
             ),
           );
 
-          // We use AnimatedBuilder but bind explicit offset values without Transform
+          // Build the card widget — sawa gets a glowing border.
+          Widget cardWidget = PlayingCard(
+            card: widget.cards[i],
+            size: pcSize,
+            faceUp: true,
+          );
+
+          // No extra glow for Sawa to match Kammelna exactly.
+
           return AnimatedBuilder(
             animation: cardAnim,
             builder: (context, child) {
-              final val = cardAnim.value;
-              final sc = val.clamp(0.01, 1.0);
+              final val = cardAnim.value.clamp(0.0, 1.0);
+              // For elasticOut the raw controller value can briefly exceed 1;
+              // clamp scale to avoid inverting the card.
+              final sc = (sawa ? cardAnim.value : val).clamp(0.01, 1.25);
               return Positioned(
                 left: destX * val - pcSize.width / 2,
-                top: destY * val - pcSize.height / 2,
+                top:  destY * val - pcSize.height / 2,
                 child: Transform.scale(
                   scale: sc,
                   child: Transform.rotate(
@@ -1599,17 +1656,50 @@ class _ProjectCardFanRadialState extends State<ProjectCardFanRadial> with Single
                 ),
               );
             },
-            child: PlayingCard(
-              card: widget.cards[i],
-              size: (widget.orientation == SeatOrientation.bottom) 
-                  ? CardSize.medium 
-                  : CardSize.small,
-              faceUp: true,
-            ),
+            child: cardWidget,
           );
         }),
       ),
     );
   }
 }
+// ══════════════════════════════════════════════════════════════════
+//  PULSING SAWA BADGE  — gentle heartbeat scale for the سوا label
+// ══════════════════════════════════════════════════════════════════
 
+class _PulsingSawaBadge extends StatefulWidget {
+  final Widget child;
+  const _PulsingSawaBadge({required this.child});
+
+  @override
+  State<_PulsingSawaBadge> createState() => _PulsingSawaBadgeState();
+}
+
+class _PulsingSawaBadgeState extends State<_PulsingSawaBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(scale: _scale, child: widget.child);
+  }
+}

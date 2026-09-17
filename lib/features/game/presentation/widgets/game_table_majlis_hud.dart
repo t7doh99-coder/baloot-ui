@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/l10n/game_l10n.dart';
 import '../../../../core/l10n/locale_provider.dart';
 import '../game_provider.dart';
+import '../utils/qaid_test_scenarios.dart';
 
 // ── Sandstone Dark palette ─────────
 const _kGBgCanvas   = Color(0xFF1E1808);
@@ -61,14 +62,16 @@ class GameTableMajlisHud extends StatelessWidget {
             elevation: 0, // Remove Material shadow so we can draw our own
             onSelected: (value) {
               if (value == 0) onBack();
-              if (value == 1) onCycleWallpaper();
               if (value == 5) game.toggleAutoAkka();
-              if (value == 98) game.toggleGodMode();
+              if (value == 6) game.toggleCardRestrictions();
               if (value == 99) {
                 Clipboard.setData(ClipboardData(text: game.gameLog));
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(loc.gameLogCopied)),
                 );
+              }
+              if (value == 100) {
+                QaidTestScenarios.showLiveCheatModeDialog(context, game);
               }
               // value == 4 is Emote
             },
@@ -86,7 +89,7 @@ class GameTableMajlisHud extends StatelessWidget {
                       children: [
                         Icon(icon, color: iconColor, size: 18),
                         const SizedBox(width: 12),
-                        Text(text, style: textStyle),
+                        Expanded(child: Text(text, style: textStyle, overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ),
@@ -100,7 +103,7 @@ class GameTableMajlisHud extends StatelessWidget {
                   enabled: false, // We handle taps manually in buildItem
                   padding: EdgeInsets.zero,
                   child: Container(
-                    width: 220, // Give the menu a fixed width
+                    width: 260, // Give the menu a fixed width
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
@@ -131,19 +134,23 @@ class GameTableMajlisHud extends StatelessWidget {
                             children: [
                               buildItem(Icons.meeting_room_rounded, loc.leave, 0),
                               divider,
-                              buildItem(Icons.wallpaper_rounded, loc.wallpaper, 1),
-                              divider,
                               buildItem(
                                 game.autoAkkaEnabled ? Icons.bolt : Icons.bolt_outlined,
                                 '${loc.autoAkka}: ${game.autoAkkaEnabled ? (context.read<LocaleProvider>().isArabic ? 'مفعل' : 'ON') : (context.read<LocaleProvider>().isArabic ? 'معطل' : 'OFF')}',
                                 5,
                               ),
                               divider,
-                              buildItem(game.isGodModeEnabled ? Icons.visibility_off : Icons.visibility, game.isGodModeEnabled ? (context.read<LocaleProvider>().isArabic ? 'إخفاء الأوراق' : 'Hide All Cards') : (context.read<LocaleProvider>().isArabic ? 'كشف الأوراق' : 'Reveal All Cards'), 98),
+                              buildItem(
+                                game.cardRestrictionsEnabled ? Icons.lock_rounded : Icons.lock_open_rounded,
+                                '${context.read<LocaleProvider>().isArabic ? 'قيود اللعب' : 'Card Restrictions'}: ${game.cardRestrictionsEnabled ? (context.read<LocaleProvider>().isArabic ? 'مفعل' : 'ON') : (context.read<LocaleProvider>().isArabic ? 'معطل' : 'OFF')}',
+                                6,
+                              ),
                               divider,
                               buildItem(Icons.copy_all_rounded, loc.copyGameLog, 99),
                               divider,
                               buildItem(Icons.volume_up_rounded, loc.sound, 3),
+                              divider,
+                              buildItem(Icons.science_outlined, context.read<LocaleProvider>().isArabic ? 'الغش المباشر' : 'Live Cheat Mode', 100),
                               divider,
                               buildItem(Icons.emoji_emotions_outlined, loc.emotes, 4),
                             ],

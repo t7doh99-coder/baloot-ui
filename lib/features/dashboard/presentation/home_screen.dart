@@ -28,6 +28,7 @@ import 'package:baloot_game/core/painters/diamond_painter.dart';
 import '../../../data/models/rank_tier.dart';
 import '../../../core/services/rank_calculator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'matchup_versus_screen.dart';
 // (section)
 // (section)
 //  For "Test 3" menu item. No changes to the original home screen.
@@ -935,8 +936,10 @@ class _T1TopBar extends StatelessWidget {
                               Navigator.pop(dialogContext);
                               context.read<LocaleProvider>().toggleLocale();
                             }),
-                            _divider(),
-                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: isArabic ? 'المساعدة والدعم' : 'Help & Support', onTap: () {}),
+                            _crMenuItem(context: dialogContext, icon: Icons.help_outline_rounded, label: isArabic ? 'المساعدة والدعم' : 'Help & Support', onTap: () {
+                              Navigator.pop(dialogContext);
+                              _pushSlideUp(context, const MatchupVersusScreen());
+                            }),
                             const SizedBox(height: 4),
                             _crMenuItem(context: dialogContext, icon: Icons.shield_rounded, label: isArabic ? 'الخصوصية' : 'Privacy', onTap: () {
                               Navigator.pop(dialogContext);

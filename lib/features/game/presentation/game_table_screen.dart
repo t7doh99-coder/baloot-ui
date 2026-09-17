@@ -64,7 +64,8 @@ bool _showHand(GamePhase phase) {
 // ══════════════════════════════════════════════════════════════════
 
 class GameTableScreen extends StatefulWidget {
-  const GameTableScreen({super.key});
+  final bool showIntroVersus;
+  const GameTableScreen({super.key, this.showIntroVersus = false});
 
   @override
   State<GameTableScreen> createState() => _GameTableScreenState();
@@ -303,12 +304,19 @@ class _GameTableScreenState extends State<GameTableScreen> {
     final topInset = MediaQuery.paddingOf(context).top;
     final layoutScale = GameTableLayout.scale(context);
 
-    final humanProjectCards = (game.showProjectReveal && game.projectRevealSeat == 0)
-        ? game.winningTeamBestProjectsForReveal
-            .where((p) => p.playerIndex == 0)
-            .expand((p) => p.cards)
-            .toList()
+    final humanSawaCards = game.isSawaRevealPlaying
+        ? game.sawaRevealCardsForSeat(0)
         : const <CardModel>[];
+    final humanIsSawaReveal = humanSawaCards.isNotEmpty;
+
+    final humanProjectCards = humanIsSawaReveal
+        ? humanSawaCards
+        : (game.showProjectReveal && game.projectRevealSeat == 0)
+            ? game.winningTeamBestProjectsForReveal
+                .where((p) => p.playerIndex == 0)
+                .expand((p) => p.cards)
+                .toList()
+            : const <CardModel>[];
 
     return PopScope(
       canPop: _allowPop,
@@ -346,7 +354,7 @@ class _GameTableScreenState extends State<GameTableScreen> {
                       // 1) The main play area (deals, tricks, other players)
                       Positioned.fill(child: _PlayArea(game: game)),
 
-                      // 2) Human Player's Declared Project Cards (rendered underneath the hand/profile)
+                      // 2) Human Player's Declared Project/Sawa Cards (rendered BEHIND the hand)
                       if (humanProjectCards.isNotEmpty)
                         Positioned(
                           left: 0,
@@ -356,10 +364,11 @@ class _GameTableScreenState extends State<GameTableScreen> {
                             child: ProjectCardFanRadial(
                               cards: humanProjectCards,
                               orientation: SeatOrientation.bottom,
+                              isSawaReveal: humanIsSawaReveal,
                             ),
                           ),
                         ),
-                      
+
                       // 3) The Human Hand — anchored at a fixed distance from bottom
                       // so when the dashboard expands, the cards do NOT move up!
                       Positioned(

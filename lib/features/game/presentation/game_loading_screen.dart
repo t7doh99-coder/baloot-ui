@@ -34,7 +34,6 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
   String _statusKey = 'preparing'; // preparing | dealing | ready
 
   static const _minDisplay = Duration(milliseconds: 1800);
-  static const _hardTimeout = Duration(seconds: 10);
 
   static const _suits = ['♠', '♥', '♣', '♦'];
   static const _suitColors = [
@@ -68,63 +67,29 @@ class _GameLoadingScreenState extends State<GameLoadingScreen>
 
   Future<void> _prepareAndNavigate() async {
     if (!mounted || _navigating) return;
-    final started = DateTime.now();
     final game = context.read<GameProvider>();
     final isAr = context.read<LocaleProvider>().isArabic;
 
     game.setLanguage(isAr ? 'ar' : 'en');
 
-    try {
-      if (mounted) setState(() => _statusKey = 'preparing');
-      await game.prepareMatchForTable(difficulty: widget.difficulty);
-
-      // Poll briefly if somehow still dealing (should be rare).
-      var attempts = 0;
-      while (mounted &&
-          !game.isMatchReady &&
-          DateTime.now().difference(started) < _hardTimeout &&
-          attempts < 20) {
-        if (mounted) setState(() => _statusKey = 'dealing');
-        game.ensureDealingAdvances(force: true);
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-        attempts++;
-      }
-    } catch (e, st) {
-      debugPrint('[GameLoading] prepare failed: $e\n$st');
-      try {
-        if (!game.isMatchReady) {
-          game.ensureDealingAdvances(force: true);
-        }
-      } catch (_) {}
-    }
-
-    // Keep branding on screen at least [_minDisplay], even on fast devices.
-    final elapsed = DateTime.now().difference(started);
-    if (elapsed < _minDisplay) {
-      await Future<void>.delayed(_minDisplay - elapsed);
-    }
-
-    if (!mounted || _navigating) return;
-
-    // Never open the table while still stuck in dealing.
-    if (!game.isMatchReady) {
-      debugPrint('[GameLoading] still not ready after timeout — forcing');
-      game.ensureDealingAdvances(force: true);
-    }
-
-    if (mounted) setState(() => _statusKey = 'ready');
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    // Prepare match engine & roll bots while loading animation displays
+    await Future.wait([
+      Future<void>.delayed(_minDisplay),
+      game.prepareMatchForTable(difficulty: widget.difficulty),
+    ]);
 
     if (!mounted || _navigating) return;
     _navigating = true;
 
+    // Navigate to table screen (versus intro will overlay for 2s over the actual table)
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        pageBuilder: (_, __, ___) => const GameTableScreen(),
+        pageBuilder: (_, __, ___) =>
+            const GameTableScreen(showIntroVersus: true),
         transitionsBuilder: (_, anim, __, child) {
           return FadeTransition(opacity: anim, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 400),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../baloot_game_controller.dart' show BotCheatMode;
 import '../../../../data/models/card_model.dart';
 import '../../../../data/models/card_play_model.dart';
 import '../../../../data/models/round_state_model.dart';
@@ -365,6 +366,7 @@ class BotEngine {
     required int seatIndex,
     List<TrickResult>? trickHistory,
     int? ekkaClaimSeat,
+    BotCheatMode cheatMode = BotCheatMode.none,
   }) {
     final validCards = _validator.getValidCards(
       hand: hand,
@@ -376,6 +378,80 @@ class BotEngine {
       playerSeat: seatIndex,
       ekkaClaimSeat: ekkaClaimSeat,
     );
+
+    // Handle Cheat Modes for Live Testing
+    if (cheatMode != BotCheatMode.none) {
+      final invalidCards = hand.where((c) => !validCards.contains(c)).toList();
+      
+      switch (cheatMode) {
+        case BotCheatMode.cutViolation:
+          // We want to FAIL to cut. This implies:
+          // 1. We cannot follow lead suit.
+          // 2. We HAVE trump.
+          // 3. We HAVE non-trump.
+          // 4. We play non-trump.
+          if (currentTrick.isNotEmpty && mode == GameMode.hakam) {
+            final leadSuit = currentTrick.first.card.suit;
+            final canFollowLead = hand.any((c) => c.suit == leadSuit);
+            final hasTrump = hand.any((c) => c.suit == trumpSuit);
+            if (!canFollowLead && hasTrump) {
+              final nonTrumps = hand.where((c) => c.suit != trumpSuit).toList();
+              if (nonTrumps.isNotEmpty) return nonTrumps.first;
+            }
+          }
+          break;
+          
+        case BotCheatMode.suitViolation:
+          // We want to play WRONG suit.
+          // 1. We HAVE lead suit.
+          // 2. We play another suit.
+          if (currentTrick.isNotEmpty) {
+            final leadSuit = currentTrick.first.card.suit;
+            final canFollowLead = hand.any((c) => c.suit == leadSuit);
+            if (canFollowLead) {
+              final wrongSuitCards = hand.where((c) => c.suit != leadSuit).toList();
+              if (wrongSuitCards.isNotEmpty) return wrongSuitCards.first;
+            }
+          }
+          break;
+          
+        case BotCheatMode.upTrumpViolation:
+          // We want to play LOWER trump when we could have played HIGHER trump.
+          if (currentTrick.isNotEmpty && mode == GameMode.hakam) {
+            final leadSuit = currentTrick.first.card.suit;
+            if (leadSuit == trumpSuit) {
+              final highestPlayedTrumpRank = currentTrick
+                  .where((p) => p.card.suit == trumpSuit)
+                  .map((p) => p.card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit))
+                  .fold(-1, (max, val) => val > max ? val : max);
+                  
+              final higherTrumps = hand.where((c) => c.suit == trumpSuit && c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) > highestPlayedTrumpRank).toList();
+              final lowerTrumps = hand.where((c) => c.suit == trumpSuit && c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) < highestPlayedTrumpRank).toList();
+              
+              if (higherTrumps.isNotEmpty && lowerTrumps.isNotEmpty) {
+                return lowerTrumps.first; // Illegal in Baloot (Up-Trump)
+              }
+            }
+          }
+          break;
+          
+        case BotCheatMode.closedPlayViolation:
+          // We want to lead TRUMP while DOUBLE is active.
+          if (currentTrick.isEmpty && doubleStatus != DoubleStatus.none) {
+            final trumps = hand.where((c) => c.suit == trumpSuit).toList();
+            if (trumps.isNotEmpty) {
+               // Must be illegal to lead trump (i.e. not the only cards they have)
+               if (invalidCards.any((c) => c.suit == trumpSuit)) {
+                 return invalidCards.firstWhere((c) => c.suit == trumpSuit);
+               }
+            }
+          }
+          break;
+          
+        default:
+          break;
+      }
+    }
 
     if (validCards.isEmpty) return hand.first;
     if (validCards.length == 1) return validCards.first;

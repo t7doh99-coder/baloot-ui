@@ -289,13 +289,12 @@ class _DesignerEngineTrickZoneState extends State<DesignerEngineTrickZone>
       });
   }
 
-  // Per-seat throw duration — bottom is fastest (user's flick), top is
-  // slowest (travels the longest distance).
+  // Per-seat throw duration 
   static const Map<DesignerTrickSeat, Duration> _throwDurations = {
-    DesignerTrickSeat.bottom: Duration(milliseconds: 480),  // crisp flick feel
-    DesignerTrickSeat.right: Duration(milliseconds: 520),
-    DesignerTrickSeat.left: Duration(milliseconds: 520),
-    DesignerTrickSeat.top: Duration(milliseconds: 580),     // travels furthest
+    DesignerTrickSeat.bottom: Duration(milliseconds: 480),
+    DesignerTrickSeat.right: Duration(milliseconds: 550),
+    DesignerTrickSeat.left: Duration(milliseconds: 550),
+    DesignerTrickSeat.top: Duration(milliseconds: 650),
   };
 
   void _ensureThrowControllersInitialized() {

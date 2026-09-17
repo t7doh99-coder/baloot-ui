@@ -10,6 +10,7 @@ import 'managers/bidding_manager.dart';
 import 'managers/turn_manager.dart';
 import 'validators/play_validator.dart';
 import 'engines/bot_engine.dart';
+import 'engines/qaydha_engine.dart';
 import 'engines/project_detector.dart';
 import 'engines/scoring_engine.dart';
 import 'engines/sawa_probability_engine.dart';
@@ -17,7 +18,17 @@ import '../../../data/models/bot_difficulty.dart';
 import '../../../data/models/bot_personality.dart';
 import '../../../core/utils/game_logger.dart';
 import 'models/qaydha_models.dart';
-import 'models/qaydha_models.dart';
+
+/// Defines specific cheat rules to force bots to make illegal plays in a live game.
+enum BotCheatMode {
+  none,
+  suitViolation,
+  cutViolation,
+  upTrumpViolation,
+  closedPlayViolation,
+  falseAkka,
+  falseSawa,
+}
 
 /// The game phase the controller is currently in.
 enum GamePhase { notStarted, dealing, bidding, doubleWindow, playing, scoring, gameOver }
@@ -138,6 +149,12 @@ class BalootGameController implements IBalootController {
     if (buyerTeamIsA) return 1; // Team B defends: seat 1
     return 0; // Team A defends: seat 0 (human)
   }
+
+  /// When true, the next bot turn will force a Qaid violation (if they hold an illegal card)
+  bool _forceNextBotMistake = false;
+  
+  /// Live Bot Cheat Mode: forces the bot to make specific illegal plays if possible.
+  BotCheatMode activeCheatMode = BotCheatMode.none;
 
   /// The allowed bid actions for a given seat in the current bidding state.
   List<BidAction> allowedActions(int seatIndex) {
@@ -321,6 +338,7 @@ class BalootGameController implements IBalootController {
     if (!_useInjectedDeckManager) {
       _deckManager = DeckManager(random: _rng);
     }
+
     _deckManager.createDeck();
     _deckManager.shuffle();
     _deckManager.kut();
@@ -421,9 +439,19 @@ class BalootGameController implements IBalootController {
       throw const InvalidMoveException('Not in bidding phase.');
     }
 
+    final phaseBefore = _biddingManager!.phase;
     _biddingManager!.placeBid(seatIndex, action,
         secondHakamSuit: secondHakamSuit);
-    logger.log('Seat $seatIndex bid: ${action.name}${secondHakamSuit != null ? ' ($secondHakamSuit)' : ''}');
+    String actionName = action.name;
+    if (action == BidAction.pass && phaseBefore == BiddingPhase.round2) {
+      actionName = 'wala';
+    } else if (action == BidAction.secondHakam) {
+      actionName = 'Second Hukam';
+    } else if (action == BidAction.confirmHakam) {
+      actionName = 'Confirm Hukam';
+    }
+    
+    logger.log('Seat $seatIndex bid: $actionName${secondHakamSuit != null ? ' (${secondHakamSuit.name})' : ''}');
 
     _roundState = _roundState.copyWith(
       currentPlayerIndex: _biddingManager!.currentBidder,
@@ -645,6 +673,10 @@ class BalootGameController implements IBalootController {
   @override
   bool canEkka(int seatIndex) {
     if (_gamePhase != GamePhase.playing) return false;
+    // Akka is strictly a Hakam-only mechanic. It does not exist in Sun.
+    if (_roundState.activeMode != GameMode.hakam) return false;
+    // In Kammelna, Akka is not allowed on the very last trick (Trick 8).
+    if (_roundState.trickNumber == 8) return false;
     if (_turnManager?.currentPlayerIndex != seatIndex) return false;
     // You can only call Ekka when leading a trick
     if (_turnManager?.currentTrick.isNotEmpty ?? true) return false;
@@ -659,7 +691,7 @@ class BalootGameController implements IBalootController {
   }
 
   @override
-  void playCard(int seatIndex, CardModel card) {
+  void playCard(int seatIndex, CardModel card, {bool skipValidation = false}) {
     if (_gamePhase != GamePhase.playing) {
       throw const InvalidMoveException('Not in play phase.');
     }
@@ -674,26 +706,28 @@ class BalootGameController implements IBalootController {
       );
     }
 
-    // Validate the play
-    final validation = _playValidator.validate(
-      card: card,
-      hand: _hands[seatIndex],
-      currentTrick: _turnManager!.currentTrick,
-      mode: _roundState.activeMode!,
-      trumpSuit: _roundState.trumpSuit,
-      doubleStatus: _roundState.doubleStatus,
-      isOpenPlay: _roundState.isOpenPlay,
-      playerSeat: seatIndex,
-      playedCards: _turnManager!.playedCards,
-      ekkaClaimSeat: _ekkaClaimSeat,
-    );
-
-    if (!validation.isValid) {
-      throw PlayViolationException(
-        type: _mapViolationKind(validation.violationKind!),
-        playerIndex: seatIndex,
-        message: validation.violationMessage!,
+    // Validate the play (skip when Card Restrictions are OFF — free play mode)
+    if (!skipValidation) {
+      final validation = _playValidator.validate(
+        card: card,
+        hand: _hands[seatIndex],
+        currentTrick: _turnManager!.currentTrick,
+        mode: _roundState.activeMode!,
+        trumpSuit: _roundState.trumpSuit,
+        doubleStatus: _roundState.doubleStatus,
+        isOpenPlay: _roundState.isOpenPlay,
+        playerSeat: seatIndex,
+        playedCards: _turnManager!.playedCards,
+        ekkaClaimSeat: _ekkaClaimSeat,
       );
+
+      if (!validation.isValid) {
+        throw PlayViolationException(
+          type: _mapViolationKind(validation.violationKind!),
+          playerIndex: seatIndex,
+          message: validation.violationMessage!,
+        );
+      }
     }
 
     // Remove card from hand
@@ -1543,6 +1577,13 @@ class BalootGameController implements IBalootController {
           }
         }
         
+        if (activeCheatMode == BotCheatMode.falseAkka && canEkka(seatIndex)) {
+          // Cheat mode: Force an Akka claim when leading, even if not mathematically correct
+          _ekkaClaimSeat = seatIndex;
+          logger.log('Cheat Mode: Seat $seatIndex forced False Ekka!');
+          // We don't return here so the bot actually plays the card right after claiming.
+        }
+
         final card = _botEngine.decidePlay(
           hand: _hands[seatIndex],
           currentTrick: _turnManager!.currentTrick,
@@ -1557,8 +1598,15 @@ class BalootGameController implements IBalootController {
           buyerIndex: _roundState.buyerIndex ?? -1,
           trickHistory: _turnManager!.trickHistory,
           ekkaClaimSeat: _ekkaClaimSeat,
+          cheatMode: activeCheatMode,
         );
-        playCard(seatIndex, card);
+        
+        // Skip validation if cheat mode is active and the card is illegal
+        final validCards = getValidCards(seatIndex);
+        final bool isCardIllegal = !validCards.contains(card);
+        final bool shouldSkipValidation = activeCheatMode != BotCheatMode.none && isCardIllegal;
+        
+        playCard(seatIndex, card, skipValidation: shouldSkipValidation);
 
       default:
         break;
@@ -1625,6 +1673,9 @@ class BalootGameController implements IBalootController {
 
   Suit? get activeRound2PendingTrump =>
       _biddingManager?.activeRound2PendingTrump;
+
+  bool get isRound2Confirmation =>
+      _biddingManager?.isRound2Confirmation ?? false;
 
   /// Current pass count in the active bidding round.
   int get passCount => _biddingManager?.passCount ?? 0;

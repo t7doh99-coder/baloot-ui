@@ -38,7 +38,7 @@ class GameTableLayout {
   static double handStackBottom(double scale) => 120.0 * scale;
 
   /// Declared project mini-fan above the human hand.
-  static double projectFanBottom(double scale) => 215.0 * scale;
+  static double projectFanBottom(double scale) => 220.0 * scale;
 
   static double sideSeatColumnWidth(double scale) => 92.0 * scale;
 

@@ -1,22 +1,13 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/layout/game_table_layout.dart';
 import '../../../../data/models/card_model.dart';
 import '../../domain/baloot_game_controller.dart' show GamePhase;
 import '../game_provider.dart';
 import 'playing_card.dart';
-
-/// [pointerDragAnchorStrategy] pins the feedback’s **top-left** to the touch, so the
-/// card sits awkwardly beside the finger. This pins the **center** of the hand-sized
-/// feedback card to the fingertip instead.
-Offset _handCardCenterDragAnchor(
-  Draggable<Object> draggable,
-  BuildContext context,
-  Offset position,
-) {
-  final s = GameTableLayout.handCardSize(GameTableLayout.scale(context));
-  return Offset(s.width / 2, s.height / 2);
-}
 
 // ══════════════════════════════════════════════════════════════════
 //  HUMAN HAND WIDGET  (Seat 0 — bottom player)
@@ -157,6 +148,13 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
   /// Which card index just got the bounce (so only that card bounces).
   int? _bouncingIndex;
 
+  /// Active direct-pointer drag tracking (0ms response, zero gesture-arena delay)
+  int? _activeDragIndex;
+  Offset? _dragStartPos;
+  final ValueNotifier<Offset> _dragOffsetNotifier = ValueNotifier<Offset>(Offset.zero);
+  VelocityTracker? _velocityTracker;
+  CardModel? _prevSelectedBeforeTouch;
+
   @override
   void initState() {
     super.initState();
@@ -191,17 +189,18 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
   @override
   void didUpdateWidget(_DesignerHandFan oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the cards list changed (trick completed / round started), reset any stuck
-    // bounce state so no card remains visually elevated from a previous animation.
-    if (oldWidget.cards != widget.cards) {
+    if (!listEquals(oldWidget.cards, widget.cards)) {
       _bouncingIndex = null;
       if (_springCtrl.isAnimating) _springCtrl.stop();
+      _activeDragIndex = null;
+      _dragOffsetNotifier.value = Offset.zero;
     }
   }
 
   @override
   void dispose() {
     _springCtrl.dispose();
+    _dragOffsetNotifier.dispose();
     super.dispose();
   }
 
@@ -212,9 +211,9 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
 
   double get _cardWidth => GameTableLayout.handCardSize(widget.scale).width;
   double get _cardHeight => GameTableLayout.handCardSize(widget.scale).height;
-  static const double _largeRotation = 0.065; // stronger fan tilt per card
-  double get _arcLift => 20.0 * widget.scale;  // more dramatic parabolic rise at centre
-  double get _selLift => 56.0 * widget.scale;  // selected card pops up higher
+  static const double _largeRotation = 0.065;
+  double get _arcLift => 20.0 * widget.scale;
+  double get _selLift => 56.0 * widget.scale;
 
   int? get _selectedIndex {
     if (widget.selectedCard == null) return null;
@@ -231,6 +230,78 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
     return fittedOverlap.clamp(28.0 * widget.scale, 56.0 * widget.scale);
   }
 
+  void _handlePointerDown(int index, CardModel card, PointerDownEvent e) {
+    if (!widget.interactive) return;
+    _activeDragIndex = index;
+    _dragStartPos = e.position;
+    _dragOffsetNotifier.value = Offset.zero;
+    _velocityTracker = VelocityTracker.withKind(e.kind);
+    _velocityTracker?.addPosition(e.timeStamp, e.position);
+    _prevSelectedBeforeTouch = widget.selectedCard;
+
+    // Instant haptic feedback on touch down
+    HapticFeedback.selectionClick();
+
+    // Select card immediately at 0ms touch
+    if (widget.selectedCard != card) {
+      widget.onCardTap(card);
+    }
+    _triggerBounce(index);
+    setState(() {}); // Bring this card to the top of the Stack immediately
+  }
+
+  void _handlePointerMove(int index, PointerMoveEvent e) {
+    if (_activeDragIndex != index || _dragStartPos == null) return;
+    _velocityTracker?.addPosition(e.timeStamp, e.position);
+    final delta = e.position - _dragStartPos!;
+    // Upward tracking is 1:1, horizontal is slightly dampened, downward resists
+    _dragOffsetNotifier.value = Offset(
+      delta.dx * 0.9,
+      delta.dy < 0 ? delta.dy : delta.dy * 0.25,
+    );
+  }
+
+  void _handlePointerUp(int index, CardModel card, bool isValid, PointerUpEvent e) {
+    if (_activeDragIndex != index) return;
+    _velocityTracker?.addPosition(e.timeStamp, e.position);
+    final velocity = _velocityTracker?.getVelocity() ?? Velocity.zero;
+    final delta = _dragOffsetNotifier.value;
+
+    final isFlickUp = velocity.pixelsPerSecond.dy < -140 * widget.scale;
+    final isDraggedUp = delta.dy < -42 * widget.scale;
+    final isTap = delta.distance < 12.0;
+
+    if ((isFlickUp || isDraggedUp) && widget.canPlay && isValid) {
+      // Immediate flick or drag release upwards -> PLAY CARD!
+      HapticFeedback.mediumImpact();
+      widget.onSwipePlay(card);
+    } else if (isTap) {
+      // Tap behavior: if card was ALREADY selected before touch, play it
+      if (_prevSelectedBeforeTouch == card && widget.canPlay && isValid) {
+        HapticFeedback.mediumImpact();
+        widget.onSwipePlay(card);
+      }
+    }
+
+    _dragOffsetNotifier.value = Offset.zero;
+    setState(() {
+      _activeDragIndex = null;
+      _dragStartPos = null;
+      _velocityTracker = null;
+    });
+  }
+
+  void _handlePointerCancel(int index) {
+    if (_activeDragIndex == index) {
+      _dragOffsetNotifier.value = Offset.zero;
+      setState(() {
+        _activeDragIndex = null;
+        _dragStartPos = null;
+        _velocityTracker = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final n = widget.cards.length;
@@ -240,6 +311,17 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
     final totalExtent = _cardWidth + ((n - 1) * overlap);
     final sel = _selectedIndex;
 
+    // Display order: active drag index renders last (on top of all others),
+    // followed by the selected card, followed by the natural left-to-right order.
+    final displayIndices = List.generate(n, (i) => i);
+    displayIndices.sort((a, b) {
+      if (a == _activeDragIndex) return 1;
+      if (b == _activeDragIndex) return -1;
+      if (a == sel) return 1;
+      if (b == sel) return -1;
+      return a.compareTo(b);
+    });
+
     return AnimatedBuilder(
       animation: _springAnim,
       builder: (context, _) {
@@ -248,7 +330,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
           height: _cardHeight,
           child: Stack(
             clipBehavior: Clip.none,
-            children: List.generate(n, (index) {
+            children: displayIndices.map((index) {
               final offset = index * overlap;
 
               final center = (n - 1) / 2;
@@ -260,6 +342,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                   -(1.0 - normalizedDist * normalizedDist) * _arcLift;
 
               final isSelected = sel == index;
+              final isBeingDragged = _activeDragIndex == index;
               final isBouncing = _bouncingIndex == index;
               final cardModel = widget.cards[index];
               final isValid =
@@ -274,7 +357,7 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                 width: _cardWidth,
                 height: _cardHeight,
                 faceUp: true,
-                selected: isSelected,
+                selected: isSelected || isBeingDragged,
                 suppressSelectionOffset: true,
                 dimmed: !isValid,
                 onTap: null,
@@ -308,12 +391,12 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                       : 0.0;
 
               final cardFace = AnimatedScale(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutBack,
-                scale: isSelected ? 1.18 : 1.0,
+                scale: (isBeingDragged || isSelected) ? 1.16 : 1.0,
                 alignment: Alignment.bottomCenter,
                 child: AnimatedRotation(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 150),
                   curve: Curves.easeOutCubic,
                   alignment: Alignment.bottomCenter,
                   turns: ((index - (n - 1) / 2) * _largeRotation) / (2 * 3.14159),
@@ -321,97 +404,47 @@ class _DesignerHandFanState extends State<_DesignerHandFan>
                 ),
               );
 
-              final tappable = GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: widget.interactive
-                    ? () {
-                        final card = cardModel;
-                        // Always select (pop up) with bounce on tap.
-                        _triggerBounce(index);
-                        widget.onCardTap(card);
-                      }
-                    : null,
-                child: cardFace,
-              );
-
-              // Any valid playable card is directly draggable — no pre-selection needed.
-              // Dragging auto-selects the card on start for correct visual feedback.
-              final draggableChild = (widget.canPlay && isValid)
-                  ? Draggable<CardModel>(
-                      data: cardModel,
-                      maxSimultaneousDrags: 1,
-                      dragAnchorStrategy: _handCardCenterDragAnchor,
-                      onDragStarted: () {
-                        _triggerBounce(index);
-                        // Only auto-select if not already selected.
-                        // If already selected, calling onCardTap would immediately
-                        // play the card (double-tap-to-play logic) before the drag
-                        // reaches the drop target — which breaks drag entirely.
-                        if (!isSelected) {
-                          widget.onCardTap(cardModel);
-                        }
-                      },
-                      feedback: Material(
-                        elevation: 10,
-                        shadowColor: Colors.black54,
-                        borderRadius: BorderRadius.circular(11),
-                        color: Colors.transparent,
-                        child: Opacity(
-                          opacity: 0.96,
-                          child: SizedBox(
-                            width: _cardWidth,
-                            height: _cardHeight,
-                            child: PlayingCard(
-                              card: cardModel,
-                              size: CardSize.hand,
-                              width: _cardWidth,
-                              height: _cardHeight,
-                              faceUp: true,
-                              selected: true,
-                              suppressSelectionOffset: true,
-                              dimmed: false,
-                              onTap: null,
-                            ),
-                          ),
-                        ),
-                      ),
-                      childWhenDragging: Opacity(
-                        opacity: 0.38,
-                        child: cardFace,
-                      ),
-                      onDragEnd: (details) {
-                        if (details.wasAccepted) return;
-                        final v = details.velocity;
-                        if (v.pixelsPerSecond.dy < -90 * widget.scale &&
-                            v.pixelsPerSecond.dy.abs() >=
-                                v.pixelsPerSecond.dx.abs()) {
-                          widget.onSwipePlay(cardModel);
-                        }
-                      },
-                      child: tappable,
-                    )
-                  : tappable;
-
-              // Combine: arc lift + selection lift + spring bounce
               final totalLift =
                   (isSelected ? -_selLift : 0.0) + largeArcLift + bounceExtra;
 
-              final cardNode = AnimatedSlide(
-                duration: const Duration(milliseconds: 200),
+              final positionedBase = AnimatedSlide(
+                duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutBack,
                 offset: Offset(0, totalLift / _cardHeight),
-                child: draggableChild,
+                child: cardFace,
+              );
+
+              // Dynamic finger tracking: transforms ONLY the dragged card without full rebuilds
+              final draggableCard = ValueListenableBuilder<Offset>(
+                valueListenable: _dragOffsetNotifier,
+                builder: (context, dragOffset, child) {
+                  final activeOffset = isBeingDragged ? dragOffset : Offset.zero;
+                  return Transform.translate(
+                    offset: activeOffset,
+                    child: child,
+                  );
+                },
+                child: positionedBase,
+              );
+
+              final interactiveCard = Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (e) => _handlePointerDown(index, cardModel, e),
+                onPointerMove: (e) => _handlePointerMove(index, e),
+                onPointerUp: (e) => _handlePointerUp(index, cardModel, isValid, e),
+                onPointerCancel: (_) => _handlePointerCancel(index),
+                child: draggableCard,
               );
 
               return AnimatedPositioned(
                 key: ValueKey(widget.cards[index]),
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutBack,
                 left: offset,
                 top: 0,
-                child: cardNode,
+                child: interactiveCard,
               );
-            }),
+            }).toList(),
           ),
         );
       },

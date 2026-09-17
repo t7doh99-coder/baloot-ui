@@ -1,0 +1,10 @@
+{
+  "description": "Create pixel-perfect web designs effortlessly, ensuring exact visual fidelity for designers and developers seeking precision in their projects.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -20,6 +20,7 @@ import '../game_provider.dart';
 const _kGBgCanvas   = Color(0xFF1E1808);
 const _kGBgElevated = Color(0xFF392C14);
 const _kGSandGold   = Color(0xFFC49028);
+
 const _kGTextPrim   = Color(0xFFF8EDD8);
 const _kGSandBorder = Color(0x42C49028);
 // ───────────────────────────────────
@@ -240,8 +241,9 @@ class _HumanPlayerMajlisBarState extends State<HumanPlayerMajlisBar>
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: (game.phase == GamePhase.playing && 
-                          !game.canDeclareProjects)
+                  child: (game.phase == GamePhase.playing &&
+                          !game.canDeclareProjects &&
+                          game.isHakamMode) // Akka only exists in Hokum mode
                     ? (game.isAkkaAutoSetting
                         ? _AutoAkkaButton(
                             isActive: game.autoAkkaEnabled,

@@ -34,7 +34,7 @@ abstract class IBalootController {
   // ── Play Phase ──
 
   /// Play a card from a player's hand.
-  void playCard(int seatIndex, CardModel card);
+  void playCard(int seatIndex, CardModel card, {bool skipValidation = false});
 
 
   // ── Projects & Ekka ──
