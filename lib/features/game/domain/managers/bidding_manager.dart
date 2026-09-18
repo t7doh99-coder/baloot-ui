@@ -127,12 +127,17 @@ class BiddingManager {
         actions.add(BidAction.pass);
       } else {
         // Someone already bid Hakam.
-        // Dealer and Sane can STILL bid Hokom to override the existing bid.
-        // All remaining players can bid Sun (override to no-trump) or Pass.
         actions.add(BidAction.sun);
 
+        final firstPlayer = (dealerIndex + 1) % 4;
+        // Kammelna Dealer Restriction ("Gablak"): If the First Player took Hakam,
+        // the Dealer cannot override with Hakam (can only say Sun, Ashkal, or Pass).
+        if (_round1HakamBidder != firstPlayer) {
+          if (_isDealer(playerIndex) || _isSane(playerIndex)) {
+            actions.add(BidAction.hakam);
+          }
+        }
         if (_isDealer(playerIndex) || _isSane(playerIndex)) {
-          actions.add(BidAction.hakam);
           actions.add(BidAction.ashkal);
         }
         actions.add(BidAction.pass);
@@ -260,12 +265,18 @@ class BiddingManager {
     switch (action) {
       case BidAction.hakam:
         if (_round1HakamBidder != null) {
-          // A Hakam was already bid. Only Dealer or Sane may override it.
-          if (!_isDealer(seatIndex) && !_isSane(seatIndex)) {
+          final firstPlayer = (dealerIndex + 1) % 4;
+          if (_round1HakamBidder == firstPlayer) {
             throw InvalidBidException(
               playerIndex: seatIndex,
-              message:
-                  'Hakam was already bid — only Dealer or Sane may override. Use Pass or Sun.',
+              message: 'First player took Hakam. Dealer cannot override. Use Pass, Sun or Ashkal.',
+            );
+          }
+          // If a middle player (Seat 1 or 2) took Hakam, ONLY the Dealer can override it.
+          if (!_isDealer(seatIndex)) {
+            throw InvalidBidException(
+              playerIndex: seatIndex,
+              message: 'Hakam was already bid. Only Dealer may override. Use Pass or Sun.',
             );
           }
           // Dealer/Sane overrides: they become the new Hokom buyer.

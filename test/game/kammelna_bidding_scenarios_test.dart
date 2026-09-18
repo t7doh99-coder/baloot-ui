@@ -47,23 +47,25 @@ void main() {
       expect(dealerActions, containsAll([BidAction.sun, BidAction.hakam, BidAction.ashkal, BidAction.pass]));
     });
 
-    test('Scenario 3: Awal - Dealer Options After Someone Bids Hakam', () {
+    test('Scenario 3: Awal - Dealer Options After Someone Bids Hakam (Dealer Restriction)', () {
       final manager = BiddingManager(dealerIndex: 0, buyerCard: standardBuyerCard);
       
-      // Player 1 bids Hakam
+      // Player 1 (first player) bids Hakam
       manager.placeBid(1, BidAction.hakam);
       
       // Player 2 must pass or sun
       manager.placeBid(2, BidAction.pass);
       
-      // Player 3 (Sane) can override with Hakam, Ashkal, Sun, Pass
+      // Player 3 (Sane) cannot override first player's Hakam (can Sun, Ashkal, Pass)
       final p3Actions = manager.getAllowedActions(3);
-      expect(p3Actions, containsAll([BidAction.sun, BidAction.hakam, BidAction.ashkal, BidAction.pass]));
+      expect(p3Actions, containsAll([BidAction.sun, BidAction.ashkal, BidAction.pass]));
+      expect(p3Actions.contains(BidAction.hakam), isFalse);
       manager.placeBid(3, BidAction.pass);
       
-      // Dealer can override with Hakam, Ashkal, Sun, Pass
+      // Dealer cannot override first player's Hakam (Dealer restriction: only Sun, Ashkal, Pass)
       final dealerActions = manager.getAllowedActions(0);
-      expect(dealerActions, containsAll([BidAction.sun, BidAction.hakam, BidAction.ashkal, BidAction.pass]));
+      expect(dealerActions, containsAll([BidAction.sun, BidAction.ashkal, BidAction.pass]));
+      expect(dealerActions.contains(BidAction.hakam), isFalse);
     });
 
     test('Scenario 4 & 5: Awal - Sun Ends Bidding Instantly with Qablak Window (Only Sun allowed)', () {

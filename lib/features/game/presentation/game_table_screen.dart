@@ -923,6 +923,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final canAshkal = (0 == dealer || 0 == sane);
       final buyerIsAce = widget.game.buyerCard?.rank == Rank.ace;
       final hasActiveHakam = gp.hasActiveHakamBid;
+      final firstPlayer = (dealer + 1) % 4;
+      final firstPlayerTookHakam = gp.activeRound1HakamSeat == firstPlayer;
+      final canOverrideHakam = !firstPlayerTookHakam && (dealer == 0 || sane == 0);
 
       // When an opponent has bid Hakam in Round 1 (matching Kammelna & client video):
       // The defending player has: [صن] (Sun), [دبل] (Double), and [بس] (Pass / Bas)
@@ -936,7 +939,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
 
       return [
         _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        if (!hasActiveHakam || dealer == 0 || sane == 0)
+        if (!hasActiveHakam || canOverrideHakam)
           _GameBtn(label: loc.hakam, onTap: () => gp.humanBid(BidAction.hakam)),
         if (canAshkal && !buyerIsAce)
           _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
