@@ -113,8 +113,6 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
     final hasAccusedCard = game.selectedQaydhaTrickIndex != null;
     final selectedViolation = game.selectedQaydhaViolationIndex;
 
-    // Check if proof card is required:
-    // 0: Cut (qate), 2: Didn't Over-Trump (maKabbarBiHakam), 3: Didn't Trump (maDaqBiHakam)
     final bool requiresProof = selectedViolation != null &&
         (selectedViolation == 0 || selectedViolation == 2 || selectedViolation == 3);
     final hasProofCard = game.selectedQaydhaProofCardIndex != null ||

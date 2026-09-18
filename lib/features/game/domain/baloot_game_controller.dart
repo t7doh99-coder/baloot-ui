@@ -117,6 +117,12 @@ class BalootGameController implements IBalootController {
 
   @visibleForTesting
   void setBotEngineForTest(BotEngine be) => _botEngine = be;
+  
+  @visibleForTesting
+  void setRoundStateForTest(RoundStateModel rs) => _roundState = rs;
+
+  @visibleForTesting
+  void setTurnManagerForTest(TurnManager tm) => _turnManager = tm;
 
   /// Expose bot identity for UI (names, rank badges).
   BotIdentity botIdentityOf(int seat) => _botEngine.identityOf(seat);
@@ -156,6 +162,12 @@ class BalootGameController implements IBalootController {
   /// Live Bot Cheat Mode: forces the bot to make specific illegal plays if possible.
   BotCheatMode activeCheatMode = BotCheatMode.none;
 
+  int? _lastCheatSeat;
+  int? get lastCheatSeat => _lastCheatSeat;
+  void clearCheatSeat() {
+    _lastCheatSeat = null;
+  }
+
   /// The allowed bid actions for a given seat in the current bidding state.
   List<BidAction> allowedActions(int seatIndex) {
     if (_biddingManager == null) return [];
@@ -186,10 +198,20 @@ class BalootGameController implements IBalootController {
   ///
   /// Rules (per pagat.com / Standard):
   /// - Only triggers on the **lead** card (first card of a trick).
-  /// - In Hakam: only applies to NON-trump suits (trump has its own hierarchy).
-  /// - In Sun: applies to all suits (standard A>10>K>Q>J>9>8>7).
-  /// - A card is Akka if every card of the same suit that is stronger has already
-  ///   been played in a previous trick.
+  /// Akka (إكة) announcement rules (Kammelna / Saudi Baloot standard):
+  ///
+  /// - Akka ONLY exists in Hakam (حكم) mode.
+  ///   It does NOT exist in Sun (صن) or Ashkal (أشكال) — in those modes
+  ///   there are no trump cards and everyone must follow suit, so the
+  ///   "warn your partner not to cut" signal has no meaning.
+  /// - Akka NEVER applies when the card is an Ace (إكة/آص).
+  ///   An Ace is self-evidently the highest card in its suit; it doesn't
+  ///   need an announcement and can never be a false-Akka. Kammelna never
+  ///   shows an Akka bubble or opens a challenge window for an Ace lead.
+  /// - Akka only applies to NON-trump suits in Hakam
+  ///   (trump already has its own J > 9 > A > 10 > K > Q > 8 > 7 hierarchy).
+  /// - A card qualifies as Akka when every card of the same suit that
+  ///   would beat it has already been played in a previous trick.
   bool isAkka(CardModel card) {
     final tm = _turnManager;
     if (tm == null) return false;
@@ -198,8 +220,18 @@ class BalootGameController implements IBalootController {
     if (mode == null) return false;
     final trump = _roundState.trumpSuit;
 
-    // In Hakam, Akka only applies to non-trump suits
-    if (mode == GameMode.hakam && card.suit == trump) return false;
+    // ── Rule 1: Akka ONLY exists in Hakam mode ──
+    // Sun and Ashkal have no Akka announcement mechanic.
+    if (mode != GameMode.hakam) return false;
+
+    // ── Rule 2: Ace cards are NEVER an Akka ──
+    // An Ace is the absolute highest card in its suit by definition.
+    // Announcing "Akka" on an Ace is meaningless (and Kammelna never does it).
+    if (card.rank == Rank.ace) return false;
+
+    // ── Rule 3: In Hakam, Akka only applies to non-trump suits ──
+    // Trump suit has its own hierarchy (J > 9 > A > 10 …).
+    if (card.suit == trump) return false;
 
     // ── LEAD-ONLY CHECK ──
     // Akka only applies when the player LEADS the trick (plays first).
@@ -610,6 +642,7 @@ class BalootGameController implements IBalootController {
       // Gahwa = highest level, instantly closes double window and starts the round
       _roundState = _roundState.copyWith(
         doubleStatus: level,
+        doubleCallerIndex: seatIndex,
         isOpenPlay: effectiveIsOpenPlay,
         isDoubleWindowOpen: false,
       );
@@ -642,7 +675,7 @@ class BalootGameController implements IBalootController {
     debugPrint('[DoubleDebug] callDouble: seat=$seatIndex level=$level → ds=${_roundState.doubleStatus}');
   }
 
-  /// Skip the double window and proceed to play.
+  /// Skip the double window for everyone and proceed to play.
   void skipDoubleWindow() {
     if (_gamePhase != GamePhase.doubleWindow) {
       throw const InvalidMoveException('Double window is not open.');
@@ -654,6 +687,37 @@ class BalootGameController implements IBalootController {
     debugPrint('[DoubleDebug] skipDoubleWindow: BEFORE=$dsBeforeSkip AFTER=${_roundState.doubleStatus}');
     _gamePhase = GamePhase.playing;
     _startPlayPhase();
+  }
+
+  /// Pass the opportunity to double. Passes the turn to the partner if they haven't decided yet.
+  void passDoubleWindow(int seatIndex) {
+    if (_gamePhase != GamePhase.doubleWindow) {
+      throw const InvalidMoveException('Double window is not open.');
+    }
+    
+    if (seatIndex != _roundState.currentPlayerIndex) {
+      return; // Ignore if not this player's turn
+    }
+
+    final buyerIndex = _roundState.buyerIndex!;
+    final isDefender = (seatIndex % 2) != (buyerIndex % 2);
+
+    if (isDefender) {
+      // If it's the first defender's turn to double, pass to the second defender
+      if (seatIndex == _firstDefenderSeat(buyerIndex)) {
+         _roundState = _roundState.copyWith(currentPlayerIndex: (seatIndex + 2) % 4);
+         return;
+      }
+    } else {
+      // If it's the buyer's turn to escalate (Triple/Gahwa), pass to their partner
+      if (seatIndex == buyerIndex) {
+         _roundState = _roundState.copyWith(currentPlayerIndex: (seatIndex + 2) % 4);
+         return;
+      }
+    }
+    
+    // If we reach here, both members of the team have passed, or the partner passed
+    skipDoubleWindow();
   }
 
   void _startPlayPhase() {
@@ -1565,7 +1629,7 @@ class BalootGameController implements IBalootController {
             return;
           }
         }
-        skipDoubleWindow();
+        passDoubleWindow(seatIndex);
 
       // Project declarations by bots now happen during playing phase, Trick 1
       case GamePhase.playing:
@@ -1577,7 +1641,14 @@ class BalootGameController implements IBalootController {
           }
         }
         
-        if (activeCheatMode == BotCheatMode.falseAkka && canEkka(seatIndex)) {
+        // For Qaid testing, prevent the user's partner (seat 2, or any even seat assuming user is 0) 
+        // from committing card-play violations, because the user cannot challenge their own partner.
+        BotCheatMode currentCheatMode = activeCheatMode;
+        if (seatIndex % 2 == 0 && currentCheatMode != BotCheatMode.none && currentCheatMode != BotCheatMode.falseAkka && currentCheatMode != BotCheatMode.falseSawa) {
+          currentCheatMode = BotCheatMode.none;
+        }
+
+        if (currentCheatMode == BotCheatMode.falseAkka && canEkka(seatIndex)) {
           // Cheat mode: Force an Akka claim when leading, even if not mathematically correct
           _ekkaClaimSeat = seatIndex;
           logger.log('Cheat Mode: Seat $seatIndex forced False Ekka!');
@@ -1598,14 +1669,18 @@ class BalootGameController implements IBalootController {
           buyerIndex: _roundState.buyerIndex ?? -1,
           trickHistory: _turnManager!.trickHistory,
           ekkaClaimSeat: _ekkaClaimSeat,
-          cheatMode: activeCheatMode,
+          cheatMode: currentCheatMode,
         );
         
         // Skip validation if cheat mode is active and the card is illegal
         final validCards = getValidCards(seatIndex);
         final bool isCardIllegal = !validCards.contains(card);
-        final bool shouldSkipValidation = activeCheatMode != BotCheatMode.none && isCardIllegal;
+        final bool shouldSkipValidation = currentCheatMode != BotCheatMode.none && isCardIllegal;
         
+        if (shouldSkipValidation) {
+          _lastCheatSeat = seatIndex;
+        }
+
         playCard(seatIndex, card, skipValidation: shouldSkipValidation);
 
       default:

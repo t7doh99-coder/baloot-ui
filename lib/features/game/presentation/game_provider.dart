@@ -985,7 +985,7 @@ class GameProvider extends ChangeNotifier {
     _cancelTimers();
     try {
       debugPrint('[GameProvider] humanSkipDouble: BEFORE ds=${_engine.roundState.doubleStatus}');
-      _engine.skipDoubleWindow();
+      _engine.passDoubleWindow(0);
       debugPrint('[GameProvider] humanSkipDouble: AFTER ds=${_engine.roundState.doubleStatus}');
       _showBubble(0, 'Pass');
       _afterEngineAction();
@@ -1573,16 +1573,25 @@ class GameProvider extends ChangeNotifier {
         _revealedProjectSeats.add(currentSeat);
         _projectRevealSeat = currentSeat;
         // Show the reveal visually. It will be cleared when the turn ends (via _cancelTimers)
-        // or after 5 seconds if the turn takes longer.
-        Timer(const Duration(milliseconds: 5000), () {
+        // or after 6 seconds if the turn takes longer (e.g. human player).
+        Timer(const Duration(milliseconds: 6000), () {
           if (_projectRevealSeat == currentSeat) {
             _projectRevealSeat = null;
             notifyListeners();
           }
         });
         
-        // Dispatch the turn immediately so the timer ring runs concurrently.
-        _dispatchTurn(currentSeat);
+        notifyListeners(); // Force UI update immediately so fan begins animating
+        
+        if (currentSeat != 0) {
+          // For bots, add a forced 4.0s delay so the human can clearly see the bot's project fan.
+          _botTimer = Timer(const Duration(milliseconds: 4000), () {
+            _dispatchTurn(currentSeat);
+          });
+        } else {
+          // For humans, dispatch immediately. The fan stays up until they play a card.
+          _dispatchTurn(currentSeat);
+        }
         return;
       }
     }
@@ -1601,6 +1610,8 @@ class GameProvider extends ChangeNotifier {
       final delay = _calculateBotDelay();
       _botTurnDurationMs = delay;
       _botTurnStartedAt = DateTime.now();
+      notifyListeners(); // Force UI update to show the countdown ring for the bot
+      
       _botTimer = Timer(Duration(milliseconds: delay), () {
         _executeBotTurn(seat);
       });
@@ -1682,16 +1693,29 @@ class GameProvider extends ChangeNotifier {
           // Standard "أكة" — auto-detect strongest remaining card of suit
           // Find the card this bot just played (last card in current trick or last trick)
           final lastCard = _engine.lastPlayedCardBySeat(seat);
+          final didClaimAkka = _engine.ekkaClaimSeat == seat || (lastCard != null && _engine.isAkka(lastCard));
+          
           if (lastCard != null &&
               !_akkaPronouncedSeatsThisRound.contains(seat) &&
-              _engine.isAkka(lastCard)) {
+              didClaimAkka) {
             _akkaPronouncedSeatsThisRound.add(seat);
             _showBubble(seat, 'Akka');
             if (seat % 2 != 0) {
               _openFalseEkkaWindow(seat, lastCard);
             }
           } else {
-            _checkBotExpressions(seat, event: 'turn');
+            bool showedCheat = false;
+            if (_engine is BalootGameController) {
+              final cheatSeat = (_engine as BalootGameController).lastCheatSeat;
+              if (cheatSeat == seat) {
+                _showBubble(seat, 'CHEAT!');
+                (_engine as BalootGameController).clearCheatSeat();
+                showedCheat = true;
+              }
+            }
+            if (!showedCheat) {
+              _checkBotExpressions(seat, event: 'turn');
+            }
           }
         }
       }
@@ -1769,6 +1793,8 @@ class GameProvider extends ChangeNotifier {
     final rs = _engine.roundState;
     if (rs.doubleStatus != doubleStatusBefore && rs.doubleCallerIndex == seat) {
       _showBubble(seat, _doubleLabel(rs.doubleStatus));
+    } else {
+      _showBubble(seat, 'Pass');
     }
   }
 

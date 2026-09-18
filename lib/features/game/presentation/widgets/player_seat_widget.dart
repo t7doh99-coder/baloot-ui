@@ -414,7 +414,16 @@ class _SeatPlayerInfoBox extends StatelessWidget {
       footerAccentColor = const Color(0xFF81C784);
     } else if (game.phase == GamePhase.bidding) {
       final bp = game.biddingPhase;
-      if (bp == BiddingPhase.round1 || bp == BiddingPhase.hakamConfirmation) {
+      if (bp == BiddingPhase.round1) {
+        // Round 1: Hakam has been bid but others are still passing/stealing.
+        // Only show "Hakam" — no suit symbol yet (Kammelna shows the suit
+        // only AFTER all others pass and the buyer reaches the confirm step).
+        if (seatIndex == game.activeRound1HakamSeat) {
+          footerLabel = isAr ? 'حكم' : 'Hakam';
+        }
+      } else if (bp == BiddingPhase.hakamConfirmation) {
+        // Hakam confirmation: all others have passed. Now show the full
+        // "♥ Hakam" / "حكم ♥" label so the buyer knows their suit.
         if (seatIndex == game.activeRound1HakamSeat) {
           final suit = game.buyerCard?.suit;
           final suitSym = suit != null ? _suitSymbol(suit) : '';
@@ -426,9 +435,11 @@ class _SeatPlayerInfoBox extends StatelessWidget {
           if (pendingMode == GameMode.sun) {
             footerLabel = loc.sun;
           } else {
-            final pendingSuit = game.activeRound2PendingTrump;
-            final suitSym = pendingSuit != null ? _suitSymbol(pendingSuit) : '';
-            footerLabel = isAr ? 'حكم $suitSym' : '$suitSym Hakam';
+            // Round 2 Hakam pending: others are still passing/stealing.
+            // Do NOT show the suit symbol yet — the suit is only revealed
+            // after all others pass and the buyer reaches the confirmation
+            // step (hakamConfirmation). Kammelna hides the suit during passing.
+            footerLabel = isAr ? 'حكم' : 'Hakam';
           }
         }
       }

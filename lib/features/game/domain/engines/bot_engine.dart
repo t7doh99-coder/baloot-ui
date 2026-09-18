@@ -416,20 +416,28 @@ class BotEngine {
           break;
           
         case BotCheatMode.upTrumpViolation:
-          // We want to play LOWER trump when we could have played HIGHER trump.
+          // We want to play LOWER trump or NON trump when we could have played HIGHER trump.
           if (currentTrick.isNotEmpty && mode == GameMode.hakam) {
-            final leadSuit = currentTrick.first.card.suit;
-            if (leadSuit == trumpSuit) {
-              final highestPlayedTrumpRank = currentTrick
-                  .where((p) => p.card.suit == trumpSuit)
-                  .map((p) => p.card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit))
-                  .fold(-1, (max, val) => val > max ? val : max);
-                  
+            final highestPlayedTrumpRank = currentTrick
+                .where((p) => p.card.suit == trumpSuit)
+                .map((p) => p.card.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit))
+                .fold(-1, (max, val) => val > max ? val : max);
+                
+            if (highestPlayedTrumpRank > -1) {
               final higherTrumps = hand.where((c) => c.suit == trumpSuit && c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) > highestPlayedTrumpRank).toList();
-              final lowerTrumps = hand.where((c) => c.suit == trumpSuit && c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) < highestPlayedTrumpRank).toList();
               
-              if (higherTrumps.isNotEmpty && lowerTrumps.isNotEmpty) {
-                return lowerTrumps.first; // Illegal in Baloot (Up-Trump)
+              if (higherTrumps.isNotEmpty) {
+                // We HAVE a higher trump! Let's see if we can play a lower trump.
+                final lowerTrumps = hand.where((c) => c.suit == trumpSuit && c.getStrength(mode: GameMode.hakam, trumpSuit: trumpSuit) < highestPlayedTrumpRank).toList();
+                if (lowerTrumps.isNotEmpty) return lowerTrumps.first; // Classic Ma Kabbar
+                
+                // Otherwise, if we don't have lead suit, we can play a non-trump!
+                final leadSuit = currentTrick.first.card.suit;
+                final hasLeadSuit = hand.any((c) => c.suit == leadSuit);
+                if (!hasLeadSuit) {
+                  final nonTrumps = hand.where((c) => c.suit != trumpSuit).toList();
+                  if (nonTrumps.isNotEmpty) return nonTrumps.first;
+                }
               }
             }
           }

@@ -638,19 +638,19 @@ void main() {
       expect(provider.lastRoundResult!.qaydhaViolationType, equals(QaydhaViolationType.falseEkka));
     });
 
-    test('24. testFalseEkka_AceLead_DetectedAsAkka: Leading an Ace is recognized as Akka in Hakam and Sun', () {
+    test('24. testFalseEkka_AceLead_NeverDetectedAsAkka: Kammelna rule — Ace is NEVER announced as Akka', () {
       final controller = BalootGameController(random: Random(42));
       controller.startNewGame(playerNames);
       controller.startNewRound();
 
       final firstBidder = controller.roundState.currentPlayerIndex;
+      // Test in Sun mode
       controller.placeBid(firstBidder, BidAction.sun);
       if (controller.gamePhase == GamePhase.doubleWindow) controller.skipDoubleWindow();
 
       expect(controller.gamePhase, equals(GamePhase.playing));
 
       final leadPlayer = controller.roundState.currentPlayerIndex;
-      // Find an Ace in hand or play lead card
       final hand = controller.getHand(leadPlayer);
       final aceCard = hand.firstWhere(
         (c) => c.rank == Rank.ace,
@@ -659,11 +659,11 @@ void main() {
 
       controller.playCard(leadPlayer, aceCard);
 
-      if (aceCard.rank == Rank.ace) {
-        expect(controller.isAkka(aceCard), isTrue);
-      } else {
-        expect(controller.isAkka(aceCard), isA<bool>());
-      }
+      // Kammelna rule: Ace is NEVER an Akka (neither in Sun nor Hakam)
+      // In Sun: Akka mechanic doesn't exist at all
+      // In Hakam: An Ace is the self-evident master — announcing it is meaningless
+      expect(controller.isAkka(aceCard), isFalse,
+          reason: 'Ace is never an Akka — Kammelna never announces Akka on an Ace');
     });
 
     test('25. testFalseSawa_DirectChallenge_InstantObjection: wrongSawa objection awards Kabout to challenger', () {

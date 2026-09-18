@@ -202,6 +202,39 @@ class GameL10n {
       // if (en == 'GoodLuck') return '👍 Good game';
       return en;
     }
+
+    // First check for exact matches
+    switch (en) {
+      case 'Pass': return 'بس';
+      case 'PassR2': return 'ولا';
+      case 'Hakam': return 'حكم';
+      case 'Thani': return 'ثاني';
+      case 'Sun': return 'صن';
+      case 'Qablak': return 'قبلك';
+      case 'Sawa': return 'سوا';
+      case 'Awal': return 'أول';
+      case 'Kasho': return 'كاشو';
+      case 'Hakam Sani': return 'حكم ثاني';
+      case 'Ashkal': return 'أشكال';
+      case 'Hearts': return 'هاص';
+      case 'Diamonds': return 'ديمن';
+      case 'Spades': return 'سبيت';
+      case 'Clubs': return 'شيريا';
+      case 'Double': return 'دبل';
+      case 'Triple': return 'ثري';
+      case 'Four': return 'فور';
+      case 'Gahwa': return 'قهوة';
+      case 'Qaid': return 'قيدها';
+      case 'Sera': return 'سرا';
+      case '50': return 'خمسين';
+      case '100': return 'مية';
+      case '400': return 'أربعمية';
+      case 'Baloot': return 'بلوت';
+      case 'Akka': return 'أكة';
+      case 'Ekka': return 'أكة';
+    }
+
+    // Then handle prefix rules
     if (en.startsWith('Hakam Sani ') && en.length > 11) {
       return 'حكم ثاني ${en.substring(11)}';
     }
@@ -211,42 +244,10 @@ class GameL10n {
     if (en.startsWith('Thani ') && en.length > 6) {
       return 'ثاني ${en.substring(6)}';
     }
-    return switch (en) {
-      'Pass' => 'بس',
-      'PassR2' => 'ولا',
-      'Hakam' => 'حكم',
-      'Thani' => 'ثاني',
-      'Sun' => 'صن',
-      'Qablak' => 'قبلك',
-      'Sawa' => 'سوا',
-      'Awal' => 'أول',
-      'Kasho' => 'كاشو',
-      'Hakam Sani' => 'حكم ثاني',
-      'Ashkal' => 'أشكال',
-      'Hearts' => 'هاص',
-      'Diamonds' => 'ديمن',
-      'Spades' => 'سبيت',
-      'Clubs' => 'شيريا',
-      'Double' => 'دبل',
-      'Triple' => 'ثري',
-      'Four' => 'فور',
-      'Gahwa' => 'قهوة',
-      'Qaid' => 'قيدها',
-      'Sera' => 'سرا',
-      '50' => 'خمسين',
-      '100' => 'مية',
-      '400' => 'أربعمية',
-      'Baloot' => 'بلوت',
-      'Akka' => 'أكة',
-      'Ekka' => 'أكة',
-      // Disabled for now per user request:
-      // 'Celebrate' => '🎉 كفو!',
-      // 'Oops' => '😅 أوف!',
-      // 'Surprised' => '😲 ما شاء الله!',
-      // 'GoodLuck' => '👍 بالتوفيق',
-      _ => _tryTranslateCombinedProjects(en),
-    };
+
+    return _tryTranslateCombinedProjects(en);
   }
+
 
   String _tryTranslateCombinedProjects(String en) {
     if (en.contains(' & ')) {

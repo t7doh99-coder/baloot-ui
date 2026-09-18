@@ -75,7 +75,7 @@ void main() {
       }
     });
 
-    test('5. Pre-play isAkka check accurately identifies lead Akka card', () {
+    test('5. isAkka returns false for Ace in Sun (Kammelna rule: no Akka in Sun)', () {
       final controller = BalootGameController(random: Random(42));
       controller.startNewGame(['Human', 'Bot 1', 'Bot 2', 'Bot 3']);
       controller.startNewRound();
@@ -88,13 +88,45 @@ void main() {
 
       expect(controller.gamePhase, equals(GamePhase.playing));
 
-      // Ace of any suit is an Akka on trick 1 in Sun
+      // Akka does NOT exist in Sun mode — even an Ace returns false.
       const aceOfSpades = CardModel(suit: Suit.spades, rank: Rank.ace);
-      expect(controller.isAkka(aceOfSpades), isTrue);
+      expect(controller.isAkka(aceOfSpades), isFalse,
+          reason: 'Akka announcement is a Hakam-only mechanic (not Sun/Ashkal)');
 
-      // Seven of any suit is NOT an Akka when higher cards exist
+      // A Seven is also NOT an Akka when playing in Sun
       const sevenOfSpades = CardModel(suit: Suit.spades, rank: Rank.seven);
-      expect(controller.isAkka(sevenOfSpades), isFalse);
+      expect(controller.isAkka(sevenOfSpades), isFalse,
+          reason: 'No Akka in Sun mode regardless of card strength');
+    });
+
+    test('6. isAkka Kammelna rules: no Ace Akka, Hakam-only, non-trump only', () {
+      final controller = BalootGameController(random: Random(42));
+      controller.startNewGame(['Human', 'Bot 1', 'Bot 2', 'Bot 3']);
+      controller.startNewRound();
+
+      // Use Sun bid for simplicity (bidder is who roundState says)
+      final firstBidder = controller.roundState.currentPlayerIndex;
+      controller.placeBid(firstBidder, BidAction.sun);
+      if (controller.gamePhase == GamePhase.doubleWindow) {
+        controller.skipDoubleWindow();
+      }
+
+      expect(controller.gamePhase, equals(GamePhase.playing));
+
+      // Rule 1: Ace is NEVER an Akka in Sun mode (Sun has no Akka mechanic)
+      const aceOfSpades = CardModel(suit: Suit.spades, rank: Rank.ace);
+      expect(controller.isAkka(aceOfSpades), isFalse,
+          reason: 'Ace is never an Akka in Sun mode');
+
+      // Rule 2: Non-Ace non-trump card is also NOT Akka when Ace still unplayed
+      const tenOfSpades = CardModel(suit: Suit.spades, rank: Rank.ten);
+      expect(controller.isAkka(tenOfSpades), isFalse,
+          reason: 'Ten is NOT Akka in Sun mode — Akka is Hakam-only');
+
+      // Rule 3: King is NOT Akka in Sun mode (Akka is Hakam-only)
+      const kingOfSpades = CardModel(suit: Suit.spades, rank: Rank.king);
+      expect(controller.isAkka(kingOfSpades), isFalse,
+          reason: 'King is NOT Akka in Sun mode — Akka is Hakam-only regardless of card strength');
     });
   });
 }

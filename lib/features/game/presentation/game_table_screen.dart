@@ -665,7 +665,7 @@ class _StartBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTapDown: (_) {
         HapticFeedback.heavyImpact();
         onTap();
       },
@@ -952,6 +952,9 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     }
 
     if (bp == BiddingPhase.hakamConfirmation) {
+      if (widget.game.isRound2Confirmation) {
+        return _buildSuitPickerButtons(context, loc);
+      }
       return [
         _GameBtn(label: loc.switchToSun, onTap: () => gp.humanBid(BidAction.sun)),
         _GameBtn(label: loc.confirmHakam, onTap: () => gp.humanBid(BidAction.confirmHakam)),
@@ -962,7 +965,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       final isHakam = widget.game.activeRound2PendingMode == GameMode.hakam;
       return [
         if (isHakam) _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
-        _GameBtn(label: loc.pass, onTap: () => gp.humanBid(BidAction.pass)),
+        _GameBtn(label: loc.passRound2, onTap: () => gp.humanBid(BidAction.pass)),
       ];
     }
 
@@ -975,10 +978,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
       _GameBtn(label: loc.sun, onTap: () => gp.humanBid(BidAction.sun)),
       _GameBtn(
         label: loc.secondHakam,
-        onTap: () {
-          gp.audioService.playBubble('hukam sani');
-          setState(() => _activePicker = _DashboardPicker.suit);
-        },
+        onTap: () => gp.humanBid(BidAction.secondHakam),
       ),
       if ((isDealer || isSane) && !buyerIsAce)
         _GameBtn(label: loc.ashkal, onTap: () => gp.humanBid(BidAction.ashkal)),
@@ -1056,7 +1056,7 @@ class _HumanDashboardWidgetState extends State<_HumanDashboardWidget> {
     return [
        for (final s in suits)
          _GameBtn(label: suitNames[s]!, onTap: () {
-           gp.humanBid(BidAction.secondHakam, secondHakamSuit: s);
+           gp.humanBid(BidAction.confirmHakam, secondHakamSuit: s);
            setState(() => _activePicker = _DashboardPicker.none);
          }),
        _GameBtn(label: loc.switchToSun, onTap: () {
@@ -1285,6 +1285,12 @@ class _GameBtnState extends State<_GameBtn>
   void _handleTapDown(_) {
     setState(() => _isPressed = true);
     _ctrl.forward();
+
+    // Trigger instantly on touch down for hyper-responsive game feel
+    // and to prevent Flutter from cancelling the tap due to slight finger rolls.
+    context.read<GameProvider>().audioService.playGoldButton();
+    HapticFeedback.lightImpact();
+    widget.onTap();
   }
 
   void _handleTapUp(_) {
@@ -1298,9 +1304,7 @@ class _GameBtnState extends State<_GameBtn>
   }
 
   void _handleTap() {
-    context.read<GameProvider>().audioService.playGoldButton();
-    HapticFeedback.lightImpact();
-    widget.onTap();
+    // Action already triggered in _handleTapDown
   }
 
   @override
