@@ -501,18 +501,30 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
           font,
       bool isAr,
       {bool isResultMode = false}) {
+    // Determine if THIS trick is the one being accused
+    final bool isAccusedTrick = isResultMode
+        ? game.qaydhaChallengeResult?.trickIndex == trickIndex
+        : game.selectedQaydhaTrickIndex == trickIndex;
+
+    final Color trickBorderColor = isAccusedTrick
+        ? const Color(0xBBFF4D4F) // Red for accused trick
+        : const Color(0x60C49028); // Default gold
+    final double trickBorderWidth = isAccusedTrick ? 2.0 : 1.2;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-          color: const Color(0xFF1E1808), // Sandstone dark canvas
+          color: const Color(0xFF1E1808),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: const Color(0x60C49028), width: 1.2), // Gold border
+          border: Border.all(color: trickBorderColor, width: trickBorderWidth),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
+              color: isAccusedTrick
+                  ? const Color(0xFFFF4D4F).withValues(alpha: 0.18)
+                  : Colors.black.withValues(alpha: 0.35),
               offset: const Offset(0, 3),
-              blurRadius: 5,
+              blurRadius: isAccusedTrick ? 10 : 5,
+              spreadRadius: isAccusedTrick ? 2 : 0,
             )
           ]),
       child: Column(
@@ -521,27 +533,39 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
           // Header row
           Container(
             padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 14),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFF392C14),
-                  Color(0xFF2C2210)
-                ], // Warm dark gradient
+                colors: isAccusedTrick
+                    ? const [Color(0xFF3D1010), Color(0xFF2A0A0A)] // Red tint for accused
+                    : const [Color(0xFF392C14), Color(0xFF2C2210)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(11),
                 topRight: Radius.circular(11),
               ),
             ),
-            child: Text(
-              isAr ? 'الأكلة ${trickIndex + 1}' : 'Trick ${trickIndex + 1}',
-              textAlign: isAr ? TextAlign.right : TextAlign.left,
-              style: font(
-                  color: const Color(0xFFF8EDD8), // Warm Ivory text
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isAr ? 'الأكلة ${trickIndex + 1}' : 'Trick ${trickIndex + 1}',
+                  textAlign: isAr ? TextAlign.right : TextAlign.left,
+                  style: font(
+                      color: isAccusedTrick
+                          ? const Color(0xFFFFB3B3)
+                          : const Color(0xFFF8EDD8),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold),
+                ),
+                if (isAccusedTrick)
+                  Icon(
+                    isResultMode ? Icons.gavel : Icons.search,
+                    size: 14,
+                    color: const Color(0xFFFF4D4F),
+                  ),
+              ],
             ),
           ),
           // Cards fan
@@ -555,11 +579,19 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                   return const SizedBox.shrink();
                 }
                 final cardPlay = trickResult.cards[i];
-                final isAccusedCard = game.selectedQaydhaTrickIndex == trickIndex &&
-                    game.selectedQaydhaCardSeatIndex == cardPlay.playerIndex;
-                final isProofCard = game.selectedQaydhaProofTrickIndex == trickIndex &&
-                    (game.selectedQaydhaProofSeatIndex == cardPlay.playerIndex ||
-                        game.selectedQaydhaProofCardIndex == i);
+                final isAccusedCard = isResultMode
+                    // Result mode: highlight using the confirmed result data
+                    ? (game.qaydhaChallengeResult?.trickIndex == trickIndex &&
+                        game.qaydhaChallengeResult?.accusedCard == cardPlay.card)
+                    // Selection mode: highlight using live selection state
+                    : (game.selectedQaydhaTrickIndex == trickIndex &&
+                        game.selectedQaydhaCardSeatIndex == cardPlay.playerIndex);
+
+                // Proof card: only highlight in selection mode (result shows evidence)
+                // IMPORTANT: use strict AND so we don't false-match proof from hand panel
+                final isProofCard = !isResultMode &&
+                    game.selectedQaydhaProofTrickIndex == trickIndex &&
+                    game.selectedQaydhaProofSeatIndex == cardPlay.playerIndex;
 
                 Color highlightColor = Colors.transparent;
                 if (isAccusedCard) {
@@ -641,8 +673,12 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // PLAYER HANDS SECTION (4 Players Grid matching Kammelna 5.png)
-  // Shows all 4 players' unplayed hands.
+  // PLAYER HANDS SECTION
+  // When a violation trick is selected, shows the hand snapshot from the START
+  // of that trick — i.e. what each player HELD when the cheat happened.
+  // This allows the user to find and select the proof card (e.g. 8♣ proving
+  // the bot held clubs when it played A♥).
+  // Falls back to current hands if no trick is selected.
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildPlayersCardsSection(
       BuildContext context,
@@ -652,11 +688,44 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
           font,
       bool isAr,
       {bool isResultMode = false}) {
+    final snapshotTrickIdx = isResultMode
+        ? game.qaydhaChallengeResult?.trickIndex
+        : game.selectedQaydhaTrickIndex;
+    final hasSnapshot = snapshotTrickIdx != null;
+
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Column(
         children: [
-          // Row 1: Seat 1 and Seat 2 (matching Kammelna 5.png top row)
+          // Context label: "Hands at Trick N" or "Current Hands"
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
+            child: Row(
+              children: [
+                Icon(
+                  hasSnapshot ? Icons.history : Icons.style_outlined,
+                  size: 14,
+                  color: hasSnapshot ? const Color(0xFFF0CA60) : const Color(0xFF8A7050),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    hasSnapshot
+                        ? (isAr
+                            ? 'الأوراق عند الأكلة ${snapshotTrickIdx! + 1} (وقت الغش)'
+                            : 'Hands at Trick ${snapshotTrickIdx! + 1} (time of cheat)')
+                        : (isAr ? 'الأوراق المتبقية' : 'Remaining Hands'),
+                    style: font(
+                      color: hasSnapshot ? const Color(0xFFF0CA60) : const Color(0xFF8A7050),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Row 1: Seat 1 and Seat 2
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -672,7 +741,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
             ],
           ),
           const SizedBox(height: 8),
-          // Row 2: Seat 0 and Seat 3 (matching Kammelna 5.png bottom row)
+          // Row 2: Seat 0 and Seat 3
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -701,7 +770,13 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
           font,
       bool isAr,
       {bool isResultMode = false}) {
-    final hand = game.getHand(seatIndex);
+    // Show the hand as it was at the START of the selected violation trick,
+    // so that cards played in later tricks (e.g. 8♣ proving the bot had clubs)
+    // are still visible as selectable proof cards.
+    final snapshotTrickIndex = isResultMode
+        ? game.qaydhaChallengeResult?.trickIndex
+        : game.selectedQaydhaTrickIndex;
+    final hand = game.getHandForSeatSnapshot(snapshotTrickIndex, seatIndex);
     final playerName = game.playerName(seatIndex, isArabic: isAr);
 
     return Container(

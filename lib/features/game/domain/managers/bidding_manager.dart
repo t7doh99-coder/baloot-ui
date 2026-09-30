@@ -272,11 +272,11 @@ class BiddingManager {
               message: 'First player took Hakam. Dealer cannot override. Use Pass, Sun or Ashkal.',
             );
           }
-          // If a middle player (Seat 1 or 2) took Hakam, ONLY the Dealer can override it.
-          if (!_isDealer(seatIndex)) {
+          // If a middle player (Seat 1 or 2) took Hakam, ONLY the Dealer or Sane can override it.
+          if (!_isDealer(seatIndex) && !_isSane(seatIndex)) {
             throw InvalidBidException(
               playerIndex: seatIndex,
-              message: 'Hakam was already bid. Only Dealer may override. Use Pass or Sun.',
+              message: 'Hakam was already bid. Only Dealer or Sane may override. Use Pass or Sun.',
             );
           }
           // Dealer/Sane overrides: they become the new Hokom buyer.

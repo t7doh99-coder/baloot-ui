@@ -224,6 +224,9 @@ class BalootGameController implements IBalootController {
     // Sun and Ashkal have no Akka announcement mechanic.
     if (mode != GameMode.hakam) return false;
 
+    // ── Rule 1b: In Kammelna, Akka is not allowed on trick 8 (last trick) ──
+    if (tm.trickNumber == 8) return false;
+
     // ── Rule 2: Ace cards are NEVER an Akka ──
     // An Ace is the absolute highest card in its suit by definition.
     // Announcing "Akka" on an Ace is meaningless (and Kammelna never does it).
@@ -252,9 +255,18 @@ class BalootGameController implements IBalootController {
       isLeadCard = true;
       historyCount = tm.trickHistory.length - 1;
     } else {
-      // Before playCard() — candidate lead card for upcoming trick
-      isLeadCard = true;
-      historyCount = tm.trickHistory.length;
+      // Either (a) the card was a non-lead card in the last completed trick
+      // (e.g. the 2nd/3rd/4th card that just finished a trick), or
+      // (b) this is called before playCard() as a candidate lead card.
+      if (tm.trickHistory.isNotEmpty &&
+          tm.trickHistory.last.cards.any((p) => p.card == card)) {
+        // Card was in the last completed trick but NOT as lead — NOT Akka
+        isLeadCard = false;
+      } else {
+        // Card is about to be played as lead of next trick
+        isLeadCard = true;
+        historyCount = tm.trickHistory.length;
+      }
     }
     if (!isLeadCard) return false;
 

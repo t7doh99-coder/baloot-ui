@@ -1092,6 +1092,8 @@ class GameProvider extends ChangeNotifier {
           }
         }
       }
+      // Bot Qaid detection: check if any opponent bot catches the human cheating
+      _checkForBotQaidDetection();
       _afterEngineAction();
     } on PlayViolationException catch (e) {
       // Qaid (Violation) — show Standard-style banner
@@ -1513,6 +1515,7 @@ class GameProvider extends ChangeNotifier {
     _isFalseSawaWindowOpen = false;
     _clearSawaRevealState();
     _akkaPronouncedSeatsThisRound.clear();
+    _tricksAlreadyBotChallenged.clear(); // Reset per-round bot Qaid tracking
     _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
     
@@ -1693,7 +1696,11 @@ class GameProvider extends ChangeNotifier {
           // Standard "أكة" — auto-detect strongest remaining card of suit
           // Find the card this bot just played (last card in current trick or last trick)
           final lastCard = _engine.lastPlayedCardBySeat(seat);
-          final didClaimAkka = _engine.ekkaClaimSeat == seat || (lastCard != null && _engine.isAkka(lastCard));
+          // Only auto-detect Akka if the bot was leading the trick (canEkka checks
+          // that currentTrick is empty and it's the bot's turn), or if the bot
+          // already claimed ekka (e.g. via cheat mode).
+          final botClaimedEkka = _engine.ekkaClaimSeat == seat;
+          final didClaimAkka = botClaimedEkka || (lastCard != null && _engine.isAkka(lastCard));
           
           if (lastCard != null &&
               !_akkaPronouncedSeatsThisRound.contains(seat) &&
@@ -1856,6 +1863,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _showBubble(int seat, String text) {
+    debugPrint('[BUBBLE] Seat $seat says: $text');
     _audioService.playBubble(text);
     _bubbleTimers[seat]?.cancel();
     _bubbles[seat] = PlayerBubble(
@@ -2123,6 +2131,7 @@ class GameProvider extends ChangeNotifier {
 
   QaydhaActionType? _currentQaydhaAction;
   QaydhaActionType? get currentQaydhaAction => _currentQaydhaAction;
+  int? _qaydhaChallengerIndex;
 
   int? _selectedQaydhaViolationIndex;
   int? get selectedQaydhaViolationIndex => _selectedQaydhaViolationIndex;
@@ -2142,7 +2151,18 @@ class GameProvider extends ChangeNotifier {
   int? _selectedQaydhaProofCardIndex;
   int? get selectedQaydhaProofCardIndex => _selectedQaydhaProofCardIndex;
 
+  /// Returns the hand snapshot for [seatIndex] at the START of [trickIndex].
+  /// This is used by the Qaydha review overlay to show what cards each player
+  /// HELD at the moment a violation occurred — not the current remaining hand.
+  /// Falls back to the current hand if no snapshot is available.
   List<CardModel> getHandForSeatSnapshot(int? trickIndex, int seatIndex) {
+    if (trickIndex != null) {
+      final tricks = trickHistoryThisRound;
+      if (trickIndex >= 0 && trickIndex < tricks.length) {
+        final snap = tricks[trickIndex].handsAtStartOfTrick?[seatIndex];
+        if (snap != null) return snap;
+      }
+    }
     return getHand(seatIndex);
   }
 
@@ -2157,6 +2177,10 @@ class GameProvider extends ChangeNotifier {
   CardModel? _lastAkkaCard;
   final Set<int> _akkaPronouncedSeatsThisRound = {};
   int? _lastAwalDealerSeat;
+
+  /// Tracks which trick indices have already been Qaid-challenged by a bot
+  /// this round, so the same trick is never double-challenged.
+  final Set<int> _tricksAlreadyBotChallenged = {};
 
   void _announceDealerAwal(int dealerSeat) {
     if (_lastAwalDealerSeat == dealerSeat) return;
@@ -2300,6 +2324,7 @@ class GameProvider extends ChangeNotifier {
   void startQaydha(QaydhaActionType action) {
     _isQaydhaReviewVisible = true;
     _currentQaydhaAction = action;
+    _qaydhaChallengerIndex = 0;
     _selectedQaydhaViolationIndex = action == QaydhaActionType.wrongTrick ? 4 : null;
     _selectedQaydhaTrickIndex = null;
     _selectedQaydhaCardSeatIndex = null;
@@ -2313,9 +2338,243 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  //  BOT QAYDHA DETECTION
+  //  After every human card play, opposing bots scan trick history for
+  //  violations. If found, the bot calls Qaid automatically.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Called immediately after a human plays a card.
+  /// Opposing bots (seats 1 & 3) scan ALL completed tricks for human (seat 0)
+  /// violations. First valid detection triggers a bot Qaid challenge.
+  void _checkForBotQaidDetection() {
+    if (phase != GamePhase.playing) return;
+    if (trickHistoryThisRound.isEmpty) return;
+    if (_isQaydhaReviewVisible || _qaydhaChallengeResult != null) return;
+
+    // Only seats 1 and 3 (opposing team) can call Qaid on the human (seat 0)
+    for (final botSeat in [1, 3]) {
+      if (_maybeBotCallQaid(botSeat, accusedSeat: 0)) return;
+    }
+  }
+
+  /// Returns true if [botSeat] detected a violation by [accusedSeat] and
+  /// decided to call Qaid (i.e. a challenge was scheduled).
+  bool _maybeBotCallQaid(int botSeat, {required int accusedSeat}) {
+    final history = trickHistoryThisRound;
+
+    // Scan all completed tricks (most recent first — natural scan order)
+    for (int trickIdx = history.length - 1; trickIdx >= 0; trickIdx--) {
+      // Skip tricks already challenged this round
+      if (_tricksAlreadyBotChallenged.contains(trickIdx)) continue;
+
+      final trick = history[trickIdx];
+      final accusedInTrick = trick.cards.any((c) => c.playerIndex == accusedSeat);
+      if (!accusedInTrick) continue;
+
+      final snapshot = trick.handsAtStartOfTrick?[accusedSeat];
+      if (snapshot == null) continue;
+
+      final violation = _detectViolationInTrick(
+        trickIdx: trickIdx,
+        accusedSeat: accusedSeat,
+        snapshot: snapshot,
+      );
+
+      if (violation != null) {
+        // Bot found a cheat! Difficulty-scaled decision to call it
+        if (_botShouldCallQaid()) {
+          _tricksAlreadyBotChallenged.add(trickIdx);
+          _triggerBotQaid(
+            callerSeat: botSeat,
+            accusedSeat: accusedSeat,
+            trickIdx: trickIdx,
+            type: violation,
+            snapshot: snapshot,
+          );
+          return true;
+        } else {
+          // Bot missed it this time — mark as seen so it doesn't keep retrying
+          _tricksAlreadyBotChallenged.add(trickIdx);
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Tries all violation types for the given completed trick.
+  /// Returns the first violation found, or null if the play was legal.
+  QaydhaViolationType? _detectViolationInTrick({
+    required int trickIdx,
+    required int accusedSeat,
+    required List<CardModel> snapshot,
+  }) {
+    final mode = roundState.activeMode ?? GameMode.hakam;
+    final trump = roundState.trumpSuit;
+    final dblStatus = roundState.doubleStatus;
+    final history = trickHistoryThisRound;
+
+    // Violation types to test (order: most common first)
+    final typesToCheck = [
+      QaydhaViolationType.qate,
+      if (mode == GameMode.hakam) QaydhaViolationType.maDaqBiHakam,
+      if (mode == GameMode.hakam) QaydhaViolationType.maKabbarBiHakam,
+      if (mode == GameMode.hakam && dblStatus != DoubleStatus.none)
+        QaydhaViolationType.rubFiAlDubl,
+    ];
+
+    for (final type in typesToCheck) {
+      try {
+        final result = QaydhaEngine.evaluateChallenge(
+          history: history,
+          challengerIndex: 0, // challenger index irrelevant for detection
+          trickIndex: trickIdx,
+          accusedSeatIndex: accusedSeat,
+          violationType: type,
+          gameMode: mode,
+          trumpSuit: trump,
+          doubleStatus: dblStatus,
+          // No proofCardIndex — engine will check the entire snapshot
+        );
+        if (result.isCorrect) return type;
+      } catch (_) {
+        continue; // Skip invalid combinations (e.g. Sun mode + hakam violation)
+      }
+    }
+    return null;
+  }
+
+  /// Difficulty-scaled probability that a bot calls Qaid when it detects a cheat.
+  bool _botShouldCallQaid() {
+    switch (_lastDifficulty) {
+      case BotDifficulty.easy:   return _rng.nextDouble() < 0.30; // 30% — often misses
+      case BotDifficulty.medium: return _rng.nextDouble() < 0.70; // 70% — usually catches it
+      case BotDifficulty.hard:   return _rng.nextDouble() < 0.97; // 97% — almost never misses
+    }
+  }
+
+  /// Triggers a bot Qaid challenge: shows speech bubble, then after a realistic
+  /// delay auto-populates the Qaid form and submits the challenge.
+  void _triggerBotQaid({
+    required int callerSeat,
+    required int accusedSeat,
+    required int trickIdx,
+    required QaydhaViolationType type,
+    required List<CardModel> snapshot,
+  }) {
+    // Show the speech bubble immediately so the user sees the bot react
+    _showBubble(callerSeat, 'Qaid!');
+    HapticFeedback.heavyImpact();
+
+    // Suspend auto-play so the bot turn doesn't fire during the Qaid window
+    _autoPlaySuspended = true;
+    _cancelTimers();
+
+    // Natural reaction delay before the overlay appears
+    final reactionMs = 800 + _rng.nextInt(500); // 800–1300ms
+    _botTimer = Timer(Duration(milliseconds: reactionMs), () {
+      if (phase != GamePhase.playing || _isQaydhaReviewVisible) return;
+
+      // Pre-populate all Qaid selection state (bot fills in the form)
+      _currentQaydhaAction = QaydhaActionType.cheatCard;
+      _isQaydhaReviewVisible = true;
+      _qaydhaChallengerIndex = callerSeat;
+      _selectedQaydhaTrickIndex = trickIdx;
+      _selectedQaydhaCardSeatIndex = accusedSeat;
+      _selectedQaydhaViolationIndex = type.index;
+
+      // Clear any stale proof selection
+      _selectedQaydhaProofTrickIndex = null;
+      _selectedQaydhaProofSeatIndex = null;
+      _selectedQaydhaProofCardIndex = null;
+
+      // Auto-select the proof card from the snapshot
+      _autoSelectProofCard(
+        trickIdx: trickIdx,
+        accusedSeat: accusedSeat,
+        type: type,
+        snapshot: snapshot,
+      );
+
+      notifyListeners();
+
+      // Short pause so the user can see the pre-filled form, then auto-submit
+      _botTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (_isQaydhaReviewVisible) {
+          submitQaydhaChallenge();
+        }
+      });
+    });
+  }
+
+  /// Automatically finds and selects the best proof card for each violation type.
+  void _autoSelectProofCard({
+    required int trickIdx,
+    required int accusedSeat,
+    required QaydhaViolationType type,
+    required List<CardModel> snapshot,
+  }) {
+    final trick = trickHistoryThisRound[trickIdx];
+    final mode = roundState.activeMode ?? GameMode.hakam;
+    final trump = roundState.trumpSuit;
+
+    switch (type) {
+      case QaydhaViolationType.qate:
+        // Proof = any card in snapshot matching the led suit
+        final ledSuit = trick.cards[0].card.suit;
+        final proofIdx = snapshot.indexWhere((c) => c.suit == ledSuit);
+        if (proofIdx >= 0) {
+          _selectedQaydhaProofSeatIndex = accusedSeat;
+          _selectedQaydhaProofCardIndex = proofIdx;
+        }
+        break;
+
+      case QaydhaViolationType.maDaqBiHakam:
+        // Proof = any trump card in snapshot
+        if (trump != null) {
+          final proofIdx = snapshot.indexWhere((c) => c.suit == trump);
+          if (proofIdx >= 0) {
+            _selectedQaydhaProofSeatIndex = accusedSeat;
+            _selectedQaydhaProofCardIndex = proofIdx;
+          }
+        }
+        break;
+
+      case QaydhaViolationType.maKabbarBiHakam:
+        // Find the highest trump played before the accused player in this trick
+        if (trump == null) break;
+        final accusedPlayIdx = trick.cards.indexWhere((c) => c.playerIndex == accusedSeat);
+        if (accusedPlayIdx < 0) break;
+        int highestBeforeStrength = 0;
+        for (int i = 0; i < accusedPlayIdx; i++) {
+          final c = trick.cards[i].card;
+          if (c.suit == trump) {
+            final s = c.getStrength(mode: mode, trumpSuit: trump);
+            if (s > highestBeforeStrength) highestBeforeStrength = s;
+          }
+        }
+        // Proof = trump card in snapshot with higher strength than that
+        final proofIdx = snapshot.indexWhere((c) =>
+          c.suit == trump &&
+          c.getStrength(mode: mode, trumpSuit: trump) > highestBeforeStrength);
+        if (proofIdx >= 0) {
+          _selectedQaydhaProofSeatIndex = accusedSeat;
+          _selectedQaydhaProofCardIndex = proofIdx;
+        }
+        break;
+
+      case QaydhaViolationType.rubFiAlDubl:
+      case QaydhaViolationType.falseEkka:
+        // These violation types don't require a proof card selection
+        break;
+    }
+  }
+
   void cancelQaydha() {
     _isQaydhaReviewVisible = false;
     _currentQaydhaAction = null;
+    _qaydhaChallengerIndex = null;
     _qaydhaChallengeResult = null;
     _selectedQaydhaViolationIndex = null;
     _selectedQaydhaProofTrickIndex = null;
@@ -2421,6 +2680,11 @@ class GameProvider extends ChangeNotifier {
     int effectiveTrickIndex = _selectedQaydhaTrickIndex ?? 0;
     int effectiveSeatIndex = _selectedQaydhaCardSeatIndex ?? 1;
 
+    bool invalidProofSeat = false;
+    if (_selectedQaydhaProofSeatIndex != null && _selectedQaydhaProofSeatIndex != effectiveSeatIndex) {
+      invalidProofSeat = true;
+    }
+
     CardModel? explicitProofCard;
     if (_selectedQaydhaProofTrickIndex != null &&
         _selectedQaydhaProofTrickIndex! < trickHistoryThisRound.length) {
@@ -2431,31 +2695,49 @@ class GameProvider extends ChangeNotifier {
       );
       explicitProofCard = cardPlay.card;
     } else if (_selectedQaydhaProofSeatIndex != null && _selectedQaydhaProofCardIndex != null) {
-      final hand = getHand(_selectedQaydhaProofSeatIndex!);
+      // Resolve using the same snapshot the UI displayed (hand at start of the violation trick)
+      final hand = getHandForSeatSnapshot(effectiveTrickIndex, _selectedQaydhaProofSeatIndex!);
       if (_selectedQaydhaProofCardIndex! < hand.length) {
         explicitProofCard = hand[_selectedQaydhaProofCardIndex!];
       }
     }
 
     try {
-      _qaydhaChallengeResult = QaydhaEngine.evaluateChallenge(
-        history: trickHistoryThisRound,
-        challengerIndex: 0,
-        trickIndex: effectiveTrickIndex,
-        accusedSeatIndex: effectiveSeatIndex,
-        violationType: violationType,
-        gameMode: _engine.roundState.activeMode ?? GameMode.hakam,
-        trumpSuit: _engine.roundState.trumpSuit,
-        doubleStatus: _engine.roundState.doubleStatus,
-        proofCardIndex: _selectedQaydhaProofTrickIndex == null ? _selectedQaydhaProofCardIndex : null,
-        explicitProofCard: explicitProofCard,
-      );
+      if (invalidProofSeat) {
+        // Human selected a proof card from the WRONG player's hand/tricks.
+        // The challenge automatically fails.
+        final trick = trickHistoryThisRound[effectiveTrickIndex];
+        final accusedPlay = trick.cards.firstWhere((c) => c.playerIndex == effectiveSeatIndex);
+        _qaydhaChallengeResult = QaydhaResult(
+          challengerIndex: _qaydhaChallengerIndex ?? 0,
+          accusedCard: accusedPlay.card,
+          isCorrect: false,
+          violationType: violationType,
+          accusedSeatIndex: effectiveSeatIndex,
+          trickIndex: effectiveTrickIndex,
+          proofCard: explicitProofCard,
+          proofCardTrickIndex: _selectedQaydhaProofTrickIndex,
+        );
+      } else {
+        _qaydhaChallengeResult = QaydhaEngine.evaluateChallenge(
+          history: trickHistoryThisRound,
+          challengerIndex: _qaydhaChallengerIndex ?? 0,
+          trickIndex: effectiveTrickIndex,
+          accusedSeatIndex: effectiveSeatIndex,
+          violationType: violationType,
+          gameMode: _engine.roundState.activeMode ?? GameMode.hakam,
+          trumpSuit: _engine.roundState.trumpSuit,
+          doubleStatus: _engine.roundState.doubleStatus,
+          proofCardIndex: _selectedQaydhaProofTrickIndex == null ? _selectedQaydhaProofCardIndex : null,
+          explicitProofCard: explicitProofCard,
+        );
+      }
       audioService.playGoldButton();
       notifyListeners();
     } catch (e) {
       print("Qaydha error: $e");
       _qaydhaChallengeResult = QaydhaResult(
-        challengerIndex: 0,
+        challengerIndex: _qaydhaChallengerIndex ?? 0,
         accusedCard: const CardModel(suit: Suit.spades, rank: Rank.ace),
         trickIndex: effectiveTrickIndex,
         violationType: violationType,
@@ -2470,10 +2752,22 @@ class GameProvider extends ChangeNotifier {
     final vIdx = _selectedQaydhaViolationIndex ?? 0;
     final violationType = QaydhaViolationType.values[vIdx.clamp(0, QaydhaViolationType.values.length - 1)];
     int effectiveTrickIndex = _selectedQaydhaTrickIndex ?? 0;
+    int effectiveSeatIndex = _selectedQaydhaCardSeatIndex ?? 1;
+
+    // Try to resolve the actual accused card for proper highlighting in result mode
+    CardModel accusedCard = const CardModel(suit: Suit.spades, rank: Rank.seven);
+    if (_selectedQaydhaTrickIndex != null &&
+        _selectedQaydhaTrickIndex! < trickHistoryThisRound.length) {
+      final trick = trickHistoryThisRound[_selectedQaydhaTrickIndex!];
+      final playIdx = trick.cards.indexWhere((c) => c.playerIndex == effectiveSeatIndex);
+      if (playIdx >= 0) {
+        accusedCard = trick.cards[playIdx].card;
+      }
+    }
 
     _qaydhaChallengeResult = QaydhaResult(
-      challengerIndex: 0,
-      accusedCard: const CardModel(suit: Suit.spades, rank: Rank.seven),
+      challengerIndex: _qaydhaChallengerIndex ?? 0,
+      accusedCard: accusedCard,
       trickIndex: effectiveTrickIndex,
       violationType: violationType,
       isCorrect: false,
@@ -2486,8 +2780,12 @@ class GameProvider extends ChangeNotifier {
     final result = _qaydhaChallengeResult;
     _isQaydhaReviewVisible = false;
     _currentQaydhaAction = null;
+    _qaydhaChallengerIndex = null;
     _qaydhaChallengeResult = null;
     _selectedQaydhaViolationIndex = null;
+    // Clear ALL selection state — not just proof, to avoid stale highlights
+    _selectedQaydhaTrickIndex = null;
+    _selectedQaydhaCardSeatIndex = null;
     _selectedQaydhaProofTrickIndex = null;
     _selectedQaydhaProofSeatIndex = null;
     _selectedQaydhaProofCardIndex = null;
