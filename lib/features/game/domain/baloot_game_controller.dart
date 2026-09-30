@@ -212,6 +212,11 @@ class BalootGameController implements IBalootController {
   ///   (trump already has its own J > 9 > A > 10 > K > Q > 8 > 7 hierarchy).
   /// - A card qualifies as Akka when every card of the same suit that
   ///   would beat it has already been played in a previous trick.
+  ///
+  /// NOTE: This method only checks card ELIGIBILITY and STRENGTH.
+  /// The caller is responsible for ensuring the card was played as
+  /// a LEAD card (first card of a trick). Use canEkka() before play
+  /// to determine if the seat was leading.
   bool isAkka(CardModel card) {
     final tm = _turnManager;
     if (tm == null) return false;
@@ -221,62 +226,30 @@ class BalootGameController implements IBalootController {
     final trump = _roundState.trumpSuit;
 
     // ── Rule 1: Akka ONLY exists in Hakam mode ──
-    // Sun and Ashkal have no Akka announcement mechanic.
     if (mode != GameMode.hakam) return false;
 
     // ── Rule 1b: In Kammelna, Akka is not allowed on trick 8 (last trick) ──
     if (tm.trickNumber == 8) return false;
 
     // ── Rule 2: Ace cards are NEVER an Akka ──
-    // An Ace is the absolute highest card in its suit by definition.
-    // Announcing "Akka" on an Ace is meaningless (and Kammelna never does it).
     if (card.rank == Rank.ace) return false;
 
     // ── Rule 3: In Hakam, Akka only applies to non-trump suits ──
-    // Trump suit has its own hierarchy (J > 9 > A > 10 …).
     if (card.suit == trump) return false;
 
-    // ── LEAD-ONLY CHECK ──
-    // Akka only applies when the player LEADS the trick (plays first).
-    // After playCard(), either:
-    //   a) Trick still in progress → card is in currentTrick
-    //   b) Trick just completed → card is in trickHistory.last
-    // Before playCard(), if currentTrick is empty, this is candidate lead card.
-    bool isLeadCard = false;
-    int historyCount = tm.trickHistory.length;
-    if (tm.currentTrick.isNotEmpty) {
-      // Trick in progress — was this card the first one?
-      isLeadCard = tm.currentTrick.first.card == card;
-      historyCount = tm.trickHistory.length;
-    } else if (tm.trickHistory.isNotEmpty &&
-               tm.trickHistory.last.cards.isNotEmpty &&
-               tm.trickHistory.last.cards.first.card == card) {
-      // Trick just completed — was this card the lead?
-      isLeadCard = true;
-      historyCount = tm.trickHistory.length - 1;
-    } else {
-      // Either (a) the card was a non-lead card in the last completed trick
-      // (e.g. the 2nd/3rd/4th card that just finished a trick), or
-      // (b) this is called before playCard() as a candidate lead card.
-      if (tm.trickHistory.isNotEmpty &&
-          tm.trickHistory.last.cards.any((p) => p.card == card)) {
-        // Card was in the last completed trick but NOT as lead — NOT Akka
-        isLeadCard = false;
-      } else {
-        // Card is about to be played as lead of next trick
-        isLeadCard = true;
-        historyCount = tm.trickHistory.length;
-      }
-    }
-    if (!isLeadCard) return false;
-
-    // Collect all cards of the SAME suit that have been played in PREVIOUS tricks
+    // Collect all cards of the SAME suit played in ALL completed tricks
     final playedOfSuit = <CardModel>{};
-    for (int i = 0; i < historyCount; i++) {
-      for (final play in tm.trickHistory[i].cards) {
+    for (final trick in tm.trickHistory) {
+      for (final play in trick.cards) {
         if (play.card.suit == card.suit) {
           playedOfSuit.add(play.card);
         }
+      }
+    }
+    // Also include cards in the current (in-progress) trick
+    for (final play in tm.currentTrick) {
+      if (play.card.suit == card.suit) {
+        playedOfSuit.add(play.card);
       }
     }
 

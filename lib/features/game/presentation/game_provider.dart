@@ -1677,6 +1677,9 @@ class GameProvider extends ChangeNotifier {
 
       final declaredBefore = roundState.declaredProjects.length;
       final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
+      // Capture BEFORE botPlay changes trick state — canEkka is true only when
+      // the bot is about to lead (currentTrick is empty & it's their turn).
+      final wasLeading = phaseBefore == GamePhase.playing && _engine.canEkka(seat);
       _engine.botPlay(seat);
       final declaredAfter = roundState.declaredProjects.length;
       final balootAfter = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
@@ -1696,11 +1699,10 @@ class GameProvider extends ChangeNotifier {
           // Standard "أكة" — auto-detect strongest remaining card of suit
           // Find the card this bot just played (last card in current trick or last trick)
           final lastCard = _engine.lastPlayedCardBySeat(seat);
-          // Only auto-detect Akka if the bot was leading the trick (canEkka checks
-          // that currentTrick is empty and it's the bot's turn), or if the bot
-          // already claimed ekka (e.g. via cheat mode).
+          // Akka is ONLY valid when the bot LED the trick.
+          // We use wasLeading (captured before botPlay) to be 100% certain.
           final botClaimedEkka = _engine.ekkaClaimSeat == seat;
-          final didClaimAkka = botClaimedEkka || (lastCard != null && _engine.isAkka(lastCard));
+          final didClaimAkka = botClaimedEkka || (wasLeading && lastCard != null && _engine.isAkka(lastCard));
           
           if (lastCard != null &&
               !_akkaPronouncedSeatsThisRound.contains(seat) &&
@@ -1736,8 +1738,12 @@ class GameProvider extends ChangeNotifier {
       }
 
       _afterEngineAction();
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[GameProvider] botPlay error (seat $seat): $e');
+      try {
+        _engine.logger.log('FATAL BOT ERROR (Seat $seat): $e');
+        _engine.logger.log('Stack: $st');
+      } catch (_) {}
       _afterEngineAction();
     }
   }
@@ -2132,6 +2138,7 @@ class GameProvider extends ChangeNotifier {
   QaydhaActionType? _currentQaydhaAction;
   QaydhaActionType? get currentQaydhaAction => _currentQaydhaAction;
   int? _qaydhaChallengerIndex;
+  int? get qaydhaChallengerIndex => _qaydhaChallengerIndex;
 
   int? _selectedQaydhaViolationIndex;
   int? get selectedQaydhaViolationIndex => _selectedQaydhaViolationIndex;
@@ -2478,7 +2485,6 @@ class GameProvider extends ChangeNotifier {
 
       // Pre-populate all Qaid selection state (bot fills in the form)
       _currentQaydhaAction = QaydhaActionType.cheatCard;
-      _isQaydhaReviewVisible = true;
       _qaydhaChallengerIndex = callerSeat;
       _selectedQaydhaTrickIndex = trickIdx;
       _selectedQaydhaCardSeatIndex = accusedSeat;
@@ -2497,10 +2503,11 @@ class GameProvider extends ChangeNotifier {
         snapshot: snapshot,
       );
 
+      // Show the review screen for a few seconds so players can see the cheat
+      _isQaydhaReviewVisible = true;
       notifyListeners();
 
-      // Short pause so the user can see the pre-filled form, then auto-submit
-      _botTimer = Timer(const Duration(milliseconds: 1200), () {
+      _botTimer = Timer(const Duration(milliseconds: 2500), () {
         if (_isQaydhaReviewVisible) {
           submitQaydhaChallenge();
         }
@@ -2713,10 +2720,7 @@ class GameProvider extends ChangeNotifier {
           accusedCard: accusedPlay.card,
           isCorrect: false,
           violationType: violationType,
-          accusedSeatIndex: effectiveSeatIndex,
           trickIndex: effectiveTrickIndex,
-          proofCard: explicitProofCard,
-          proofCardTrickIndex: _selectedQaydhaProofTrickIndex,
         );
       } else {
         _qaydhaChallengeResult = QaydhaEngine.evaluateChallenge(

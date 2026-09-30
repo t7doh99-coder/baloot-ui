@@ -657,6 +657,20 @@ class ScoringEngine {
     int balootPoints = 0,
     String? balootTeam,
   }) {
+    if (doubleStatus == DoubleStatus.gahwa) {
+      // If a cheat is caught during Gahwa, the team that caught it wins the Gahwa (and thus the game).
+      return RoundScoreResult(
+        teamAPoints: winningTeam == 'A' ? 152 : 0,
+        teamBPoints: winningTeam == 'B' ? 152 : 0,
+        teamARawAbnat: 0,
+        teamBRawAbnat: 0,
+        isKhams: false,
+        isKabout: true,
+        winningTeam: winningTeam,
+        reason: 'qaid_penalty_gahwa',
+      );
+    }
+
     final baseKabout = mode == GameMode.hakam ? 25 : 44;
     final doubleMultiplier = _cardDoubleMultiplier(doubleStatus);
     final kaboutPts = baseKabout * doubleMultiplier;

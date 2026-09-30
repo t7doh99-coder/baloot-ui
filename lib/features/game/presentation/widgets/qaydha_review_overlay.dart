@@ -1044,7 +1044,7 @@ class _QaydhaReviewOverlayState extends State<QaydhaReviewOverlay> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  game.playerName(0, isArabic: isAr),
+                  game.playerName(game.qaydhaChallengerIndex ?? 0, isArabic: isAr),
                   style: font(color: const Color(0xFFF5E6C8), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ],
