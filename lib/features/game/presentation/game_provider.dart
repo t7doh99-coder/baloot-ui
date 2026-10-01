@@ -806,7 +806,7 @@ class GameProvider extends ChangeNotifier {
     _roundCancelled = false;
     _isMatchOverOverlayReady = false;
     _clearSawaRevealState();
-    _akkaPronouncedSeatsThisRound.clear();
+    _akkaPronouncedThisRound.clear();
     _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
 
@@ -1053,13 +1053,15 @@ class GameProvider extends ChangeNotifier {
       final trickBefore = trickNumber;
       final balootBefore = roundState.declaredProjects.where((p) => p.type == ProjectType.baloot).length;
       
+      final currentTrick = trickNumber;
+      final akkaKey = '0-$currentTrick';
       final isAutoAkkaCandidate = _autoAkkahEnabled &&
-          !_akkaPronouncedSeatsThisRound.contains(0) &&
+          !_akkaPronouncedThisRound.contains(akkaKey) &&
           _engine.canEkka(0) &&
           _engine.isAkka(card);
 
       if (isAutoAkkaCandidate) {
-        _akkaPronouncedSeatsThisRound.add(0);
+        _akkaPronouncedThisRound.add(akkaKey);
         _engine.claimEkka(0);
       }
 
@@ -1420,7 +1422,7 @@ class GameProvider extends ChangeNotifier {
     }
 
     if (_prevPhase != GamePhase.playing && newPhase == GamePhase.playing) {
-      _akkaPronouncedSeatsThisRound.clear();
+      _akkaPronouncedThisRound.clear();
     }
 
     _prevPhase = newPhase;
@@ -1514,7 +1516,7 @@ class GameProvider extends ChangeNotifier {
     _falseSawaWindowTimer?.cancel();
     _isFalseSawaWindowOpen = false;
     _clearSawaRevealState();
-    _akkaPronouncedSeatsThisRound.clear();
+    _akkaPronouncedThisRound.clear();
     _tricksAlreadyBotChallenged.clear(); // Reset per-round bot Qaid tracking
     _autoAkkahEnabled = (_akkaMode == AkkaMode.auto);
     _lastAwalDealerSeat = null;
@@ -1704,10 +1706,12 @@ class GameProvider extends ChangeNotifier {
           final botClaimedEkka = _engine.ekkaClaimSeat == seat;
           final didClaimAkka = botClaimedEkka || (wasLeading && lastCard != null && _engine.isAkka(lastCard));
           
+          final botTrick = trickNumber;
+          final botAkkaKey = '$seat-$botTrick';
           if (lastCard != null &&
-              !_akkaPronouncedSeatsThisRound.contains(seat) &&
+              !_akkaPronouncedThisRound.contains(botAkkaKey) &&
               didClaimAkka) {
-            _akkaPronouncedSeatsThisRound.add(seat);
+            _akkaPronouncedThisRound.add(botAkkaKey);
             _showBubble(seat, 'Akka');
             if (seat % 2 != 0) {
               _openFalseEkkaWindow(seat, lastCard);
@@ -2182,7 +2186,11 @@ class GameProvider extends ChangeNotifier {
   bool get isFalseEkkaWindowOpen => _isFalseEkkaWindowOpen;
   int? _lastAkkaSeat;
   CardModel? _lastAkkaCard;
-  final Set<int> _akkaPronouncedSeatsThisRound = {};
+  // Tracks which (seat, trickNumber) combos have already announced Akka.
+  // Format: "<seat>-<trickNumber>". This allows a seat to announce Akka again
+  // on a different trick (valid in Kammelna), but prevents double-announcing
+  // on the same trick.
+  final Set<String> _akkaPronouncedThisRound = {};
   int? _lastAwalDealerSeat;
 
   /// Tracks which trick indices have already been Qaid-challenged by a bot
@@ -2821,7 +2829,7 @@ class GameProvider extends ChangeNotifier {
   
   void claimEkka() {
     if (!canEkka) return;
-    _akkaPronouncedSeatsThisRound.add(0);
+    _akkaPronouncedThisRound.add('0-$trickNumber');
     _showBubble(0, 'Akka');
     HapticFeedback.heavyImpact();
     _engine.claimEkka(0);

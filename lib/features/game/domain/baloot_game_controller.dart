@@ -237,6 +237,36 @@ class BalootGameController implements IBalootController {
     // ── Rule 3: In Hakam, Akka only applies to non-trump suits ──
     if (card.suit == trump) return false;
 
+    // ── Rule 4: Card must be the LEAD card of the trick. ──
+    // If the card is already inside the current trick at a position > 0,
+    // it is NOT the lead card (e.g., K♥ played 2nd in a trick where 10♥ led).
+    // If it's in a completed trick (trickHistory) at a non-lead position, also false.
+    if (tm.currentTrick.isNotEmpty) {
+      final leadCard = tm.currentTrick.first.card;
+      final cardIsInCurrentTrick = tm.currentTrick.any((p) => p.card == card);
+      if (cardIsInCurrentTrick && card != leadCard) {
+        // Card is in the current trick but NOT as the lead — cannot be Akka
+        return false;
+      }
+      // If the card IS the lead card (first card in current trick), proceed with
+      // strength check below (lead card evaluates strength of the full trick context).
+    } else if (tm.trickHistory.isNotEmpty) {
+      // currentTrick is empty → trick just completed. Check if the card was in
+      // the last completed trick as a non-lead card.
+      final lastTrick = tm.trickHistory.last;
+      final cardIsInLastTrick = lastTrick.cards.any((p) => p.card == card);
+      if (cardIsInLastTrick) {
+        final wasLead = lastTrick.cards.first.card == card;
+        if (!wasLead) {
+          // Card was a non-lead card in the just-completed trick — NOT Akka
+          return false;
+        }
+        // If it WAS the lead card, fall through to strength check
+        // (this case handles isAkka called right after trick completion for lead)
+      }
+      // If not in the last trick at all, it's a candidate lead for the NEXT trick.
+    }
+
     // Collect all cards of the SAME suit played in ALL completed tricks
     final playedOfSuit = <CardModel>{};
     for (final trick in tm.trickHistory) {
@@ -246,7 +276,10 @@ class BalootGameController implements IBalootController {
         }
       }
     }
-    // Also include cards in the current (in-progress) trick
+    // Also include cards in the current (in-progress) trick EXCEPT the card itself
+    // (when card is the lead card of an in-progress trick, it's already in currentTrick,
+    // so we skip it to avoid counting itself as "already played" against its own check).
+    // For all OTHER same-suit cards in the current trick, they ARE "already used".
     for (final play in tm.currentTrick) {
       if (play.card.suit == card.suit) {
         playedOfSuit.add(play.card);
