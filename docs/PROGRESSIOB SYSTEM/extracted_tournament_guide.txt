@@ -1,0 +1,135 @@
+﻿Royal Baloot — Tournament System Implementation Guide
+Technical specification — official tournaments, ranking integration & economy tie-ins
+1. Design Principles
+Before any schema or screen, lock these four rules — they resolve most of the detail decisions below on their own:
+Skill decides outcomes, not spend. Golden Cards and subscriptions can affect access, convenience, and cosmetics — never win probability. This is what Mohamed means by "without simply making the game pay-to-win," and it's also how established Baloot apps monetize without damaging competitive trust.
+Every tournament is admin-configurable, not hardcoded. Format, eligibility, schedule, and prizes must all be fields in a form, not values baked into code — otherwise every new event type becomes a dev request instead of an admin action.
+The ranking system and the tournament system are dependent, not separate. Eligibility is driven by rank, so rank design flaws (see §7) become tournament design flaws automatically.
+Everything involving Golden Cards must be auditable. Entry fees and prize payouts are currency movements; they need a transaction ledger, not direct balance edits, from day one.
+2. Tournament Types to Support
+Type
+Cadence
+Purpose
+Scheduled Ladder Events
+Daily / weekly, auto-recurring
+Low-friction, high-frequency competition; cumulative points over a window
+Official Royal Cup
+Admin-curated, irregular/seasonal
+Flagship bracket event; the "something meaningful to compete for" Mohamed described
+Seasonal League
+Multi-week, points-accumulation
+Retention anchor between Royal Cup events
+VIP/Exclusive Events (optional, phase 2+)
+Admin-scheduled
+Subscription-gated entry; access perk, not power perk
+All four should be built on the same underlying Tournament entity (§3) with different format, eligibility, and recurrence configurations — not four separate systems.
+3. Core Data Model
+Tournament
+id, name, description, banner/promo text
+type (ladder / bracket / league / custom)
+format → see §6
+eligibility_rule_id → see §7
+entry_fee (none / fixed Golden Cards / subscription-only)
+max_participants / max_teams
+registration_opens_at, registration_closes_at, starts_at, ends_at
+recurrence (none / daily / weekly / custom cron)
+prize_tier_id
+visibility (public / VIP-only)
+status → see §5
+TeamEntry / Participant
+player_id (and partner player_id for team entries)
+tournament_id, registered_at, current_rank_at_entry
+status (registered / active / eliminated / disqualified / withdrawn)
+Round / Match
+tournament_id, round_number, match_id
+team_a_id, team_b_id, result, score, completed_at
+game_session_id (link to the actual hand/game logs for dispute review)
+Standing
+tournament_id, team_id, points, wins, losses, rank_in_tournament
+PrizeTier
+tournament_id, rank_range (e.g. 1st, 2nd–3rd, 4th–10th)
+reward_type (Golden Cards / cosmetic badge / subscription days / title)
+reward_amount
+EligibilityRule
+min_rank, max_rank (band, not just a floor — see §7)
+min_games_played (optional, prevents brand-new accounts from sniping prizes)
+subscription_required (bool)
+4. Admin Tournament Builder — Required Fields
+This is the screen that directly answers Mohamed's request to create tournaments from the admin system. At minimum it needs:
+Name, description, banner/promo copy
+Format selector (ladder / bracket type / league)
+Eligibility: rank band (not just "top rank"), minimum games played, subscription-only toggle
+Schedule: registration window, start time, end time, recurrence rule
+Entry: free / Golden Card buy-in amount / subscription-gated
+Prize structure: tiered rewards by finishing rank, reward type and amount per tier
+Capacity: max teams/participants, auto-close registration when full
+Visibility: public listing vs VIP-only listing
+Preview + "Publish" action (moves tournament from Draft to Scheduled)
+5. Tournament Lifecycle (State Machine)
+Draft → Scheduled → Registration Open → Registration Closed → Live → Completed → Prizes Distributed → Archived
+Draft → Scheduled: admin publishes; tournament becomes visible per its visibility setting.
+Scheduled → Registration Open: automatic, at registration_opens_at.
+Registration Open → Registration Closed: automatic, at registration_closes_at OR when max_participants is reached.
+Registration Closed → Live: automatic at starts_at; brackets/ladder groups are generated at this transition, not before (so late scratches don't leave bracket gaps).
+Live → Completed: automatic when the final round/match resolves, or at ends_at for ladder-style events.
+Completed → Prizes Distributed: can be automatic for standard tiers, but should support a manual admin hold for events flagged for dispute review (§10).
+Prizes Distributed → Archived: cosmetic state, keeps historical standings queryable without cluttering the active list.
+Lock editable fields by state: format/eligibility/prizes should be editable only in Draft; schedule should be editable in Draft/Scheduled but not after registration opens, to avoid moving goalposts on players who already registered.
+6. Formats & Matchmaking Logic
+Baloot is played in fixed 2-player teams, so team formation is part of the format spec, not an afterthought:
+Points Ladder: players (or pre-formed teams) accumulate points across normal games played within the tournament window; simplest to build, good fit for daily/weekly events.
+Single/Double Elimination Bracket: head-to-head knockout; fits the flagship "Royal Cup" framing — single elimination for shorter events, double elimination if you want to soften the "one bad hand ends your run" problem for a marquee event.
+Swiss: pairs teams of similar running score each round without eliminating anyone early; good for large fields where a straight bracket would knock most players out in round one.
+Round Robin: every team plays every other team; only practical for small, exclusive pools (e.g., a VIP-only league).
+Team formation options (needed regardless of format):
+Pre-formed: player registers with an already-chosen partner.
+Solo queue: player registers alone and is auto-paired, ideally by similar rank, into a team at registration close.
+7. Eligibility & Ranking Integration
+This is the point where the tournament system inherits any problem in the ranking system, so it's worth restating the open question from Phase 2.4: a flagship event gated on "top rank only" is only as healthy as the rank distribution underneath it. Two concrete recommendations:
+Use rank bands, not thresholds. "Gold III–Gold I" as an eligible range for one event, "Diamond+" for another — this lets you run multiple simultaneous tournaments that are each competitive for the players in them, instead of one event where a handful of players dominate and everyone else is locked out.
+Validate the eligible pool size before launch. Before the win-rate threshold (or whatever the final ranking curve turns out to be) gates entry to an official event, check how many real players will actually qualify. If a rank band is realistically reachable by only a tiny fraction of the player base, that tournament has no field.
+8. Economy Integration — Golden Cards
+Three entry-fee models, in order of pay-to-win risk (lowest to highest):
+No entry fee, admin-funded prize pool — safest, purely engagement-driven; recommended for the MVP ladder events.
+Fixed Golden Card entry fee, admin-funded or partially player-funded prize pool — still low risk as long as Golden Cards are earnable through normal play, not purchase-only.
+Wagered entry (entries fund the prize pool) — highest risk; only appropriate if Golden Cards are meaningfully earnable without spending real money, otherwise this is effectively pay-to-win by another name.
+Recommendation: ship model 1 for the MVP, keep model 2 as the Royal Cup / flagship format, and treat model 3 as a deliberate later decision rather than a default.
+All entry fees and prize payouts should move through a Golden Card ledger (append-only transaction log keyed to player + tournament + match), not a direct balance update — this is what makes a disputed result auditable after the fact.
+9. Subscription (VIP) Integration
+Perks should expand access and prestige, never power:
+Priority or early registration windows for high-demand events (events fill up; subscribers get first access).
+Entry to subscriber-only events — a separate pool, not better odds in the open pool.
+Reduced or waived Golden Card entry fees.
+Exclusive cosmetic rewards tied to tournament participation — profile borders, titles, badges — distinct from the normal prize tiers.
+None of these should touch matchmaking fairness, card odds, or in-match mechanics. This is the line that keeps the whole "connected ecosystem" from tipping into pay-to-win, and it's worth stating as a hard rule in the spec itself so it doesn't get quietly crossed later by a well-intentioned feature request.
+10. Anti-Cheat & Fair Play
+Baloot is partner-based, which makes it specifically vulnerable to a problem most tournament systems don't need to worry about: collusion between teammates, or between a team and an opponent, to manipulate results. For any tournament with real prizes attached, this needs explicit handling, not an afterthought:
+Server-authoritative shuffle and deal. The RNG must run server-side; the client only ever receives the hand it's dealt. Never trust a client-side shuffle for anything with a prize attached.
+Collusion signals. Flag statistically improbable patterns for review — repeated pairing between the same two "opposing" accounts, suspiciously consistent bidding/folding patterns, or match results that don't match in-game skill signals.
+Multi-accounting detection. Same device ID / IP registering multiple entries into a tournament meant to be one-entry-per-player.
+Disconnect handling specific to tournament matches. Casual games can just pause; tournament matches need a stricter rule set — a grace period, then auto-forfeit, clearly stated in the tournament rules shown at registration.
+Match replay logging. Every tournament match should log enough state (cards dealt, bids, plays, timestamps) to let an admin reconstruct a disputed match without relying on player screenshots.
+Reporting and appeal flow. A simple in-app "report this match" action tied to the admin's Live Tournament Monitor (§13), so disputes can be reviewed before prizes are distributed, not after.
+11. Notifications & Player UX
+Minimum notification set: registration opens, registration closing soon (e.g., 1 hour out), your match is starting, round result, final standings, prize credited. Each should deep-link straight to the relevant tournament screen rather than just opening the app.
+12. Backend Architecture
+Suggested service breakdown (these can be modules in a monolith early on — doesn't need to be microservices from day one):
+Tournament Service — CRUD + lifecycle state machine (§5)
+Matchmaking/Bracket Service — team formation, pairing, bracket/ladder generation
+Standings Service — likely shares infrastructure with the existing Phase 2.4 ranking system rather than duplicating it
+Prize Distribution Service — reads PrizeTier + final Standings, writes to the Golden Card ledger
+Scheduler — cron-style jobs driving the automatic lifecycle transitions in §5
+Notification Service — §11
+Two API surfaces: Admin API (create/edit/cancel tournament, view live standings, manual prize override, dispute resolution actions) and Player API (list/browse tournaments, register, view own standing/bracket, claim prize).
+13. Admin Panel Screens
+Tournament Dashboard — list of all tournaments by status, quick filters
+Create/Edit Tournament — the form in §4
+Live Tournament Monitor — real-time standings, flagged-match review queue, manual forfeit/disqualify action
+Prize Payout Confirmation — review before Golden Cards/rewards are released, with the option to hold a specific payout pending dispute review
+Golden Card Ledger — searchable audit log of every tournament-related currency movement
+14. Suggested Implementation Phasing
+Given how Phase 2 grew once development started, it's worth scoping this explicitly rather than folding it into existing phases:
+MVP (own phase/quote): single tournament type — scheduled points-ladder — fixed admin-funded Golden Card prizes, basic eligibility (rank band only), manual admin creation through the builder in §4, no bracket logic, no collusion detection beyond basic server-authoritative dealing.
+Phase 2: bracket formats (single/double elimination, Swiss) for the flagship Royal Cup, VIP-only events, subscription perk integration (§9).
+Phase 3: collusion detection and reporting flow (§10), full Golden Card ledger/audit tooling, automated recurrence scheduling, rank-band validation tooling.
+Quoting these as separate line items — rather than absorbing them into Phase 2.4 the way Phase 2's engine work expanded — is the cleanest way to keep this new scope from repeating the same pricing conversation you've already had once.

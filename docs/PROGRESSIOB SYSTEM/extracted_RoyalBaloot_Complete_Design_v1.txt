@@ -1,0 +1,703 @@
+﻿Royal Baloot
+Complete Game Design & Economy Specification
+Ranking · Royal Cup · Leagues · Economy · Subscription · 2v2 Formula
+Response to Visca ME Brief  |  Abdul Sami  |  August 2026
+Section
+Summary
+1. Kammelna Analysis
+Normal play, Cup, Leagues, Subscription, Golden Cards — confirmed understanding
+2. Rank Levels
+6 levels: مبتدئ → متوسط → متقدم → محترف → خبير → أمير (3 sub-levels each)
+3. RP Philosophy
+Pure skill only: win/loss + team strength. No Kabout/Baloot/Qaid/Sawa RP bonuses.
+4. Royal Cup Design
+Ticket-gated premium mode. +35/-35 RP. Max 4 entries/day. متوسط+ rank required.
+5. Promotion Series
+Separate from Cup. Automatic Best-of-3 gate at every rank boundary. Free, no tickets.
+6. Leagues & Tournaments
+Sub+GC to host. GC prize pool. 10% platform fee. Admin official events.
+7. Economy Flow
+Normal → RP → Cup → GC → Leagues → Subscription value. Connected ecosystem.
+8. 2v2 RP Formula
+Team average method. Both partners get identical RP. Bot = مبتدئ for calculation.
+9. Cursor Code
+Complete Dart implementation for all systems.
+1. Understanding of Kammelna's Systems
+Before proposing Royal Baloot's structure, here is a confirmed understanding of how Kammelna connects each of its systems:
+Kammelna System
+How it works
+What Royal Baloot takes from it
+Normal Play
+Free + sub both play. Sub players get Qaid, Sawa, emotes, session creation, unlimited hearts, ad-free.
+Same free/sub split. Qaid and Sawa as premium features.
+Rank / Levels
+One track: نقاط (points) go up on win, down on loss. 6 levels (مبتدئ to نابغة), 5 sub-levels each. Level = where points sit.
+Same structure. 6 levels. 3 sub-levels (simpler). Top rank renamed أمير.
+Kammelna Cup
+Subscribers get 2 daily tickets. Extra tickets purchasable with Golden Cards. Higher RP per match. Short format.
+Royal Cup mirrors this exactly but adds daily RP cap and rank gate to prevent farming.
+Golden Cards (ورقة ذهبية)
+Virtual currency: purchase packs ($1.99–$24.99). Spend on Cup tickets, cosmetics, lobby gifts, room creation.
+Identical system. Same pack sizes and rough pricing. Circulates through Cup and Leagues.
+Leagues / Private Rooms
+Subscribed players create rooms with custom rules, entry fees, prize pools in GC.
+Same structure plus 10% platform fee on prize pools as passive revenue.
+Social Lobby
+Public chat locked for free players. Gift button open to all. قائمة الكرام top gifters leaderboard.
+Build the same دردشة screen. Subscriber sends messages. Everyone can send gifts.
+Subscription
+One tier: weekly / monthly / annual. Unlocks Qaid, Sawa, friends, chat, unlimited hearts, 2 daily Cup tickets.
+One tier. Same billing periods. Priced 20-30% below Kammelna to compete.
+2. Rank Levels — Updated Per Brief
+Six main levels, each with 3 sub-levels (I, II, III). The top rank is named أمير to match the Royal Baloot brand and distinguish it from Kammelna's نابغة. All other names match Kammelna exactly so players feel familiar.
+#
+Arabic
+English
+RP Range
+Sub I
+Sub II
+Sub III → Promo Zone
+~% of players
+1
+مبتدئ
+Beginner
+0 – 299
+0–99
+100–199
+200–299
+~35%
+2
+متوسط
+Intermediate
+300 – 899
+300–499
+500–699
+700–899
+~28%
+3
+متقدم
+Advanced
+900 – 1,799
+900–1,199
+1,200–1,499
+1,500–1,799
+~18%
+4
+محترف
+Professional
+1,800 – 3,299
+1,800–2,299
+2,300–2,799
+2,800–3,299
+~12%
+5
+خبير
+Expert
+3,300 – 5,999
+3,300–4,299
+4,300–5,299
+5,300–5,999
+~5%
+6
+أمير 👑
+Amir
+6,000 +
+6,000–6,999
+7,000–7,999
+8,000+ (top 500 leaderboard)
+<2%
+Why 3 sub-levels instead of Kammelna's 5: Three sub-levels are simpler to display, simpler to explain to new players, and create cleaner milestone moments. Each sub-level is a visible step forward without overwhelming the player with tiny increments.
+3. RP Philosophy — Clean Skill Measurement
+The client's position is correct. RP should reflect competitive skill only — wins, losses, and the strength of the opponents faced. Game mechanics like Kabout, Baloot, Qaid and Sawa should never affect competitive rank.
+3a. Why removing game mechanic bonuses is the right decision
+Kabout is partly luck-dependent — the cards dealt determine how many tricks are possible. Rewarding it with RP would let fortune influence rank.
+Baloot (K+Q of trump) depends entirely on which cards the player is dealt. It is not a strategic choice — it is a lucky hand.
+Qaid and Sawa penalties on RP would make players hesitant to use these features. They are meant to be natural gameplay tools, not risk calculations for rank.
+Daily mission RP rewards would let consistent daily players outrank better players purely through grinding volume. Rank should reflect skill, not hours played.
+3b. What DOES affect RP
+Factor
+RP effect
+Reasoning
+Win vs equal-strength team
++20 RP
+Base reward for competitive win
+Loss vs equal-strength team
+-20 RP
+Base penalty for competitive loss
+Win vs stronger team (1 level higher)
++24 RP
+Beating better opponents earns a premium
+Win vs much stronger team (3 levels higher)
++32 RP (max win)
+Large upset = large reward
+Loss vs weaker team (1 level lower)
+-24 RP
+Expected to win — costs more to lose
+Loss vs much weaker team (3 levels lower)
+-32 RP (max loss)
+Significant underperformance
+Win streak (3 consecutive wins)
++2 RP extra
+Mild form bonus — acknowledges sustained performance
+Win streak (5+ consecutive wins)
++4 RP extra (maximum)
+Cap prevents streak-farming distortion
+3c. What does NOT affect RP — moved to XP and Golden Cards
+Removed from RP
+Goes to instead
+Reason for removal
+Kabout victory
++ 40 XP + 5 Golden Cards
+Card-luck dependent, not pure skill
+Baloot declared
++ 15 XP + 2 Golden Cards
+Entirely determined by cards dealt
+Sawa win
++ 25 XP + 3 Golden Cards
+Should encourage using Sawa freely, not penalise losing it
+Qaid confirmed
++ 20 XP + 2 Golden Cards
+Should encourage using Qaid freely, not create hesitation
+First win of day
++ 100 XP only
+Habit reward, not competitive metric
+Daily mission completion
+XP + Golden Cards only
+Engagement tool, not rank tool
+Large win streak (was +8 RP)
+Reduced to max +4 RP
+Prevents streak-farming rank inflation
+Result: RP becomes a clean competitive metric. Two players with the same win rate against the same opponents reach the same rank — regardless of lucky card deals, Kabout sweeps, or hours played per day. This is the fairest system.
+4. Royal Cup — Premium Competitive Mode
+The Royal Cup is a separate, ticket-gated competitive mode that runs alongside normal ranked play. It is not the same as normal play. Players choose to enter using a ticket. Stakes are higher in both directions.
+4a. How Royal Cup differs from Normal Ranked Play
+Dimension
+Normal Ranked Play
+Royal Cup
+Entry cost
+None (hearts gate only)
+1 Cup ticket per entry
+Tickets per day
+Unlimited games (within hearts)
+Max 4 entries per day (hard cap)
+RP per win
++ 20 RP base
++ 35 RP base (75% more)
+RP per loss
+- 20 RP base
+- 35 RP base (75% more)
+Daily RP gain cap
+None
+Max + 100 RP gain per day from Cup
+Rank requirement
+None — all ranks play
+متوسط I minimum (300 RP)
+Bots allowed?
+Yes (minimal RP)
+No — players only
+Format
+Standard 4-round Baloot
+Shorter — agreed format per brief
+Extra reward
+Chest + XP
+Chest + XP + Cup Season Points + GC prizes for top performers
+4b. Cup Ticket Sources
+Source
+Tickets given
+Notes
+Active subscription
+2 tickets per day
+Reset at midnight. Core subscription benefit.
+Golden Cards purchase
+1 ticket = 100 GC
+Extra entries beyond subscription allocation
+Weekly mission reward
+1 ticket (occasional)
+One specific weekly mission may reward a ticket
+Maximum per day
+4 entries total
+Hard cap regardless of GC balance — prevents farming
+Unused tickets
+Carry over 1 day only
+Tickets expire after 24 hours if unused
+4c. Anti-Farming Protections
+Protection
+How it works
+4 entries per day (hard cap)
+Server enforced. Players cannot purchase more than 2 extra tickets per day even with unlimited GC.
+Daily RP gain cap (+100)
+Cup RP gains stop at +100 RP per day. Losses still apply normally, creating risk for aggressive play.
+Rank gate (متوسط+ only)
+مبتدئ players cannot enter Cup at all. They must earn rank progression through normal play first.
+Strict fair matchmaking
+Cup only matches players within ±1 main level. No exploiting rank gaps in the premium mode.
+Cup RP does not affect Cup entry requirement
+Your rank for Cup access is calculated from Normal Play RP only. Cup RP changes feed back into the same total.
+4d. Cup Season Points — Separate Track
+Alongside RP, Cup matches award Cup Season Points (CSP). These are tracked separately and do not affect normal ranking. At season end, the top 10 CSP earners receive exclusive cosmetics, Golden Cards, and a permanent Hall of Fame entry for that season. This gives the Royal Cup its own meta-competition layer.
+5. Promotion Series — Separate from Royal Cup
+The Promotion Series is a completely separate system from the Royal Cup. They serve different purposes and never interfere with each other. The Promotion Series was never intended as a replacement for the Cup.
+Dimension
+Promotion Series
+Royal Cup
+What triggers it?
+Automatic — reaching end of sub-level III in any main rank
+Player choice — manually entering with a ticket
+Cost?
+Free — no ticket, no Golden Cards, no cost ever
+1 ticket per entry (subscription or GC)
+Format
+Best-of-3: first to 2 wins promoted, first to 2 losses failed
+Single match — one decisive result
+RP during series?
+Frozen — Win and Loss tokens only, no RP movement during series
+Full RP active: +35/-35 per match
+Win outcome
+Promoted to next main rank sub-level I at 0 RP
+RP gain + Cup Season Points
+Loss outcome
+Drop to 70% of current sub-level III. Try again when RP recovers.
+RP loss + ticket consumed
+Available when?
+Only when player reaches rank boundary
+Daily, within entry cap
+Rank requirement
+None — any rank triggers at its own boundary
+متوسط I minimum
+Simple rule: Promotion Series is a free automatic gate inside normal ranked play. Royal Cup is an optional premium event you enter by choice. Both can be active at the same time — Cup RP feeds back into normal RP which can eventually trigger a Promotion Series.
+6. Leagues, Private Tournaments, and Official Events
+6a. Player-Created Leagues (Subscription + Golden Cards)
+Setting
+Options
+GC Cost
+Tournament name
+Custom — host's own name
+Free
+Prize pool
+Host deposits GC (minimum 500 GC)
+Minimum 500 GC
+Entry fee per player
+0 GC (free) up to 200 GC per player
+Host decides
+Rank eligibility
+Open to all OR minimum rank required
+Free setting
+Gameplay rules
+Standard or Advanced (Qaid + Sawa enabled)
+Advanced = participants must be subscribed
+Game speed
+Normal / Fast / Blitz
+Free setting
+Max players
+4, 8, 16, or 32 players
+Larger brackets: +200 GC per bracket size above 8
+Room creation
+Subscription required to host
+Subscription gate — drives sub conversions
+Platform Revenue from Leagues: Royal Baloot keeps 10% of the total prize pool from every private league. A 10-player tournament with 500 GC entry × 10 players = 5,000 GC pool. Royal Baloot keeps 500 GC passively. This creates platform revenue from the community competing with each other without the company funding prizes.
+6b. Official Royal Baloot Tournaments (Admin-Created)
+Feature
+Detail
+Who creates them
+Platform admin via admin dashboard — you as the game owner
+Rank gate
+Admin sets minimum rank (e.g. محترف+ only)
+Schedule
+Fixed date and time, announced in advance via push notification
+Entry method
+Free entry, or GC entry fee, or sub-only — admin decides per event
+Prize type
+GC prizes, exclusive cosmetics, season medals, Hall of Fame entries
+Frequency
+Weekly standard events. Monthly grand events. Special occasion events.
+Purpose
+Keep high-rank community engaged. Create content for social media. Drive subscriptions.
+Format
+Admin-defined: single elimination, round-robin, Swiss — flexible
+7. Connected Economy — Full Flow
+Every system feeds into the others. A player who plays only casual free games still participates in the economy through XP and small GC rewards. A subscriber who uses Cup tickets daily circulates GC through purchases and prizes.
+7a. Golden Cards — Earn and Spend
+How to EARN Golden Cards
+Amount
+Purchase (primary revenue)
+500 / 1,500 / 4,000 / 12,000 GC packs
+Cup match win (top 25% finishers per season)
+50–500 GC seasonal reward
+Official tournament prize
+500–5,000 GC depending on event scale
+Season end reward (rank-based)
+محترف: 100 GC | خبير: 200 GC | أمير: 500 GC
+Kabout in any game
++ 5 GC
+Baloot declared
++ 2 GC
+Achievement unlocked
+10–100 GC depending on difficulty
+Login streak Day 30
+50 GC
+First-ever game (welcome gift)
+50 GC (one-time new player gift)
+How to SPEND Golden Cards
+Cost
+Royal Cup extra ticket
+100 GC per ticket (max 2 extra per day)
+League creation deposit (minimum prize pool)
+500 GC minimum
+Cosmetic: rare card back
+600 GC
+Cosmetic: animated card back
+1,200 GC
+Cosmetic: table design
+800 GC
+Cosmetic: avatar frame
+500 GC
+Cosmetic: emote pack (3 emotes)
+400 GC
+Social lobby gift (اهداء)
+50–2,000 GC per gift item
+Heart refill (free player shortcut)
+50 GC per 5 hearts
+Username change
+200 GC (subscriber: free once per month)
+7b. Subscription Pricing (below Kammelna to compete)
+Period
+Royal Baloot SAR
+Royal Baloot USD
+Kammelna SAR
+Saving vs Kammelna
+Weekly اسبوعي
+9.99 SAR
+≈ $2.99
+12.99 SAR
+23% cheaper
+Monthly شهري
+24.99 SAR
+≈ $6.99
+34.99 SAR
+29% cheaper
+Quarterly 3 أشهر
+64.99 SAR
+≈ $17.99
+~95 SAR
+32% cheaper
+Annual سنوي
+199.99 SAR
+≈ $54.99
+289.99 SAR
+31% cheaper
+7c. What Subscription Includes
+Benefit
+Role in economy
+2 daily Royal Cup tickets
+Primary Cup access driver — why serious players subscribe
+Qaid feature
+Premium gameplay — differentiated from free play
+Sawa feature
+Premium gameplay — differentiated from free play
+Unlimited hearts
+Removes play friction — subscribers can grind more normal RP
+Ad-free experience
+Quality of life — retention driver
+Private chat in lobby
+Social inclusion — chat lock creates subscription pressure
+Create rooms and leagues
+Hosting requires subscription — community builders must subscribe
+Username customisation
+Free once per month (GC cost for free players)
+Season paid track rewards
+Exclusive season cosmetics for subscribers
+8. 2v2 RP Calculation — Team Average Method
+Because Baloot is always a 2v2 game, RP changes must be calculated using team averages. Both players on the same team always receive exactly the same RP change. Individual player RP is never used directly for opponent strength comparison.
+8a. Step-by-Step Calculation
+Step
+Formula
+Example result
+1. Calculate Team A average RP
+(Player1_RP + Player2_RP) ÷ 2
+(2,000 + 1,800) ÷ 2 = 1,900 RP
+2. Calculate Team B average RP
+(Player3_RP + Player4_RP) ÷ 2
+(2,300 + 2,100) ÷ 2 = 2,200 RP
+3. Map each average to level index
+RankSystem.getLevelInfo(avgRP).level.index
+1,900 → محترف (index 3) | 2,200 → خبير (index 4)
+4. Calculate level gap
+Opponent index − My index
+4 − 3 = +1 (Team B is stronger)
+5. Apply modifier
+Base 20 + (gap × 4)
+20 + (1 × 4) = 24
+6. Team A wins
++ 24 RP to Player 1 AND Player 2
+Both teammates get +24 RP
+7. Team B loses
+- 24 RP to Player 3 AND Player 4
+Both teammates lose 24 RP
+8b. Special Cases
+Scenario
+Rule
+Mixed rank team (e.g. أمير + مبتدئ)
+Use team average. The strong player carries rating responsibility for their partner. Encourages equal-rank pairings.
+Bot in the team or against bots
+Bot is always treated as مبتدئ (index 0) for team average calculation. Win vs bot team: max +8 RP. Loss vs bot team: 0 RP loss.
+All 4 players same rank
+Level gap = 0. Base +20/-20 applies with no modifier.
+Player disconnects mid-game
+Disconnecting player loses full RP as if they lost. Their partner loses half. Opposing team wins half RP. Server enforced.
+Player abandons Cup match
+Full Cup ticket is consumed. Full -35 RP loss applies. No refund.
+3 bots vs 1 real player
+Real player vs bot team: max +8 RP on win. Should never occur in Cup (bots not allowed there).
+8c. Dart Code — Team RP Calculator
+// lib/services/rp_calculator.dart — COMPLETE v5
+class RPCalculator {
+  static const int _BASE = 20;   // normal play base
+  static const int _CUP  = 35;   // Royal Cup base
+  static const int _GAP  = 4;    // RP per level index difference
+  /// Call this after every ranked game.
+  /// Both players on the SAME team pass the SAME teamAvgRP values.
+  static int calculate({
+    required bool won,
+    required int  myTeamAvgRP,
+    required int  oppTeamAvgRP,
+    required int  winStreak,
+    required bool isCupMatch,
+    required bool isBotOpponent,
+  }) {
+    // Bot handling
+    if (isBotOpponent) return won ? 5 : 0;
+    final base = isCupMatch ? _CUP : _BASE;
+    // Map averages to level index 0-5
+    final myIdx  = RankSystem.getLevelInfo(myTeamAvgRP).level.index;
+    final oppIdx = RankSystem.getLevelInfo(oppTeamAvgRP).level.index;
+    final gap    = (oppIdx - myIdx).clamp(-3, 3);
+    if (won) {
+      int rp = base + (gap * _GAP);
+      // Small streak bonus: max +4 RP (capped)
+      rp += winStreak >= 5 ? 4 : winStreak >= 3 ? 2 : 0;
+      return rp.clamp(8, isCupMatch ? 47 : 32);
+    } else {
+      int rp = -(base + (gap * _GAP));
+      return rp.clamp(isCupMatch ? -47 : -32, -8);
+    }
+  }
+  /// Returns the team average RP for use in RP calculation.
+  static int teamAverage(int player1RP, int player2RP) {
+    return ((player1RP + player2RP) / 2).round();
+  }
+}
+9. Cursor Implementation — All Services
+9a. CupService — Royal Cup Logic
+// lib/services/cup_service.dart
+class CupService {
+  static const int MAX_CUP_ENTRIES_PER_DAY  = 4;
+  static const int EXTRA_TICKET_GC_COST      = 100;
+  static const int DAILY_RP_CAP_FROM_CUP     = 100;
+  static const int MIN_RP_FOR_CUP             = 300; // متوسط I
+  /// Returns true if player can enter a Cup match.
+  static CupEntryResult canEnterCup(PlayerStats s) {
+    if (s.totalRP < MIN_RP_FOR_CUP)
+      return CupEntryResult.insufficientRank;
+    if (_entriesUsedToday(s) >= MAX_CUP_ENTRIES_PER_DAY)
+      return CupEntryResult.dailyCapReached;
+    if (s.cupTickets <= 0)
+      return CupEntryResult.noTickets;
+    return CupEntryResult.allowed;
+  }
+  /// Call when player wins or loses a Cup match.
+  /// Applies RP change but respects daily cap on gains.
+  static int applyCupResult(PlayerStats s, int rawRPChange) {
+    s.cupEntriesUsedToday++;
+    s.cupTickets--;
+    if (rawRPChange > 0) {
+      final remaining = DAILY_RP_CAP_FROM_CUP - s.cupRPGainedToday;
+      final actual = rawRPChange.clamp(0, remaining.clamp(0, 999));
+      s.cupRPGainedToday += actual;
+      s.totalRP = (s.totalRP + actual).clamp(0, 99999);
+      return actual;
+    } else {
+      s.totalRP = (s.totalRP + rawRPChange).clamp(0, 99999);
+      return rawRPChange;
+    }
+  }
+  /// Reset daily Cup counters — call at midnight.
+  static void resetDailyCupCounters(PlayerStats s) {
+    s.cupEntriesUsedToday = 0;
+    s.cupRPGainedToday = 0;
+    // Subscription gives 2 tickets; unused tickets expire
+    if (SubscriptionFeatures.isActive(s))
+      s.cupTickets = 2; // reset, not add
+  }
+  static int _entriesUsedToday(PlayerStats s) => s.cupEntriesUsedToday;
+}
+enum CupEntryResult { allowed, insufficientRank, dailyCapReached, noTickets }
+9b. Additional HiveFields for Cup + League
+// ADD to PlayerStats — after existing fields
+// Cup fields
+@HiveField(52) int cupTickets           = 0;   // available tickets
+@HiveField(53) int cupEntriesUsedToday  = 0;   // resets midnight
+@HiveField(54) int cupRPGainedToday     = 0;   // resets midnight (cap enforcement)
+@HiveField(55) int cupSeasonPoints      = 0;   // CSP — separate Cup leaderboard
+@HiveField(56) int goldenCards          = 50;  // starts with welcome 50 GC
+// League fields
+@HiveField(57) bool   isSubscribed      = false; // derived from subscriptionExpiry
+@HiveField(58) DateTime? subscriptionExpiry;
+9c. ProgressionService — Complete Post-Game Handler
+// lib/services/progression_service.dart
+// Call processGameResult() after EVERY ranked or Cup game.
+class PostGameResult {
+  final int     rpChange;
+  final int     newRP;
+  final String  newLevel;       // e.g. "خبير III"
+  final bool    leveledUp;      // crossed to new main level
+  final bool    promoTriggered; // Promotion Series starts now
+  final ChestType chest;
+  final List<int> missionRPEarned; // RP from completed missions
+  final int     gcEarned;       // Golden Cards from gameplay
+  final bool    isCupMatch;
+  PostGameResult({required this.rpChange, required this.newRP,
+    required this.newLevel, required this.leveledUp,
+    required this.promoTriggered, required this.chest,
+    required this.missionRPEarned, required this.gcEarned,
+    required this.isCupMatch});
+}
+class ProgressionService {
+  static PostGameResult processGameResult({
+    required PlayerStats stats,
+    required bool  won,
+    required int   myTeamAvgRP,
+    required int   oppTeamAvgRP,
+    required bool  isCupMatch,
+    required bool  isBotGame,
+    required bool  wasKaboot,
+    required bool  balootDeclared,
+    required bool  sawaWin,
+    required bool  qaidWon,
+    required bool  isHakamMode,
+  }) {
+    stats.totalGamesPlayed++;
+    stats.lastRankedGameDate = DateTime.now();
+    // ── Placement match logic ───────────────────────────────
+    if (stats.inPlacement && !isCupMatch) {
+      stats.placementsThisSeason++;
+      if (won) stats.totalWins++;
+      if (stats.placementsThisSeason >= 5) {
+        stats.inPlacement = false;
+        stats.totalRP = _placementRP(stats);
+      }
+      return _placementResult(stats);
+    }
+    final oldRP    = stats.totalRP;
+    final oldLevel = RankSystem.getLevelInfo(oldRP).level;
+    // ── Calculate RP change ────────────────────────────────
+    final rawRP = RPCalculator.calculate(
+      won: won, myTeamAvgRP: myTeamAvgRP,
+      oppTeamAvgRP: oppTeamAvgRP, winStreak: stats.winStreak,
+      isCupMatch: isCupMatch, isBotOpponent: isBotGame,
+    );
+    // ── Apply RP ───────────────────────────────────────────
+    int actualRP;
+    if (isCupMatch) {
+      actualRP = CupService.applyCupResult(stats, rawRP);
+    } else {
+      actualRP = rawRP;
+      stats.totalRP = (stats.totalRP + rawRP).clamp(0, 99999);
+    }
+    // ── Update counters ────────────────────────────────────
+    if (won) { stats.totalWins++; stats.winStreak++; }
+    else      { stats.winStreak = 0; }
+    // ── Golden Cards for gameplay (NOT RP bonuses) ─────────
+    int gcEarned = 0;
+    if (wasKaboot && won)  gcEarned += 5;
+    if (balootDeclared)    gcEarned += 2;
+    if (sawaWin && won)    gcEarned += 3;
+    if (qaidWon)           gcEarned += 2;
+    stats.goldenCards += gcEarned;
+    // ── Peak RP tracking ───────────────────────────────────
+    if (stats.totalRP > stats.peakRPThisSeason)
+      stats.peakRPThisSeason = stats.totalRP;
+    // ── Chest ──────────────────────────────────────────────
+    final newLevel = RankSystem.getLevelInfo(stats.totalRP).level;
+    final leveledUp = newLevel.index > oldLevel.index;
+    final chest = ChestService.checkAndAward(stats,
+                    isRankMilestone: leveledUp);
+    // ── Promotion series trigger ───────────────────────────
+    bool promoTriggered = false;
+    if (!isCupMatch && !stats.inPromotionSeries
+        && RankSystem.isInPromotionZone(stats.totalRP)
+        && stats.totalRP > oldRP) {
+      stats.inPromotionSeries = true;
+      stats.promoWins = stats.promoLosses = 0;
+      promoTriggered = true;
+    }
+    // ── Missions ───────────────────────────────────────────
+    final missionRP = MissionService.updateAfterGame(stats,
+      won: won, wasKaboot: wasKaboot,
+      balootDeclared: balootDeclared, isHakamMode: isHakamMode,
+      winStreak: stats.winStreak);
+    return PostGameResult(
+      rpChange: actualRP, newRP: stats.totalRP,
+      newLevel: RankSystem.getLevelInfo(stats.totalRP).display,
+      leveledUp: leveledUp, promoTriggered: promoTriggered,
+      chest: chest, missionRPEarned: missionRP,
+      gcEarned: gcEarned, isCupMatch: isCupMatch);
+  }
+  static int _placementRP(PlayerStats s) {
+    // Wins in 5 placement games map to starting RP
+    const table = [0, 100, 300, 600, 1000, 1500];
+    return table[s.totalWins.clamp(0, 5)];
+  }
+  static PostGameResult _placementResult(PlayerStats s) =>
+    PostGameResult(rpChange:0, newRP:s.totalRP,
+      newLevel:RankSystem.getLevelInfo(s.totalRP).display,
+      leveledUp:false, promoTriggered:false,
+      chest:ChestType.wood, missionRPEarned:[],
+      gcEarned:0, isCupMatch:false);
+}
+10. Changes from Previous Specification
+What changed
+Previous spec
+Updated spec
+Reason
+Top rank name
+نابغة
+أمير 👑
+Royal Baloot brand. Unique. Different from Kammelna.
+RP bonuses for Kabout, Baloot
++ 4 RP and + 1 RP
+Removed from RP entirely → GC rewards
+Card luck should not affect rank
+RP bonuses for Qaid, Sawa
++ 2 RP each
+Removed from RP → GC rewards
+Players should use these freely without rank anxiety
+Win streak max bonus
++ 8 RP (at 5+ wins)
+Max + 4 RP (at 5+ wins)
+Prevents streak inflation. Mild form bonus only.
+RP calculation basis
+Individual player RP
+Team average RP
+Correct for 2v2 game
+Mission RP rewards
+Up to + 25 RP per mission
+XP + GC only — zero RP
+Missions are engagement tools, not rank tools
+First win of day
++ 3 RP
++ 100 XP only
+Habit reward not rank reward
+Number of rank levels
+9 (v4 had too many)
+6 (matches Kammelna structure)
+Familiar to Kammelna players. Simpler.
+Royal Cup
+Not in spec
+Full Cup system with tickets, +35/-35 RP, caps
+New — required by brief
+League / Tournament system
+Not in spec
+GC prize pools, 10% platform fee, sub required to host
+New — required by brief
+Every change above moves the system closer to the client's stated philosophy: RP reflects real competitive skill, while engagement mechanics (missions, Kabout, Baloot, Qaid, Sawa) reward players through the parallel economy of XP and Golden Cards. The two systems coexist without crossing into each other's domain.
+Royal Baloot — Complete Game Design Specification  |  August 2026  |  Response to Visca ME Brief
